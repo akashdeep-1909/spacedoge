@@ -2,12 +2,6 @@ import { createConfig, http, cookieStorage, createStorage } from "wagmi";
 import { sepolia, mainnet, bsc, polygon } from "wagmi/chains";
 import { injected, walletConnect } from "wagmi/connectors";
 
-// Doc section 2.1: "One approved USDT token contract on one EVM
-// network at launch." Sepolia is the safe default for development —
-// swap to mainnet (or the intended L2) only after the contract,
-// treasury and legal review in doc section 26.1 are complete.
-export const SUPPORTED_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? sepolia.id);
-
 // Shared by every component that needs to pick a connector — desktop
 // extensions and MetaMask/Trust Wallet's own in-app mobile browser both
 // inject window.ethereum the same way, so this is the one signal that
@@ -42,11 +36,13 @@ export async function waitForInjectedProvider(timeoutMs = 1500): Promise<boolean
   return false;
 }
 
-// BSC/Polygon are separate from SUPPORTED_CHAIN_ID above — that
-// constant is for SIWE sign-in only. Real EVM USDT deposits happen on
-// whichever chain a DepositChainConfig row points at (see
-// /admin/settings), regardless of which chain the wallet used to log
-// in, so every deposit-capable EVM chain needs to be registered here
+// SIWE sign-in itself is chain-agnostic — whatever network the wallet
+// happens to be on when it signs is fine, see auth-context.tsx/verify/
+// route.ts, neither of which check or require a specific chain. Real
+// EVM USDT deposits are the one thing that DOES care about chain, and
+// they happen on whichever chain a DepositChainConfig row points at
+// (see /admin/settings), independent of sign-in entirely, so every
+// deposit-capable EVM chain needs to be registered here
 // for the in-app "deposit from wallet" flow to prompt a network switch
 // and send a real transfer. An admin can add a DepositChainConfig row
 // for an EVM chain NOT in this list (WalletDepositButton just won't
@@ -63,12 +59,11 @@ export const DEPOSIT_CAPABLE_EVM_CHAIN_IDS = new Set<number>([bsc.id, polygon.id
 // wallets simply don't have enabled — MetaMask being dev-friendly
 // tolerated it, but this is the most likely reason Bitget Wallet
 // wouldn't connect at all, and probably added friction for Binance
-// Wallet too. Mainnet first fixes that for every wallet without
-// touching SUPPORTED_CHAIN_ID (still sepolia, still unused/dead outside
-// this file — this is only about which chain the WC handshake prefers,
-// not a "switch to mainnet for real money" change). sepolia/bsc/polygon
-// stay in the list as optionalChains either way, nothing they need
-// stops working.
+// Wallet too. Mainnet first fixes that for every wallet — this is only
+// about which chain the WC handshake prefers, unrelated to deposits
+// (those go through DEPOSIT_CAPABLE_EVM_CHAIN_IDS/DepositChainConfig
+// above, not this ordering). sepolia/bsc/polygon stay in the list as
+// optionalChains either way, nothing they need stops working.
 const chains = [mainnet, sepolia, bsc, polygon] as const;
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL;

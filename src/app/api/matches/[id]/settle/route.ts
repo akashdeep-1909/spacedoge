@@ -8,6 +8,7 @@ import {
   botScore,
   maxPlausibleScore,
   rankBotMatch,
+  rankByScore,
   rankKolBonusMatch,
   computeRankTierTargetsPts,
   rankTierResult,
@@ -36,12 +37,14 @@ const MIN_MATCH_SECONDS = 20; // anti-farming floor, mirrors the demo heuristic 
 // This is NOT a substitute for the real-time authoritative server the
 // doc requires before real money is at stake.
 //
-// Instant play is ALWAYS exactly 1 human + 3 bots (no lobby involved),
-// so the solo-vs-bots anti-farming rule (rankBotMatch) applies
-// unconditionally here — a human can never place 1st or 2nd in this
-// route, only 3rd or 4th (randomized per match). See src/lib/
+// Instant play is ALWAYS exactly 1 human + 3 bots (no lobby involved).
+// For every paid mode, the solo-vs-bots anti-farming rule (rankBotMatch)
+// applies unconditionally here — a human can never place 1st or 2nd in
+// this route, only 3rd or 4th (randomized per match). See src/lib/
 // game-config.ts's doc-comment above rankBotMatch/computeRankTier* for
-// the full reward-tier design.
+// the full reward-tier design. PRACTICE is the one exception — see
+// rankByScore's doc-comment for why the anti-farming guarantee doesn't
+// apply there.
 export async function POST(request: NextRequest, ctx: RouteContext<"/api/matches/[id]/settle">) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
@@ -117,11 +120,21 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/matches
       })
     );
 
-    // Solo-vs-bots rule: this route is always 1 human + 3 bots, so the
-    // human is guaranteed rank 3 or 4 here — never 1st or 2nd. The KOL
-    // referral gift is stricter still — every bot is guaranteed above
-    // the human (rankKolBonusMatch), so the human is always last.
-    const ranked = isKolBonus ? rankKolBonusMatch(scored, match.mapSeed) : rankBotMatch(scored, match.mapSeed);
+    // Solo-vs-bots rule: this route is always 1 human + 3 bots, so
+    // outside Practice the human is guaranteed rank 3 or 4 here — never
+    // 1st or 2nd. The KOL referral gift is stricter still — every bot is
+    // guaranteed above the human (rankKolBonusMatch), so the human is
+    // always last. Practice ranks purely by score instead (rankByScore)
+    // — no reward ever reaches a wallet from this mode, so there's
+    // nothing for the anti-farming guarantee to protect, and always
+    // capping a solo practice player at 3rd/4th regardless of how well
+    // they played read as unfair for a mode that's supposed to be a
+    // genuine skill check.
+    const ranked = isPractice
+      ? rankByScore(scored)
+      : isKolBonus
+        ? rankKolBonusMatch(scored, match.mapSeed)
+        : rankBotMatch(scored, match.mapSeed);
     const myRank = ranked.find((p) => p.id === me.id)?.rank ?? 4;
 
     // KOL_REFERRAL_BONUS reward is score-based and rank-independent —

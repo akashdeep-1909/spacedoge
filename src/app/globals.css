@@ -158,6 +158,20 @@ body {
   box-shadow: 0 0 18px rgba(45, 212, 167, 0.25);
 }
 
+/* Scrollable strips that scroll on purpose (e.g. the dashboard nav pill
+   when it has more links than fit) — hides the raw native scrollbar and
+   fades both edges so overflow reads as "scroll for more", not as
+   content getting clipped. */
+.scroll-fade-x {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  mask-image: linear-gradient(to right, transparent, black 20px, black calc(100% - 20px), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 20px, black calc(100% - 20px), transparent);
+}
+.scroll-fade-x::-webkit-scrollbar {
+  display: none;
+}
+
 .stat-value {
   font-variant-numeric: tabular-nums;
   font-weight: 800;

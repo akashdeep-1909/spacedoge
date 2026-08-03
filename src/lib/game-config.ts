@@ -393,6 +393,20 @@ export function rankTierResult(rank: number, gameplayScore: number, targets: Ran
   return { rank, targetPts, gameplayPts: gameplayScore, bonusPts, rewardPts: targetPts, rewardUsdt: targetPts / 1000 };
 }
 
+// PRACTICE mode's own ranking — plain score order, no bot guarantee.
+// rankBotMatch below exists to stop a human farming a top rank/reward
+// purely by being better than a bot that was never really in
+// contention; Practice has no reward to farm in the first place (PTS
+// is display-only there — settle/route.ts's isPractice branch never
+// writes a ledger entry, so nothing ever reaches the wallet), so
+// there's nothing for that guarantee to protect. Applying it anyway
+// only had a cost: a solo Practice player facing 3 bots could never
+// see rank 1 or 2 no matter how well they played, every single time —
+// worth avoiding once there's no anti-farming reason left to justify it.
+export function rankByScore<T extends { score: number }>(participants: T[]): (T & { rank: number })[] {
+  return [...participants].sort((a, b) => b.score - a.score).map((p, i) => ({ ...p, rank: i + 1 }));
+}
+
 // Rule 1 above, generalized to every human/bot mix this app's fixed
 // 4-seat rooms can produce (1-3 humans + bots filling the rest — a
 // full room of 4 humans has no bots at all and needs no special

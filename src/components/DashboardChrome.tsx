@@ -46,7 +46,7 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
             <p className="text-[11px] text-muted">{t("landing.tagline")}</p>
           </div>
         </Link>
-        <nav className="hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-full border border-line bg-panel p-1 text-xs font-semibold lg:flex">
+        <nav className="scroll-fade-x hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-full border border-line bg-panel p-1 text-xs font-semibold lg:flex">
           {NAV_LINKS.map((l) => (
             <Link
               key={l.href}
