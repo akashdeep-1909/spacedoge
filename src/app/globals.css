@@ -1,0 +1,165 @@
+@import "tailwindcss";
+
+/*
+  Space DOGE visual direction (doc section 15.3):
+  "graphite and near-black surfaces, restrained Doge gold, warm white
+  typography, mint for verified states and red only for risk alerts...
+  a premium lunar industrial facility rather than a noisy casino."
+*/
+:root {
+  --background: #0b0d10;
+  --panel: #14171c;
+  --panel-2: #1b1f26;
+  --line: rgba(255, 255, 255, 0.08);
+  --foreground: #f4f2ec;
+  --muted: #9aa1ab;
+  --gold: #c9a227;
+  --gold-soft: rgba(201, 162, 39, 0.14);
+  --mint: #2dd4a7;
+  --mint-soft: rgba(45, 212, 167, 0.14);
+  --risk: #ef4444;
+  --risk-soft: rgba(239, 68, 68, 0.14);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-line: var(--line);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-mint: var(--mint);
+  --color-mint-soft: var(--mint-soft);
+  --color-risk: var(--risk);
+  --color-risk-soft: var(--risk-soft);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-attachment: fixed;
+}
+
+/*
+  Neon Arcade layer — a "gaming HUD" treatment built on top of the doc's
+  existing gold/mint palette rather than replacing it: glowing edges,
+  angular clipped corners, gradient CTAs, pulse animations on live
+  state. Applied via utility classes so pages opt in per-element.
+*/
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201, 162, 39, 0.35), 0 0 18px 0 rgba(201, 162, 39, 0.25); }
+  50% { box-shadow: 0 0 0 4px rgba(201, 162, 39, 0), 0 0 28px 4px rgba(201, 162, 39, 0.4); }
+}
+@keyframes pulse-glow-mint {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(45, 212, 167, 0.35), 0 0 18px 0 rgba(45, 212, 167, 0.25); }
+  50% { box-shadow: 0 0 0 4px rgba(45, 212, 167, 0), 0 0 28px 4px rgba(45, 212, 167, 0.4); }
+}
+@keyframes float-coin {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-14px) rotate(10deg); }
+}
+@keyframes float-coin-alt {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(12px) rotate(-8deg); }
+}
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+@keyframes chip-glow {
+  0%, 100% { opacity: 0.45; text-shadow: 0 0 2px currentColor; }
+  50% { opacity: 1; text-shadow: 0 0 8px currentColor, 0 0 14px currentColor; }
+}
+@keyframes led-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.hud-corner {
+  clip-path: polygon(
+    14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px
+  );
+}
+
+.game-panel {
+  position: relative;
+  background: linear-gradient(155deg, var(--panel) 0%, var(--panel-2) 100%);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.game-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), var(--mint), transparent);
+  opacity: 0.6;
+}
+.game-panel:hover {
+  border-color: rgba(201, 162, 39, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(201, 162, 39, 0.15),
+    0 0 24px rgba(201, 162, 39, 0.15), 0 8px 24px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glow-gold { box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.35), 0 0 20px rgba(201, 162, 39, 0.25); }
+.glow-mint { box-shadow: 0 0 0 1px rgba(45, 212, 167, 0.35), 0 0 20px rgba(45, 212, 167, 0.25); }
+.glow-risk { box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.35), 0 0 20px rgba(239, 68, 68, 0.25); }
+
+.text-glow-gold { text-shadow: 0 0 16px rgba(201, 162, 39, 0.55); }
+.text-glow-mint { text-shadow: 0 0 16px rgba(45, 212, 167, 0.55); }
+
+.btn-game {
+  position: relative;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, var(--gold) 0%, #e8b93a 45%, var(--gold) 100%);
+  color: #17130a;
+  box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.5), 0 4px 0 0 #8a6e15, 0 8px 20px rgba(201, 162, 39, 0.35);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+}
+.btn-game:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.6), 0 5px 0 0 #8a6e15, 0 10px 26px rgba(201, 162, 39, 0.45);
+}
+.btn-game:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.5), 0 2px 0 0 #8a6e15, 0 4px 12px rgba(201, 162, 39, 0.3);
+}
+.btn-game:disabled { filter: grayscale(0.4); opacity: 0.5; }
+
+.btn-game-outline {
+  position: relative;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  border: 1px solid rgba(45, 212, 167, 0.35);
+  background: rgba(45, 212, 167, 0.06);
+  color: var(--mint);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.btn-game-outline:hover:not(:disabled) {
+  border-color: rgba(45, 212, 167, 0.7);
+  background: rgba(45, 212, 167, 0.12);
+  box-shadow: 0 0 18px rgba(45, 212, 167, 0.25);
+}
+
+.stat-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}

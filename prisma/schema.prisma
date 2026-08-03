@@ -1,0 +1,953 @@
+// Space DOGE — data model
+//
+// Mirrors the "Founder working document v4.0" sections 3, 6, 8, 9, 11, 13:
+// wallet-only identity, USDT game settlement, mining contracts/epochs,
+// wallet balances via an append-only ledger, and direct-only referrals.
+//
+// SIMPLIFICATION NOTE: LedgerEntry is an append-only single-entry ledger
+// (signed amount per balance type) rather than full chart-of-accounts
+// double-entry bookkeeping. It still satisfies the doc's "every financial
+// action produces an immutable ledger entry" rule and a balance is always
+// reconstructable as SUM(amount) per (walletProfileId, balanceType). Before
+// real money moves, have an accountant confirm this is sufficient or
+// extend it to true double-entry.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------
+// Identity — wallet-only, no username/password (doc section 3)
+// ---------------------------------------------------------------------
+
+model WalletProfile {
+  id                 String    @id @default(cuid())
+  address            String    @unique // lowercased EVM address
+  chainId            Int
+  countryCode        String? // access-control / jurisdiction screening
+  ageConfirmed       Boolean   @default(false)
+  termsVersion       String?
+  dogeAddress        String? // Phase 2 native DOGE payout destination, bound separately
+  dogeAddressBoundAt DateTime?
+  // Self-set, optional display name — shown in place of the wallet
+  // address anywhere this player is identified to OTHER players (in-
+  // game HUD, multiplayer match results, weekly leaderboard). Falls
+  // back to the shortened wallet address whenever null, exactly like
+  // before this existed. No uniqueness constraint — a low-stakes
+  // cosmetic label, not an identity claim.
+  nickname           String?   @db.VarChar(24)
+  riskFlag           String? // null | "review" | "blocked" — set only by Risk Service, never by users
+  // Admin-flagged Key Opinion Leader (src/app/admin/users/page.tsx).
+  // Plain on/off toggle, not a tri-state like riskFlag — no "unset"
+  // state makes sense here. A referral whose REFERRER has this set
+  // unlocks the one-time 3-play / 300-PTS KOL_REFERRAL_BONUS gift for
+  // the referred wallet (src/lib/referrals.ts checkKolBonusEligibility,
+  // src/app/api/matches/[id]/settle/route.ts).
+  isKol              Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  ledgerEntries             LedgerEntry[]
+  matchEntries              MatchParticipant[]
+  miningContracts           MiningContract[]
+  miningAllocations         MiningAllocation[]
+  miningContractAllocations MiningContractAllocation[]
+  referralAsReferrer        Referral[]                 @relation("Referrer")
+  referralAsReferred        Referral?                  @relation("Referred")
+  onchainDeposits           OnchainDeposit[]
+  withdrawals               Withdrawal[]
+  lobbiesHosted             GameLobby[]                @relation("LobbyHost")
+  lobbyParticipations       LobbyParticipant[]
+  invitationsSent           LobbyInvitation[]          @relation("InvitationSender")
+  invitationsReceived       LobbyInvitation[]          @relation("InvitationRecipient")
+  pushSubscriptions         PushSubscription[]
+  reserveSnapshotLeaves     ReserveSnapshotLeaf[]
+}
+
+// Browser Web Push subscriptions — one row per device/browser a wallet
+// has granted notification permission on (a wallet can have several,
+// e.g. phone + laptop). Used to notify a player of lobby invite/accept/
+// decline events even when they don't have the app open (src/lib/
+// push.ts) — this app otherwise has no way to reach someone who isn't
+// actively polling the page. `endpoint` is unique per browser
+// subscription (the push service's own delivery URL), used as the
+// natural idempotency key for re-subscribing.
+model PushSubscription {
+  id              String        @id @default(cuid())
+  walletProfileId String
+  walletProfile   WalletProfile @relation(fields: [walletProfileId], references: [id])
+  endpoint        String        @unique
+  p256dh          String
+  auth            String
+  createdAt       DateTime      @default(now())
+
+  @@index([walletProfileId])
+}
+
+// Single-use SIWE nonces. Issued before a wallet profile necessarily
+// exists, so it is keyed on address as plain text, not a foreign key.
+model AuthNonce {
+  id        String   @id @default(cuid())
+  address   String
+  nonce     String   @unique
+  used      Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([address])
+}
+
+// ---------------------------------------------------------------------
+// Wallet balances — append-only ledger (doc section 11)
+// ---------------------------------------------------------------------
+
+enum BalanceType {
+  PLAY_USDT // deposited, funds gameplay only
+  // v3 economy: a settled paid room credits PTS (below), not this
+  // directly anymore — PTS is manually converted into Game Reward
+  // USDT at a fixed 1000:1 rate (src/app/api/wallet/convert-pts).
+  // Locked to game-economy spending (mining activation/hashrate), never
+  // withdrawable directly (see src/app/api/wallet/withdraw/route.ts).
+  GAME_REWARD_USDT
+  // v3 economy: a settled paid room's score (capped at that match's
+  // prize pool, same self-funding guarantee the old direct-USDT credit
+  // had) is credited here as raw points, held until the player
+  // manually converts some/all of it into Game Reward USDT.
+  PTS
+  PENDING_DOGE // calculated epoch allocation awaiting reconciliation, not spendable
+  AVAILABLE_DOGE // reconciled mining allocation, withdrawable / convertible
+  RECYCLED_USDT // USDT received after converting Available DOGE
+  REFERRAL_USDT // v2 economy spec Part C: L1 (5%) + L2 (2%) of settled Game USDT, funded by the room referral reserve
+  // v3 economy: the platform's own real, ledger-tracked share of the
+  // 30% platform fee, net of whatever referral commission was actually
+  // paid out on that same entry. Credited to a synthetic "platform:
+  // treasury" WalletProfile (src/lib/treasury.ts), same convention as
+  // the "bot:<mapSeed>:<i>" profiles used for AI opponents.
+  PLATFORM_FEE_USDT
+  // Mining v2 economy — the "Protection Reserve" that smooths a mining
+  // contract's daily credited reward to its guaranteed target ROI:
+  // surplus days (real fleet performance above target) sweep in here,
+  // shortfall days draw from here (capped by balance), and any residual
+  // gap is closed once at contract expiry (src/lib/mining.ts's
+  // reconcileExpiredContracts). Same synthetic "platform:treasury"
+  // WalletProfile convention as PLATFORM_FEE_USDT above — deliberately
+  // NOT in CREDITABLE_BALANCE_TYPES (src/app/api/admin/users/[id]/credit),
+  // same exclusion already applied to PLATFORM_FEE_USDT. Funded via
+  // POST /api/admin/mining/reserve/top-up (manual) plus automatic daily
+  // surplus inflow — never a cut of a user's own purchase.
+  MINING_PROTECTION_RESERVE_USDT
+}
+
+model LedgerEntry {
+  id                String        @id @default(cuid())
+  walletProfileId   String
+  walletProfile     WalletProfile @relation(fields: [walletProfileId], references: [id])
+  balanceType       BalanceType
+  amount            Decimal       @db.Decimal(24, 8) // positive = credit, negative = debit
+  reason            String // short machine-readable reason code, e.g. "match_settlement", "rig_activation"
+  refType           String? // e.g. "Match", "MiningContract", "MiningEpoch", "Conversion"
+  refId             String? // id of the referenced row, for reconciliation
+  // Audit trail for admin-initiated entries only (e.g. reason
+  // "admin_manual_credit" from /api/admin/users/[id]/credit) — the
+  // lowercased EVM address of the admin who created it. Null for every
+  // other reason (deposits, settlements, referrals, etc.), which are
+  // never admin-initiated and need no such actor. "No administrator
+  // can directly edit a displayed balance" (src/lib/balances.ts) still
+  // holds — this doesn't let an admin edit anything, it's a normal new
+  // append-only entry like any other, just one with an attributable
+  // human behind it and an optional note (see LedgerEntry.reason /
+  // the request body) recorded for why.
+  adminActorAddress String?
+  // Free-text note, admin-entries only — "why" this credit was made
+  // (e.g. "support refund — ticket #482"), shown back on the user's
+  // own transaction history and in the admin ledger view.
+  note              String?
+  createdAt         DateTime      @default(now())
+
+  @@index([walletProfileId, balanceType])
+  @@index([refType, refId])
+}
+
+// ---------------------------------------------------------------------
+// Real on-chain USDT deposits — doc section 6.1 direction, but landing
+// on the platform's own cold wallet address rather than a vault
+// contract. A user's `from` address is matched against WalletProfile.
+// address (already proven via SIWE at login) so no memo/reference code
+// is needed for the EVM side. See src/lib/deposits.ts for the pollers.
+//
+// `chain` used to be a fixed `DepositChain{BEP20,TRC20}` enum; it's now
+// a free-text key matching DepositChainConfig.chainKey /
+// WithdrawChainConfig.chainKey below, so an admin can add a new chain
+// from /admin/settings without a migration. Nothing here enforces the
+// FK at the DB level (same loose-coupling convention as
+// WalletProfile.address elsewhere in this schema) — DepositChainConfig
+// is the source of truth admins edit; this column just records which
+// chainKey a given row was seen/withdrawn on.
+// ---------------------------------------------------------------------
+
+enum DepositStatus {
+  UNMATCHED // seen on-chain, sender address has no WalletProfile
+  PENDING // matched to a user, waiting for confirmations
+  CREDITED // confirmed and credited to PLAY_USDT — terminal, never re-credited
+}
+
+model OnchainDeposit {
+  id              String         @id @default(cuid())
+  chain           String // DepositChainConfig.chainKey, e.g. "BEP20", "TRC20"
+  txHash          String         @unique
+  fromAddress     String
+  toAddress       String
+  amount          Decimal        @db.Decimal(24, 8)
+  confirmations   Int            @default(0)
+  status          DepositStatus  @default(UNMATCHED)
+  walletProfileId String?
+  walletProfile   WalletProfile? @relation(fields: [walletProfileId], references: [id])
+  creditedAt      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([walletProfileId])
+  @@index([status])
+}
+
+enum WithdrawalStatus {
+  PENDING // requested — balance already debited, real transaction not sent yet
+  COMPLETED // an admin sent the real on-chain transaction and recorded its hash
+}
+
+// A real per-withdrawal record, replacing the old "instant, auto-
+// completed with a fake hash" flow — see /api/wallet/withdraw. The
+// requesting debit happens immediately (funds are reserved the moment
+// a user asks), but the row stays PENDING with no txHash until an
+// admin actually broadcasts the transaction and records its real hash
+// via /api/admin/withdrawals/[id]/complete.
+model Withdrawal {
+  id                 String           @id @default(cuid())
+  walletProfileId    String
+  walletProfile      WalletProfile    @relation(fields: [walletProfileId], references: [id])
+  balanceType        BalanceType // source balance debited — USDT chains debit RECYCLED_USDT/REFERRAL_USDT, the DOGE chain debits AVAILABLE_DOGE
+  chain              String // WithdrawChainConfig.chainKey, e.g. "BEP20", "TRC20", "DOGE"
+  destinationAddress String // the connected wallet the funds are sent back to (Phase 1: never an arbitrary address)
+  amount             Decimal          @db.Decimal(18, 8)
+  networkFeeUsdt     Decimal?         @db.Decimal(18, 8) // recorded by the admin on completion, real cost of the broadcast tx
+  status             WithdrawalStatus @default(PENDING)
+  txHash             String? // set by the admin once the real transaction is sent
+  createdAt          DateTime         @default(now())
+  completedAt        DateTime?
+
+  @@index([walletProfileId])
+  @@index([status])
+}
+
+// Tracks how far each chain's watcher (src/lib/deposits.ts) has
+// scanned. EVM chains store a block number here (eth_getLogs on a free
+// public RPC node is range-limited, so incoming transfers are found by
+// advancing this cursor forward in small chunks); the Tron watcher
+// doesn't need a block cursor at all (TronGrid's own API returns
+// recent transfers with a `confirmed` flag directly) so `lastBlock`
+// stays 0 for TRON-kind chains — harmless, just unused for that kind.
+model DepositWatcherCursor {
+  chain     String   @id // DepositChainConfig.chainKey
+  lastBlock BigInt
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------
+// Multi-chain deposit/withdrawal configuration — admin-editable at
+// runtime via /admin/settings, replacing the old single hardcoded
+// BEP20-only treasury fields on PlatformSettings. Each row is one
+// chain a user can deposit to (DepositChainConfig) or withdraw from
+// (WithdrawChainConfig); an admin can add more without a code deploy.
+// ---------------------------------------------------------------------
+
+// `kind` distinguishes which watcher logic in src/lib/deposits.ts
+// applies: "EVM" chains (BEP20 today, any other EVM chain later) are
+// scanned via eth_getLogs against `rpcUrl`; "TRON" chains are polled
+// via TronGrid's REST API (no rpcUrl needed, no block cursor needed).
+// A crucial limitation for TRON, documented in deposits.ts: this app
+// only ever proves EVM-address ownership at login (SIWE) — there's no
+// "connect your Tron wallet" step — so a Tron deposit's `from` address
+// can never match an existing WalletProfile and will always land
+// UNMATCHED, needing an admin's manual assign (same fallback path an
+// EVM deposit from an unrecognized sender already uses today). Real
+// self-service Tron auto-crediting needs a separate Tron-wallet-linking
+// feature, not just this config table.
+model DepositChainConfig {
+  id               String   @id @default(cuid())
+  chainKey         String   @unique // e.g. "BEP20", "TRC20" — also referenced by OnchainDeposit.chain
+  label            String // e.g. "BNB Smart Chain (BEP20)"
+  kind             String // "EVM" | "TRON"
+  tokenContract    String // ERC20/TRC20 USDT contract address for this chain
+  tokenDecimals    Int      @default(18) // BEP20 USDT uses 18; Tron's USDT-TRC20 uses 6 (TronGrid reports this directly, this is just the configured expectation)
+  minConfirmations Int      @default(15) // EVM only — TRON crediting instead waits for TronGrid's own `confirmed` flag
+  rpcUrl           String? // EVM only, e.g. a BSC/Ethereum JSON-RPC endpoint
+  evmChainId       Int? // EVM only — the numeric chain id (56=BSC, 137=Polygon, 1=Ethereum) WalletDepositButton needs to prompt the right network switch. Must also be registered in src/lib/wagmi.ts's DEPOSIT_CAPABLE_EVM_CHAIN_IDS or the in-wallet deposit button won't render for this chain (manual address/QR + verify-by-hash still work regardless).
+  explorerTxUrl    String? // e.g. "https://bscscan.com/tx/" — txHash appended directly; null falls back to a small built-in default per chainKey
+  enabled          Boolean  @default(true) // shown on the user Deposit page and scanned by the watcher
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  addresses DepositTreasuryAddress[]
+}
+
+// A pool of receive addresses per chain, split across users instead of
+// everyone sharing one well-known treasury address. Deliberately
+// stateless — no per-wallet assignment row anywhere. Which address a
+// given wallet sees is computed on the fly (see getDepositAddressForWallet
+// in src/lib/deposits.ts): a stable hash of the wallet's id, modulo
+// however many addresses currently exist for that chain. With 1 address
+// everyone sees it; with 2, roughly half see each; with 3, roughly a
+// third each; and so on — adding or removing an address changes the
+// modulo and reshuffles the split automatically, no admin action beyond
+// add/delete needed. This works safely because crediting never depended
+// on which address the funds land on in the first place
+// (src/lib/deposits.ts matches a deposit to a user by the SENDER's
+// address against WalletProfile, not by the receiving address) — so
+// a wallet's computed address can change over time (when the pool size
+// changes) without breaking attribution, and the watcher keeps scanning
+// every address ever added regardless of whether it's anyone's current
+// pick.
+model DepositTreasuryAddress {
+  id            String             @id @default(cuid())
+  chainConfigId String
+  chainConfig   DepositChainConfig @relation(fields: [chainConfigId], references: [id], onDelete: Cascade)
+  address       String
+  sortOrder     Int                @default(0)
+  createdAt     DateTime           @default(now())
+
+  @@unique([chainConfigId, address])
+}
+
+// One row per chain a user can choose as a withdrawal destination.
+// `coinSymbol` drives the withdraw page's UI: "USDT" chains let the
+// user pick a source balance (Recycled/Referral USDT, same as today);
+// the "DOGE" chain has exactly one valid source (AVAILABLE_DOGE) so no
+// picker is shown. Every withdrawal is still completed by an admin
+// manually broadcasting the real transaction (see Withdrawal model) —
+// adding a chain/coin here never implies automated sending.
+model WithdrawChainConfig {
+  id            String   @id @default(cuid())
+  chainKey      String   @unique // e.g. "BEP20", "TRC20", "DOGE" — also referenced by Withdrawal.chain
+  label         String // e.g. "BNB Smart Chain (BEP20)"
+  coinSymbol    String   @default("USDT") // "USDT" | "DOGE"
+  addressRegex  String // JS regex source (no flags) used for client+server format validation
+  explorerTxUrl String? // e.g. "https://bscscan.com/tx/" — null falls back to a small built-in default per chainKey
+  enabled       Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------
+// Game — Coin Rush Arena rooms and settlement (doc section 5, 6)
+// ---------------------------------------------------------------------
+
+// QUICK_RUSH and PRO_RUSH are kept as the enum keys for "Rookie Rush"
+// ($1) and "Pro Rush" ($5) from the locked v2 economy spec — their
+// entry fees already matched the spec exactly, so only their config
+// (src/lib/game-config.ts) changed, not the stored enum value, to
+// avoid an enum-rename migration touching historical Match rows.
+// SPONSORED_DROP/FORGE_CUP are pre-v2 free-ticket modes the v2 spec is
+// silent on (not contradicted) — left running as-is.
+enum GameMode {
+  PRACTICE
+  QUICK_RUSH // "Rookie Rush" — 1 USDT
+  EXPLORER_RUSH // 2 USDT
+  PRO_RUSH // "Pro Rush" — 5 USDT
+  ELITE_RUSH // 10 USDT
+  CHAMPION_RUSH // 25 USDT
+  SPONSORED_DROP
+  FORGE_CUP
+  // KOL referral gift: solo-vs-3-bots, free entry, exactly 3 lifetime
+  // plays per referred wallet (referrer must have WalletProfile.isKol),
+  // shared 300-PTS (0.3 USDT) cap across all 3 — see src/lib/
+  // referrals.ts's checkKolBonusEligibility().
+  KOL_REFERRAL_BONUS
+}
+
+enum MatchStatus {
+  RESERVED
+  IN_MATCH
+  PROVISIONAL
+  SETTLED_WIN
+  SETTLED_LOSS
+  // v3 multiplayer: a lobby-originated match's terminal settled state.
+  // SETTLED_WIN/SETTLED_LOSS are inherently single-human ("did I win"),
+  // but a multi-human room can have different personal outcomes per
+  // participant in the very same match — each MatchParticipant's own
+  // rank/rewardUsdt carries the personal outcome instead. Instant play
+  // (still always exactly 1 human) keeps using SETTLED_WIN/SETTLED_LOSS
+  // unchanged via the untouched /api/matches/[id]/settle route.
+  SETTLED
+  CANCELLED
+  UNDER_REVIEW
+  REVERSED
+}
+
+model Match {
+  id                  String      @id @default(cuid())
+  mode                GameMode
+  entryFeeUsdt        Decimal     @db.Decimal(18, 6)
+  prizePoolUsdt       Decimal     @db.Decimal(18, 6)
+  platformFeeUsdt     Decimal     @db.Decimal(18, 6)
+  // v2 economy spec Part A/K: M=0.10T mining reserve, R=0.05T referral
+  // reserve, computed and recorded per room the same way
+  // platformFeeUsdt already was. Default 0 so historical rows (created
+  // before this column existed) read as "no reserve," not null.
+  miningReserveUsdt   Decimal     @default(0) @db.Decimal(18, 6)
+  referralReserveUsdt Decimal     @default(0) @db.Decimal(18, 6)
+  status              MatchStatus @default(RESERVED)
+  mapSeed             String // identical for every participant — fairness criterion 5.3
+  startedAt           DateTime?
+  endedAt             DateTime?
+  createdAt           DateTime    @default(now())
+  // v3 multiplayer: null for instant-play matches (single-shot /settle
+  // has no waiting concept). Set at lobby finalize time for
+  // lobby-originated matches — the deadline by which every human
+  // participant must call /api/matches/[id]/results before a
+  // no-show is scored 0 and finalization proceeds without them.
+  resultsDeadlineAt   DateTime?
+  // v3 admin-configurable modes: the duration this specific match was
+  // actually created under, snapshotted at creation time — same
+  // "historical snapshot, never re-derived from possibly-changed
+  // current config" precedent as entryFeeUsdt/prizePoolUsdt above.
+  // Null for rows created before this column existed; settle/results
+  // routes fall back to the static GAME_MODE_CONFIG default for those.
+  durationSec         Int?
+
+  participants MatchParticipant[]
+  lobby        GameLobby?
+}
+
+// Admin-editable game mode parameters — same lazy-seed-on-first-read
+// convention as DepositChainConfig/WithdrawChainConfig (src/lib/
+// settings.ts): the table starts empty, gets seeded with the exact
+// hardcoded defaults from src/lib/game-config.ts the first time it's
+// read (src/lib/gameModes.ts), so nothing changes behaviorally until
+// an admin actually edits a row. `mode` stays tied to the fixed
+// GameMode enum — this configures the 8 existing modes' parameters,
+// it does not support inventing new modes beyond that set (see the
+// plan's scope-boundary note for why: GameMode is used as a
+// Record<GameMode,...> key and a Prisma enum column throughout the
+// match/lobby/settlement code, not a free-text/FK reference).
+model GameModeConfig {
+  id                     String   @id @default(cuid())
+  mode                   GameMode @unique
+  label                  String
+  description            String
+  entryFeeUsdt           Decimal  @default(0) @db.Decimal(18, 6)
+  durationSec            Int
+  enabled                Boolean  @default(true)
+  prefundedPoolUsdt      Decimal? @db.Decimal(18, 6) // SPONSORED_DROP/FORGE_CUP only
+  cooldownHours          Int? // SPONSORED_DROP/FORGE_CUP only — how often one wallet may re-enter
+  // Activity-eligibility gate: a wallet must have played at least
+  // eligibilityMinPlays matches (any mode, isBot: false) in the last
+  // eligibilityWindowHours to even see this mode. Null on both = no
+  // gate (every stakes/free mode). See checkPromoEligibility() in
+  // src/lib/gameModes.ts.
+  eligibilityWindowHours Int?
+  eligibilityMinPlays    Int?
+  sortOrder              Int      @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model MatchParticipant {
+  id                  String        @id @default(cuid())
+  matchId             String
+  match               Match         @relation(fields: [matchId], references: [id])
+  walletProfileId     String
+  walletProfile       WalletProfile @relation(fields: [walletProfileId], references: [id])
+  isBot               Boolean       @default(false)
+  score               Int           @default(0)
+  rank                Int?
+  // 8dp to match LedgerEntry's precision (doc 3.5: "internal
+  // calculations to at least eight decimal places") — was previously
+  // Decimal(18,6), which silently truncated the proportional-reward
+  // formula's precision on write even though the actual ledger credit
+  // (source of truth for balances) was already stored correctly.
+  rewardUsdt          Decimal       @default(0) @db.Decimal(18, 8)
+  eventLogHash        String? // integrity hash of the server-authoritative replay/input log
+  createdAt           DateTime      @default(now())
+  // v3 multiplayer, nullable — null for every pre-existing row and for
+  // instant-play matches created via POST /api/matches directly (still
+  // always 1 human + 3 bots, no lobby involved). Populated for
+  // lobby-originated matches (see src/lib/lobby.ts finalizeLobby):
+  // slotNumber carried over from LobbyParticipant, joinSource one of
+  // HOST | DIRECT_INVITE | INVITE_LINK | AI_FILL.
+  slotNumber          Int?
+  joinSource          String?
+  // v3 multiplayer: raw score/duration this participant reported via
+  // POST /api/matches/[id]/results, before final ranking/reward is
+  // computed once all humans have submitted (or the deadline passes).
+  // Null until they submit. Instant-play's /settle route doesn't use
+  // this column at all — it ranks+rewards synchronously in one call.
+  resultSubmittedAt   DateTime?
+  // Set at submission time if this human's own score/duration failed
+  // the plausibility check (src/lib/game-config.ts maxPlausibleScore) —
+  // their score is already zeroed for ranking purposes either way, but
+  // finalization (which may run on a LATER call, triggered by a
+  // different human or the results deadline) still needs to know who
+  // was blocked to correctly deny them that rank's reward. Null = not
+  // blocked (or hasn't submitted yet).
+  resultBlockedReason String?
+
+  @@unique([matchId, walletProfileId])
+  @@index([walletProfileId])
+}
+
+// ---------------------------------------------------------------------
+// Multiplayer lobbies — "Play with Friends" (v3): 1-4 real humans join
+// the same room before a Match is created, remaining seats auto-filled
+// by bots. The room economy (prize pool / platform fee / referral
+// split / treasury credit) is computed and credited exactly once, at
+// finalize time, by src/lib/lobby.ts finalizeLobby() — never per
+// invited human. See src/app/api/matches/route.ts for the
+// single-human instant-play path this deliberately does NOT touch.
+// ---------------------------------------------------------------------
+
+enum LobbyStatus {
+  WAITING // accepting joins, 60s countdown running
+  FULL // all 4 human seats filled, about to finalize
+  FILLING_AI // host started early or countdown elapsed, finalizing with bot fill
+  STARTING // claimed by exactly one finalize attempt (optimistic-concurrency guard, see `version`)
+  STARTED // finalized — finalMatchId is set
+  CANCELLED // host cancelled before start — all entry holds released
+  EXPIRED // reserved for a lobby that hit its deadline with zero joined humans left (edge case; normally EXPIRED transitions straight to FILLING_AI/STARTED instead)
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+  ROOM_FULL
+  MATCH_STARTED
+}
+
+model GameLobby {
+  id                  String        @id @default(cuid())
+  roomCode            String        @unique // short shareable code, e.g. "K7F2QX"
+  hostWalletProfileId String
+  host                WalletProfile @relation("LobbyHost", fields: [hostWalletProfileId], references: [id])
+  mode                GameMode
+  entryFeeUsdt        Decimal       @db.Decimal(18, 6)
+  durationSec         Int
+  status              LobbyStatus   @default(WAITING)
+  mapSeed             String // generated at lobby creation, reused by finalizeLobby — never client-supplied
+  inviteTokenHash     String?       @unique // active invite-link token's hash; null = link disabled
+  inviteTokenVersion  Int           @default(1) // bumped on regenerate/disable, invalidating the old token
+  expiresAt           DateTime // server-authoritative 60s join-window deadline
+  startedAt           DateTime?
+  cancelledAt         DateTime?
+  finalMatchId        String?       @unique
+  finalMatch          Match?        @relation(fields: [finalMatchId], references: [id])
+  version             Int           @default(0) // optimistic-concurrency guard so only one request can finalize/cancel
+  createdAt           DateTime      @default(now())
+
+  participants LobbyParticipant[]
+  invitations  LobbyInvitation[]
+
+  @@index([status, expiresAt])
+}
+
+model LobbyParticipant {
+  id                String        @id @default(cuid())
+  lobbyId           String
+  lobby             GameLobby     @relation(fields: [lobbyId], references: [id])
+  walletProfileId   String
+  walletProfile     WalletProfile @relation(fields: [walletProfileId], references: [id])
+  slotNumber        Int
+  joinSource        String // HOST | DIRECT_INVITE | INVITE_LINK
+  // Points at the PLAY_USDT debit LedgerEntry (reason: "match_entry_hold")
+  // created when this seat was reserved. On cancel/leave-before-start a
+  // matching "match_entry_hold_release" credit is created and this
+  // participant's status flips to LEFT. On finalize, nothing further
+  // happens to the hold entry — it simply never gets released, which
+  // *is* consumption (no separate "consumed" ledger entry, to avoid
+  // double-counting against the hold debit already in the ledger).
+  entryHoldLedgerId String?
+  status            String        @default("JOINED") // JOINED | LEFT
+  joinedAt          DateTime      @default(now())
+  leftAt            DateTime?
+
+  @@unique([lobbyId, walletProfileId])
+  @@unique([lobbyId, slotNumber])
+}
+
+model LobbyInvitation {
+  id                       String           @id @default(cuid())
+  lobbyId                  String
+  lobby                    GameLobby        @relation(fields: [lobbyId], references: [id])
+  senderWalletProfileId    String
+  sender                   WalletProfile    @relation("InvitationSender", fields: [senderWalletProfileId], references: [id])
+  recipientWalletProfileId String
+  recipient                WalletProfile    @relation("InvitationRecipient", fields: [recipientWalletProfileId], references: [id])
+  status                   InvitationStatus @default(PENDING)
+  expiresAt                DateTime
+  acceptedAt               DateTime?
+  declinedAt               DateTime?
+  createdAt                DateTime         @default(now())
+
+  @@index([lobbyId])
+  @@index([recipientWalletProfileId, status])
+}
+
+// ---------------------------------------------------------------------
+// Mining — contracts, epochs, allocations (doc section 8, 9)
+// ---------------------------------------------------------------------
+
+// v2 economy spec Part F: SPARK replaces the pre-v2 STARTER name —
+// same enum position, renamed via migration (not a new value), so
+// historical MiningContract rows keep referring to the same rig tier.
+enum MiningLevel {
+  SPARK
+  SCOUT
+  ROVER
+  LUNAR
+  DEEP_CORE
+  ORBITAL
+}
+
+model MiningContract {
+  id                          String        @id @default(cuid())
+  walletProfileId             String
+  walletProfile               WalletProfile @relation(fields: [walletProfileId], references: [id])
+  level                       MiningLevel
+  // MH/s purchased at the fixed 25 MH/s-per-USDT rate (mining v2
+  // economy model — was 22.5 pre-v2). Decimal because the rate produces
+  // fractional MH/s (e.g. 5 USDT = 125 MH/s).
+  miningPower                 Decimal       @db.Decimal(18, 4)
+  termDays                    Int
+  pricePaidUsdt               Decimal       @db.Decimal(18, 6)
+  startsAt                    DateTime
+  expiresAt                   DateTime
+  active                      Boolean       @default(true)
+  createdAt                   DateTime      @default(now())
+  // Mining v2 economy — snapshotted from MiningEconomicsConfig at
+  // purchase time, so a later admin change to the platform default
+  // never retroactively changes an already-sold contract's own promised
+  // ROI. Target reward = pricePaidUsdt * (1 + targetRoiPct), reached by
+  // expiresAt (see reconcileExpiredContracts in src/lib/mining.ts).
+  targetRoiPct                Decimal       @default(0.10) @db.Decimal(6, 4)
+  // Running total of what this contract has actually been credited to
+  // date, valued in USDT-equivalent at each day's credit-time DOGE/USDT
+  // rate — the Day-180 reconciliation comparator against
+  // pricePaidUsdt*(1+targetRoiPct). Incremented inside
+  // settleEpochForDate's per-contract loop, never decremented.
+  cumulativeCreditedUsdtEquiv Decimal       @default(0) @db.Decimal(18, 8)
+  // Set exactly once, by reconcileExpiredContracts(), once this
+  // contract's own term has fully elapsed — idempotency guard so the
+  // Day-180 close-out (and its potential reserve top-up) never runs
+  // twice for the same contract.
+  reconciledAt                DateTime?
+  // Set only if, at reconciliation, cumulativeCreditedUsdtEquiv still
+  // fell short of the target reward even after drawing everything
+  // available from the Protection Reserve — i.e. the reserve was
+  // insufficient to fully honor the guarantee. Null = target fully met
+  // (the expected case). Admin visibility only, never surfaced to the
+  // user as a broken promise without context.
+  finalShortfallUsdt          Decimal?      @db.Decimal(18, 8)
+
+  contractAllocations MiningContractAllocation[]
+
+  @@index([walletProfileId, active])
+}
+
+// One row per mining epoch (recommended: one UTC day). Demo/simulated
+// data until a real provider/pool API is integrated — see seed script
+// and MiningDataService notes in src/lib/mining.
+model MiningEpoch {
+  id                      String    @id @default(cuid())
+  epochDate               DateTime  @unique
+  contractedHashrate      Decimal   @db.Decimal(18, 4) // GH/s Scrypt
+  observedHashrate        Decimal   @db.Decimal(18, 4)
+  grossOutputDoge         Decimal   @db.Decimal(24, 8)
+  poolProviderFeesDoge    Decimal   @db.Decimal(24, 8)
+  maintenanceCostDoge     Decimal   @db.Decimal(24, 8)
+  reserveContributionDoge Decimal   @db.Decimal(24, 8)
+  netDistributableDoge    Decimal   @db.Decimal(24, 8)
+  totalEffectiveMp        Decimal   @db.Decimal(24, 4)
+  status                  String    @default("PENDING") // PENDING | RECONCILED | CORRECTED
+  isSimulated             Boolean   @default(true) // false only once wired to a real provider feed
+  publishedAt             DateTime?
+  createdAt               DateTime  @default(now())
+
+  allocations         MiningAllocation[]
+  contractAllocations MiningContractAllocation[]
+}
+
+model MiningAllocation {
+  id              String        @id @default(cuid())
+  epochId         String
+  epoch           MiningEpoch   @relation(fields: [epochId], references: [id])
+  walletProfileId String
+  walletProfile   WalletProfile @relation(fields: [walletProfileId], references: [id])
+  effectiveMp     Decimal       @db.Decimal(24, 4)
+  dogeAllocated   Decimal       @db.Decimal(24, 8)
+  createdAt       DateTime      @default(now())
+
+  @@unique([epochId, walletProfileId])
+  @@index([walletProfileId])
+}
+
+// Mining v2 economy — one row per CONTRACT per settled day (as opposed
+// to MiningAllocation above, which is per-WALLET and rolls up every one
+// of that wallet's stacked contracts together). This per-contract
+// granularity is what Day-180 reconciliation (each contract has its own
+// price/target/expiry) and the admin platform-revenue report need.
+// MiningAllocation is untouched and keeps powering the existing
+// per-wallet history charts exactly as before — this table is
+// additive, not a replacement.
+model MiningContractAllocation {
+  id                           String         @id @default(cuid())
+  epochId                      String
+  epoch                        MiningEpoch    @relation(fields: [epochId], references: [id])
+  contractId                   String
+  contract                     MiningContract @relation(fields: [contractId], references: [id])
+  walletProfileId              String
+  walletProfile                WalletProfile  @relation(fields: [walletProfileId], references: [id])
+  effectiveMp                  Decimal        @db.Decimal(24, 4) // this contract's own hashrate-hours for the day
+  grossShareUsdt               Decimal        @db.Decimal(18, 8)
+  electricityShareUsdt         Decimal        @db.Decimal(18, 8)
+  poolFeeShareUsdt             Decimal        @db.Decimal(18, 8)
+  organicNetUsdt               Decimal        @db.Decimal(18, 8) // grossShare - electricityShare - poolFeeShare
+  targetUsdt                   Decimal        @db.Decimal(18, 8) // pricePaidUsdt*(1+targetRoiPct)/termDays
+  // organicNetUsdt - targetUsdt, signed. Positive = swept into the
+  // Protection Reserve that day. Negative = a shortfall the reserve
+  // was asked to cover (see reserveDrawUsdt).
+  serviceVarianceDeductionUsdt Decimal        @db.Decimal(18, 8)
+  // >0 only on a shortfall day, capped by the reserve's actual balance
+  // at settlement time — if this is less than the shortfall implied by
+  // serviceVarianceDeductionUsdt, the reserve was insolvent that day.
+  reserveDrawUsdt              Decimal        @default(0) @db.Decimal(18, 8)
+  // What the wallet was actually credited today, USDT-equivalent —
+  // equals targetUsdt whenever the reserve could fully cover a
+  // shortfall, otherwise organicNetUsdt + reserveDrawUsdt (less than
+  // target, an honest reserve-insolvency edge case).
+  creditedUsdt                 Decimal        @db.Decimal(18, 8)
+  dogeUsdtRate                 Decimal        @db.Decimal(18, 8) // the rate used to convert creditedUsdt -> DOGE this settlement
+  creditedDoge                 Decimal        @db.Decimal(24, 8)
+  createdAt                    DateTime       @default(now())
+
+  @@unique([epochId, contractId])
+  @@index([contractId])
+  @@index([walletProfileId])
+}
+
+// Mining v2 economy — admin-configurable fleet economics (doc sections
+// 7/9/11/13's reference-fleet numbers), same lazy-seed-on-first-read
+// singleton pattern as PlatformSettings (see src/lib/mining-settings.ts).
+// Defaults below are the doc's own worked-example numbers.
+model MiningEconomicsConfig {
+  id                               String   @id @default("singleton")
+  // Total sellable capacity across the whole platform — "one L9"
+  // (16,000 MH/s), all sellable (mining v2 drops the old 10%-held-back
+  // reserve model). Raise this as more fleet capacity is notionally
+  // added; replaces the old static SELLABLE_CAPACITY_MHS constant.
+  fleetCapacityMhs                 Decimal  @default(16000) @db.Decimal(18, 4)
+  // NiceHash-quoted gross income for one fully-utilized fleet, per
+  // month — the reference rate every day's payout scales from.
+  referenceMonthlyGrossUsdt        Decimal  @default(228.43) @db.Decimal(18, 6)
+  minerPowerKw                     Decimal  @default(3.36) @db.Decimal(10, 4)
+  // User-facing electricity deduction rate.
+  electricityRateUsdtPerKwh        Decimal  @default(0.04) @db.Decimal(10, 6)
+  // Platform-internal hosting/cooling rate (doc section 13) —
+  // deliberately different from the user-facing rate above; used only
+  // by the read-only admin platform-economics report, never in the
+  // per-wallet daily settlement math.
+  hostingElectricityRateUsdtPerKwh Decimal  @default(0.01) @db.Decimal(10, 6)
+  // Doc's own explicit "model assumption... replace with the actual
+  // pool, conversion and settlement fee in production."
+  poolFeePct                       Decimal  @default(0.02) @db.Decimal(6, 4)
+  // Default snapshotted onto every NEW contract at purchase time —
+  // existing contracts keep whatever value they were sold under
+  // (MiningContract.targetRoiPct), unaffected by later changes here.
+  targetRoiPct                     Decimal  @default(0.10) @db.Decimal(6, 4)
+  // +/- band width around the reference rate, seeded per UTC day —
+  // same mechanic as the pre-v2 dailyRatePerMhsDay noise, now tunable.
+  dailyVarianceBandPct             Decimal  @default(0.10) @db.Decimal(6, 4)
+  // Doc section 13 — platform's own share of total mining revenue.
+  platformProfitAllocationPct      Decimal  @default(0.33) @db.Decimal(6, 4)
+  // Doc section 11 — reference gross floor needed to sustain the
+  // target ROI without drawing the reserve. Admin-visible alert only,
+  // does not automatically block anything.
+  profitabilityThresholdUsdt       Decimal  @default(218.47) @db.Decimal(18, 6)
+  // Admin-visible low-balance warning threshold for the Protection
+  // Reserve. Null = no warning shown.
+  reserveLowBalanceThresholdUsdt   Decimal? @db.Decimal(18, 2)
+  // Manual kill-switch checked by POST /api/mining/purchase-power —
+  // deliberately NOT automatic (ordinary daily variance would otherwise
+  // false-positive-trigger it before the reserve has any cushion).
+  newContractsPaused               Boolean  @default(false)
+  updatedAt                        DateTime @updatedAt
+  updatedByAddress                 String?
+}
+
+// ---------------------------------------------------------------------
+// Referrals — v2 economy spec Part C: two levels (direct 5% + one hop
+// up indirect 2% of settled Game USDT). Each row is still a single
+// referrer->referred edge; Level 2 is derived by walking one more hop
+// (the direct referrer's own Referral row) in src/lib/referrals.ts,
+// not a separate column — the 1:1 edge structure already supports
+// that without a schema change.
+// ---------------------------------------------------------------------
+
+enum ReferralStatus {
+  PENDING // no reward paid through this edge yet
+  QUALIFIED // at least one L1/L2 reward has been paid through this edge
+  REWARDED // unused by the current (repeatable, per-match) reward model — kept for historical rows
+  REJECTED
+}
+
+model Referral {
+  id                String         @id @default(cuid())
+  referrerProfileId String
+  referrer          WalletProfile  @relation("Referrer", fields: [referrerProfileId], references: [id])
+  referredProfileId String         @unique
+  referred          WalletProfile  @relation("Referred", fields: [referredProfileId], references: [id])
+  status            ReferralStatus @default(PENDING)
+  qualifiedAt       DateTime?
+  rewardedAt        DateTime?
+  // Legacy one-time MP-grant model (pre-v2) — no longer written by new
+  // code, kept only so historical rows still read correctly.
+  bonusMpNewUser    Int?
+  bonusMpReferrer   Int?
+  createdAt         DateTime       @default(now())
+
+  @@index([referrerProfileId])
+}
+
+// ---------------------------------------------------------------------
+// Weekly leaderboard — pre-funded pool, ranked by score (doc section 22.1)
+// ---------------------------------------------------------------------
+
+// One row per finalized ISO week (Monday 00:00 UTC start), created
+// lazily the first time that week is queried after it ends — mirrors
+// MiningEpoch's lazy-finalization pattern. `weekStart` uniqueness is
+// what makes payout idempotent: a week is scored and paid exactly once.
+model WeeklyLeaderboardPayout {
+  id        String   @id @default(cuid())
+  weekStart DateTime @unique
+  weekEnd   DateTime
+  poolUsdt  Decimal  @db.Decimal(18, 6)
+  results   Json // [{ walletProfileId, address, rank, score, rewardUsdt }]
+  createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------
+// Platform settings — admin-editable at runtime, replacing what used to
+// be .env-only config (treasury address, admin allowlist, social
+// links). Every column is nullable: null means "not overridden, fall
+// back to the .env value" (see src/lib/settings.ts), so an existing
+// deploy with no admin action yet keeps behaving exactly as before —
+// this table only ever narrows behavior when an admin explicitly sets
+// something, never silently changes it on migrate.
+// ---------------------------------------------------------------------
+
+// Treasury/deposit fields (address, contract, confirmations) moved to
+// DepositChainConfig — one platform can have several deposit chains
+// now, so a single flat field per value no longer makes sense here.
+// What's left is genuinely platform-wide, not per-chain: withdrawal
+// minimums (one per coin, since e.g. all USDT withdrawal chains share
+// the same $ minimum regardless of which chain sends it) and social
+// links.
+model PlatformSettings {
+  id                     String   @id @default("singleton") // exactly one row, ever
+  minUsdtWithdrawal      Decimal? @db.Decimal(18, 2) // overrides src/lib/withdrawals.ts DEFAULT_MIN_USDT_WITHDRAWAL
+  minDogeWithdrawal      Decimal? @db.Decimal(18, 8) // overrides src/lib/withdrawals.ts DEFAULT_MIN_DOGE_WITHDRAWAL
+  twitterUrl             String?
+  telegramUrl            String?
+  discordUrl             String?
+  youtubeUrl             String?
+  // Overrides NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID (src/lib/wagmi.ts) —
+  // lets an admin set/rotate the WalletConnect Cloud (cloud.reown.com)
+  // project ID at runtime, no redeploy. Blank/null falls back to the
+  // env var; if that's also unset, the walletConnect connector is
+  // omitted entirely and mobile users without an injected wallet get a
+  // "open this in your wallet app's browser instead" message.
+  walletConnectProjectId String?
+  // Weekly leaderboard reward is OFF by default — no pool is paid out
+  // until an admin explicitly enables it AND sets a pool amount here
+  // (src/lib/leaderboard.ts's ensureWeekFinalized/getLiveStandings both
+  // check this before crediting anything). With either left unset, the
+  // page still shows real rankings computed from real settled matches —
+  // it just never pays a reward.
+  weeklyLeaderboardEnabled  Boolean  @default(false)
+  weeklyLeaderboardPoolUsdt Decimal? @db.Decimal(24, 8)
+  updatedAt              DateTime @updatedAt
+  updatedByAddress       String? // lowercased EVM address of the admin who last saved
+}
+
+// DB-backed admin allowlist, additive to the ADMIN_ADDRESSES env var
+// (see src/lib/admin.ts) rather than replacing it — env stays as the
+// bootstrap mechanism so the first admin can always get in even before
+// any DB row exists, and so a DB outage/mistake can never fully lock
+// every admin out.
+model AdminUser {
+  id             String   @id @default(cuid())
+  address        String   @unique // lowercased EVM address
+  addedByAddress String? // lowercased EVM address of the admin who added this one
+  createdAt      DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------
+// Deposit proof-of-reserves — a Merkle tree over every wallet's PLAY_USDT
+// ledger balance (the only BalanceType that represents actual deposited
+// money, see BalanceType's own comments), same "reconstruct from the
+// ledger, never a mutable stored balance" convention every other balance
+// in this app follows (src/lib/balances.ts getWalletBalances). One
+// immutable snapshot per UTC day, same lazy-build-if-missing convention
+// MiningEpoch already uses (src/lib/mining.ts settleYesterdayIfNeeded) —
+// see src/lib/reserve-snapshot.ts buildReserveSnapshotIfNeeded.
+//
+// The published merkleRoot lets anyone verify the aggregate is
+// internally consistent; it does NOT by itself prove the platform's
+// real on-chain treasury covers that total — see the honesty note next
+// to where this is displayed (src/components/pool/PoolExplorer.tsx).
+model ReserveSnapshot {
+  id               String   @id @default(cuid())
+  snapshotDate     DateTime @unique // UTC day start
+  merkleRoot       String // 0x-prefixed keccak256 hex
+  totalWallets     Int
+  totalDepositUsdt Decimal  @db.Decimal(24, 8)
+  createdAt        DateTime @default(now())
+
+  leaves ReserveSnapshotLeaf[]
+}
+
+model ReserveSnapshotLeaf {
+  id              String          @id @default(cuid())
+  snapshotId      String
+  snapshot        ReserveSnapshot @relation(fields: [snapshotId], references: [id])
+  walletProfileId String
+  walletProfile   WalletProfile   @relation(fields: [walletProfileId], references: [id])
+  // This wallet's PLAY_USDT ledger sum at snapshot time — scaled to an
+  // integer (x 1e8) before hashing into leafHash, never a float.
+  balanceUsdt     Decimal         @db.Decimal(24, 8)
+  // Random per-leaf salt included in the hash so a small round balance
+  // can't be brute-forced from the public root/proof alone.
+  nonce           String
+  leafHash        String // keccak256(address, balanceUsdt scaled, nonce)
+  // Precomputed sibling-hash path from this leaf to the snapshot's
+  // root, string[] — regenerating this per-request would be cheap at
+  // today's scale too, but precomputing once at snapshot-build time
+  // means a proof request is a pure read, no tree rebuild per user.
+  proof           Json
+  // This leaf's position in the bottom layer at build time (0-based) —
+  // paired with ReserveSnapshot.totalWallets, lets the client replay
+  // the exact left/right structure of the path up to the root for the
+  // "where in the tree" visualization (src/lib/merkle.ts traceProof),
+  // without needing any other wallet's data.
+  leafIndex       Int
+
+  @@unique([snapshotId, walletProfileId])
+  @@index([walletProfileId])
+}

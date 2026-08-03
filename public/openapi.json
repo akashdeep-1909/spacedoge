@@ -1,0 +1,3857 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Space DOGE API",
+    "version": "1.0.0",
+    "description": "Wallet-first Coin Rush Arena with verifiable Scrypt cloud-mining rewards. Every endpoint below reflects the actual current implementation \u2014 request/response shapes were transcribed directly from the route handlers, not hand-guessed.\n\n**Auth**: almost every endpoint requires a session, established via `/api/auth/verify` (SIWE sign-in), which sets an httpOnly `SpaceDOGE_session` cookie. Admin endpoints (`/api/admin/*`) additionally require the session's wallet address to be on the admin allowlist (env `ADMIN_ADDRESSES` or the `AdminUser` table) \u2014 a non-admin session hitting those returns `403`, not `401`.\n\n**Money fields**: all Decimal/Prisma fields are converted to plain JSON `number` before being returned \u2014 never strings.\n\n**Timestamps**: all dates are ISO-8601 strings in responses.",
+    "contact": {
+      "name": "Space DOGE"
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Same-origin"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "SIWE sign-in, session, onboarding"
+    },
+    {
+      "name": "Wallet",
+      "description": "Balances, deposits, withdrawals, conversions, transaction history"
+    },
+    {
+      "name": "Settings",
+      "description": "Public platform settings"
+    },
+    {
+      "name": "History",
+      "description": "Per-wallet activity history"
+    },
+    {
+      "name": "Leaderboard",
+      "description": "Weekly leaderboard standings"
+    },
+    {
+      "name": "Matches",
+      "description": "Coin Rush Arena match lifecycle"
+    },
+    {
+      "name": "Mining",
+      "description": "Mining dashboard, hashrate purchases, proof-of-output"
+    },
+    {
+      "name": "Referrals",
+      "description": "Referral relationships and earnings"
+    },
+    {
+      "name": "Admin: Overview",
+      "description": "Admin dashboard aggregate stats"
+    },
+    {
+      "name": "Admin: Deposits",
+      "description": "Admin on-chain deposit review/assignment"
+    },
+    {
+      "name": "Admin: Withdrawals",
+      "description": "Admin withdrawal completion queue"
+    },
+    {
+      "name": "Admin: Users",
+      "description": "Admin user search and risk flags"
+    },
+    {
+      "name": "Admin: Settings",
+      "description": "Admin platform configuration \u2014 deposit chains, withdrawal chains, admins, socials"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "SpaceDOGE_session",
+        "description": "httpOnly JWT session cookie set by POST /api/auth/verify."
+      },
+      "cronBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Static shared secret (env DEPOSIT_CRON_SECRET), used only by the deposit-watch cron trigger."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "GameMode": {
+        "type": "string",
+        "enum": [
+          "PRACTICE",
+          "QUICK_RUSH",
+          "EXPLORER_RUSH",
+          "PRO_RUSH",
+          "ELITE_RUSH",
+          "CHAMPION_RUSH",
+          "SPONSORED_DROP",
+          "FORGE_CUP"
+        ]
+      },
+      "MatchStatus": {
+        "type": "string",
+        "enum": [
+          "RESERVED",
+          "IN_MATCH",
+          "PROVISIONAL",
+          "SETTLED_WIN",
+          "SETTLED_LOSS",
+          "CANCELLED",
+          "UNDER_REVIEW",
+          "REVERSED"
+        ]
+      },
+      "BalanceType": {
+        "type": "string",
+        "enum": [
+          "PLAY_USDT",
+          "GAME_REWARD_USDT",
+          "PTS",
+          "PENDING_DOGE",
+          "AVAILABLE_DOGE",
+          "RECYCLED_USDT",
+          "REFERRAL_USDT",
+          "PLATFORM_FEE_USDT"
+        ]
+      },
+      "MiningLevel": {
+        "type": "string",
+        "enum": [
+          "SPARK",
+          "SCOUT",
+          "ROVER",
+          "LUNAR",
+          "DEEP_CORE",
+          "ORBITAL"
+        ]
+      },
+      "ReferralStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "QUALIFIED",
+          "REWARDED",
+          "REJECTED"
+        ]
+      },
+      "WithdrawalStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "COMPLETED"
+        ]
+      },
+      "DepositStatus": {
+        "type": "string",
+        "enum": [
+          "UNMATCHED",
+          "PENDING",
+          "CREDITED"
+        ]
+      },
+      "WalletBalances": {
+        "type": "object",
+        "properties": {
+          "playUsdt": {
+            "type": "number"
+          },
+          "gameRewardUsdt": {
+            "type": "number"
+          },
+          "pts": {
+            "type": "number"
+          },
+          "pendingDoge": {
+            "type": "number"
+          },
+          "availableDoge": {
+            "type": "number"
+          },
+          "recycledUsdt": {
+            "type": "number"
+          },
+          "referralUsdt": {
+            "type": "number"
+          },
+          "activeMiningPower": {
+            "type": "number"
+          },
+          "lifetimePaidPts": {
+            "type": "number"
+          }
+        }
+      },
+      "DepositChainConfig": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "chainKey": {
+            "type": "string",
+            "example": "BEP20"
+          },
+          "label": {
+            "type": "string",
+            "example": "BNB Smart Chain (BEP20)"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "EVM",
+              "TRON"
+            ]
+          },
+          "treasuryAddress": {
+            "type": "string"
+          },
+          "tokenContract": {
+            "type": "string"
+          },
+          "tokenDecimals": {
+            "type": "integer"
+          },
+          "minConfirmations": {
+            "type": "integer"
+          },
+          "rpcUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "evmChainId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "explorerTxUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "WithdrawChainConfig": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "chainKey": {
+            "type": "string",
+            "example": "DOGE"
+          },
+          "label": {
+            "type": "string"
+          },
+          "coinSymbol": {
+            "type": "string",
+            "enum": [
+              "USDT",
+              "DOGE"
+            ]
+          },
+          "addressRegex": {
+            "type": "string"
+          },
+          "explorerTxUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ConversionQuote": {
+        "type": "object",
+        "properties": {
+          "dogeAmount": {
+            "type": "number"
+          },
+          "rate": {
+            "type": "number"
+          },
+          "feePct": {
+            "type": "number",
+            "example": 0.015
+          },
+          "feeUsdt": {
+            "type": "number"
+          },
+          "finalUsdt": {
+            "type": "number"
+          },
+          "isSimulated": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LeaderboardStanding": {
+        "type": "object",
+        "properties": {
+          "walletProfileId": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "rank": {
+            "type": "integer"
+          },
+          "score": {
+            "type": "integer"
+          },
+          "rewardUsdt": {
+            "type": "number"
+          }
+        }
+      },
+      "ReferralEdge": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReferralStatus"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "responses": {
+      "NotAuthenticated": {
+        "description": "No valid session cookie",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "Not authenticated"
+            }
+          }
+        }
+      },
+      "NotAuthorized": {
+        "description": "Session valid but wallet is not an admin",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "Not authorized"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Validation failure",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "sessionCookie": []
+    }
+  ],
+  "paths": {
+    "/api/auth/nonce": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Issue a single-use SIWE nonce for a wallet address",
+        "security": [],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "nonce": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/api/auth/verify": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Verify a signed SIWE message, create/reuse the wallet profile, and log in",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "message",
+                  "signature"
+                ],
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "The prepared SIWE message string"
+                  },
+                  "signature": {
+                    "type": "string"
+                  },
+                  "referralCode": {
+                    "type": "string",
+                    "description": "Applied only on first login"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Logged in \u2014 sets the session cookie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    },
+                    "chainId": {
+                      "type": "integer"
+                    },
+                    "requiresOnboarding": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body or malformed SIWE message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nonce invalid/used/expired, or signature verification failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/session": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Check current session state and onboarding status",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Always 200 \u2014 check the `authenticated` field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "authenticated": {
+                          "type": "boolean",
+                          "enum": [
+                            false
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "authenticated": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "address": {
+                          "type": "string"
+                        },
+                        "chainId": {
+                          "type": "integer"
+                        },
+                        "countryCode": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "ageConfirmed": {
+                          "type": "boolean"
+                        },
+                        "termsVersion": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "dogeAddress": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "requiresOnboarding": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Clear the session cookie",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/onboard": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Record age confirmation, country, and terms acceptance",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "countryCode",
+                  "ageConfirmed"
+                ],
+                "properties": {
+                  "countryCode": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 2,
+                    "example": "US"
+                  },
+                  "ageConfirmed": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "termsVersion": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          }
+        }
+      }
+    },
+    "/api/wallet/balances": {
+      "get": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Get the caller's full balance snapshot across every balance type",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletBalances"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          }
+        }
+      }
+    },
+    "/api/wallet/transactions": {
+      "get": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Unified, human-labeled ledger feed (last 200 entries)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "balanceType": {
+                            "$ref": "#/components/schemas/BalanceType"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          }
+        }
+      }
+    },
+    "/api/wallet/deposit-address": {
+      "get": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "List every enabled deposit chain and its treasury address",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "chains": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "chainKey": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "EVM",
+                              "TRON"
+                            ]
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "tokenContract": {
+                            "type": "string"
+                          },
+                          "tokenDecimals": {
+                            "type": "integer"
+                          },
+                          "minConfirmations": {
+                            "type": "integer"
+                          },
+                          "evmChainId": {
+                            "type": "integer",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    },
+                    "sendFromAddress": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          }
+        }
+      }
+    },
+    "/api/wallet/deposits": {
+      "get": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "List the caller's own on-chain deposit history (last 20)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "chain": {
+                            "type": "string"
+                          },
+                          "txHash": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "confirmations": {
+                            "type": "integer"
+                          },
+                          "status": {
+                            "$ref": "#/components/schemas/DepositStatus"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "creditedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          }
+        }
+      }
+    },
+    "/api/wallet/deposit-demo": {
+      "post": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Simulate a Play USDT deposit (dev/demo only, not a real transaction)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "amount"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000,
+                    "exclusiveMinimum": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "simulated": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          }
+        }
+      }
+    },
+    "/api/wallet/deposit-verify": {
+      "post": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Verify a user-submitted transaction hash on-chain and credit it immediately if valid",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "txHash",
+                  "chainKey"
+                ],
+                "properties": {
+                  "txHash": {
+                    "type": "string"
+                  },
+                  "chainKey": {
+                    "type": "string",
+                    "example": "BEP20"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Always 200 \u2014 outcome is in the `status` field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "credited",
+                            "pending"
+                          ]
+                        },
+                        "amount": {
+                          "type": "number"
+                        },
+                        "confirmations": {
+                          "type": "integer"
+                        },
+                        "minConfirmations": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "not_configured",
+                            "invalid_hash",
+                            "rpc_error",
+                            "not_found",
+                            "failed_tx",
+                            "no_matching_transfer",
+                            "sent_from_different_wallet",
+                            "tron_needs_manual_review"
+                          ]
+                        },
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          }
+        }
+      }
+    },
+    "/api/wallet/deposit-watch": {
+      "post": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Cron-only: force a full on-chain deposit sync across all configured chains",
+        "security": [
+          {
+            "cronBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/incorrect bearer secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wallet/convert": {
+      "get": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Get a live, time-limited DOGE\u2192USDT conversion quote",
+        "parameters": [
+          {
+            "name": "dogeAmount",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversionQuote"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Execute a DOGE\u2192USDT conversion at a freshly re-derived rate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "dogeAmount"
+                ],
+                "properties": {
+                  "dogeAmount": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversionQuote"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          },
+          "402": {
+            "description": "Not enough Available DOGE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wallet/convert-pts": {
+      "post": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Convert PTS to Game Reward USDT at the fixed platform rate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ptsAmount"
+                ],
+                "properties": {
+                  "ptsAmount": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ptsAmount": {
+                      "type": "number"
+                    },
+                    "usdtAmount": {
+                      "type": "number"
+                    },
+                    "rate": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          },
+          "402": {
+            "description": "Not enough PTS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wallet/withdraw": {
+      "post": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Request a withdrawal (creates a PENDING record, debits the ledger immediately)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "amount",
+                  "destinationAddress",
+                  "chain"
+                ],
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "RECYCLED_USDT",
+                      "REFERRAL_USDT"
+                    ],
+                    "description": "Required for USDT-coin chains; omitted/ignored for the DOGE chain"
+                  },
+                  "amount": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "destinationAddress": {
+                    "type": "string"
+                  },
+                  "chain": {
+                    "type": "string",
+                    "example": "BEP20"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "RECYCLED_USDT",
+                        "REFERRAL_USDT",
+                        "AVAILABLE_DOGE"
+                      ]
+                    },
+                    "amount": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING"
+                      ]
+                    },
+                    "destination": {
+                      "type": "string"
+                    },
+                    "chain": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, unavailable chain, missing source, below minimum, or bad address format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          },
+          "402": {
+            "description": "Not enough balance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wallet/withdraw/{id}": {
+      "get": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Get full detail for one of the caller's own withdrawals",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "chain": {
+                      "type": "string"
+                    },
+                    "chainLabel": {
+                      "type": "string"
+                    },
+                    "coinSymbol": {
+                      "type": "string",
+                      "enum": [
+                        "USDT",
+                        "DOGE"
+                      ]
+                    },
+                    "destinationAddress": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "number"
+                    },
+                    "networkFeeUsdt": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "status": {
+                      "$ref": "#/components/schemas/WithdrawalStatus"
+                    },
+                    "txHash": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "explorerUrl": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "completedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          },
+          "404": {
+            "description": "Not found, or not owned by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/public": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Public platform settings \u2014 withdrawal minimums, enabled withdrawal chains, social links",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "minUsdtWithdrawal": {
+                      "type": "number"
+                    },
+                    "minDogeWithdrawal": {
+                      "type": "number"
+                    },
+                    "social": {
+                      "type": "object",
+                      "properties": {
+                        "twitter": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "telegram": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "discord": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "youtube": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "withdrawChains": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "chainKey": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "coinSymbol": {
+                            "type": "string",
+                            "enum": [
+                              "USDT",
+                              "DOGE"
+                            ]
+                          },
+                          "addressRegex": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "summary": "Per-wallet activity history (shape depends on `tab`)",
+        "parameters": [
+          {
+            "name": "tab",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "game",
+                "mining",
+                "conversion",
+                "withdrawals"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shape depends on `tab` \u2014 see examples",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "One of four shapes depending on ?tab="
+                },
+                "examples": {
+                  "game": {
+                    "value": {
+                      "rows": [
+                        {
+                          "matchId": "abc",
+                          "mode": "QUICK_RUSH",
+                          "status": "SETTLED_WIN",
+                          "score": 340,
+                          "rank": 1,
+                          "rewardUsdt": 0.34,
+                          "createdAt": "2026-07-01T00:00:00.000Z",
+                          "endedAt": "2026-07-01T00:01:00.000Z"
+                        }
+                      ]
+                    }
+                  },
+                  "mining": {
+                    "value": {
+                      "contracts": [
+                        {
+                          "id": "c1",
+                          "level": "SCOUT",
+                          "miningPower": 112.5,
+                          "termDays": 30,
+                          "pricePaidUsdt": 5,
+                          "source": "Mining Power Purchase",
+                          "startsAt": "2026-07-01T00:00:00.000Z",
+                          "expiresAt": "2026-07-31T00:00:00.000Z",
+                          "createdAt": "2026-07-01T00:00:00.000Z"
+                        }
+                      ],
+                      "allocations": [
+                        {
+                          "id": "a1",
+                          "epochDate": "2026-07-01T00:00:00.000Z",
+                          "effectiveMp": 112.5,
+                          "dogeAllocated": 0.82,
+                          "createdAt": "2026-07-02T00:00:00.000Z"
+                        }
+                      ]
+                    }
+                  },
+                  "conversion": {
+                    "value": {
+                      "rows": [
+                        {
+                          "id": "e1",
+                          "balanceType": "RECYCLED_USDT",
+                          "amount": 4.4,
+                          "createdAt": "2026-07-01T00:00:00.000Z"
+                        }
+                      ]
+                    }
+                  },
+                  "withdrawals": {
+                    "value": {
+                      "rows": [
+                        {
+                          "id": "w1",
+                          "source": "RECYCLED_USDT",
+                          "chain": "BEP20",
+                          "amount": 5,
+                          "status": "PENDING",
+                          "txHash": null,
+                          "createdAt": "2026-07-01T00:00:00.000Z"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or unrecognized `tab`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          }
+        }
+      }
+    },
+    "/api/leaderboard": {
+      "get": {
+        "tags": [
+          "Leaderboard"
+        ],
+        "summary": "Live current-week standings plus last week's finalized results",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "poolUsdt": {
+                      "type": "number"
+                    },
+                    "isSimulated": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "currentWeek": {
+                      "type": "object",
+                      "properties": {
+                        "weekStart": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "weekEnd": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "standings": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/LeaderboardStanding"
+                          }
+                        }
+                      }
+                    },
+                    "lastWeek": {
+                      "type": "object",
+                      "properties": {
+                        "weekStart": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "weekEnd": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "poolUsdt": {
+                          "type": "number"
+                        },
+                        "results": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/LeaderboardStanding"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          }
+        }
+      }
+    },
+    "/api/matches": {
+      "post": {
+        "tags": [
+          "Matches"
+        ],
+        "summary": "Create and reserve a new match room, filling remaining seats with bots",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "mode"
+                ],
+                "properties": {
+                  "mode": {
+                    "$ref": "#/components/schemas/GameMode"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "matchId": {
+                      "type": "string"
+                    },
+                    "mapSeed": {
+                      "type": "string"
+                    },
+                    "mode": {
+                      "$ref": "#/components/schemas/GameMode"
+                    },
+                    "durationSec": {
+                      "type": "integer"
+                    },
+                    "entryFeeUsdt": {
+                      "type": "number"
+                    },
+                    "prizePoolUsdt": {
+                      "type": "number"
+                    },
+                    "players": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid mode",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          },
+          "402": {
+            "description": "Not enough Play USDT balance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Onboarding not complete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Wallet profile not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Free-ticket mode cooldown still active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matches/{id}/settle": {
+      "post": {
+        "tags": [
+          "Matches"
+        ],
+        "summary": "Settle a match \u2014 score the human + bots, compute rank/reward, credit balances (idempotent)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "score",
+                  "durationPlayedSec"
+                ],
+                "properties": {
+                  "score": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "durationPlayedSec": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK \u2014 either a fresh settlement or an idempotent re-fetch of an already-settled match",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "matchId": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "$ref": "#/components/schemas/MatchStatus"
+                        },
+                        "rank": {
+                          "type": "integer",
+                          "nullable": true
+                        },
+                        "score": {
+                          "type": "integer"
+                        },
+                        "rewardUsdt": {
+                          "type": "number"
+                        },
+                        "alreadySettled": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "matchId": {
+                          "type": "string"
+                        },
+                        "mode": {
+                          "$ref": "#/components/schemas/GameMode"
+                        },
+                        "rank": {
+                          "type": "integer"
+                        },
+                        "score": {
+                          "type": "integer"
+                        },
+                        "rewardUsdt": {
+                          "type": "number"
+                        },
+                        "blockedReason": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "isPractice": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid settlement payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          },
+          "403": {
+            "description": "Not a participant in this match",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Match not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mining/proof": {
+      "get": {
+        "tags": [
+          "Mining"
+        ],
+        "summary": "Get the caller's mining proof strip \u2014 hashrate, shares, uptime, today's estimate, last epoch",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "activated": {
+                      "type": "boolean"
+                    },
+                    "hasContract": {
+                      "type": "boolean"
+                    },
+                    "level": {
+                      "$ref": "#/components/schemas/MiningLevel"
+                    },
+                    "miningPower": {
+                      "type": "number"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "contractedHashrateGhs": {
+                      "type": "number"
+                    },
+                    "observedHashrate24hGhs": {
+                      "type": "number"
+                    },
+                    "observedHashrate7dGhs": {
+                      "type": "number"
+                    },
+                    "acceptedShares": {
+                      "type": "integer"
+                    },
+                    "rejectedSharePct": {
+                      "type": "number"
+                    },
+                    "uptime24hPct": {
+                      "type": "number"
+                    },
+                    "uptime7dPct": {
+                      "type": "number"
+                    },
+                    "estimatedTodayDoge": {
+                      "type": "number"
+                    },
+                    "lastEpoch": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "epochDate": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "grossOutputDoge": {
+                          "type": "number"
+                        },
+                        "poolProviderFeesDoge": {
+                          "type": "number"
+                        },
+                        "maintenanceCostDoge": {
+                          "type": "number"
+                        },
+                        "reserveContributionDoge": {
+                          "type": "number"
+                        },
+                        "netDistributableDoge": {
+                          "type": "number"
+                        },
+                        "totalEffectiveMp": {
+                          "type": "number"
+                        },
+                        "yourAllocationDoge": {
+                          "type": "number",
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "isSimulated": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          }
+        }
+      }
+    },
+    "/api/mining/activate": {
+      "post": {
+        "tags": [
+          "Mining"
+        ],
+        "summary": "Activate the mining dashboard (one-time Game Reward USDT fee)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "activated": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          },
+          "402": {
+            "description": "Not enough Game Reward USDT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already activated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mining/purchase-power": {
+      "post": {
+        "tags": [
+          "Mining"
+        ],
+        "summary": "Purchase mining hashrate (MH/s) for a fixed 30-day term",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "amountUsdt"
+                ],
+                "properties": {
+                  "amountUsdt": {
+                    "type": "number",
+                    "description": "Minimum is the platform's MIN_HASHRATE_PURCHASE_USDT constant"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "GAME_REWARD_USDT",
+                      "REFERRAL_USDT",
+                      "PLAY_USDT",
+                      "RECYCLED_USDT"
+                    ],
+                    "default": "GAME_REWARD_USDT"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "level": {
+                      "$ref": "#/components/schemas/MiningLevel"
+                    },
+                    "miningPower": {
+                      "type": "number"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Below minimum purchase amount",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          },
+          "402": {
+            "description": "Not enough balance for that source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Mining dashboard not activated yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not enough verified mining capacity available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mining/rate-history": {
+      "get": {
+        "tags": [
+          "Mining"
+        ],
+        "summary": "Platform-wide 7-day DOGE-per-MH/s-per-day rate history",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "epochDate": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "actualDogePerMhsDay": {
+                            "type": "number",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    },
+                    "exampleDogePerMhsDay": {
+                      "type": "number"
+                    },
+                    "liveToday": {
+                      "type": "object",
+                      "properties": {
+                        "epochDate": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "rate": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          }
+        }
+      }
+    },
+    "/api/mining/simulate-reward-demo": {
+      "post": {
+        "tags": [
+          "Mining"
+        ],
+        "summary": "Dev-only: credit simulated Game Reward USDT (blocked in production)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "amount"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000,
+                    "exclusiveMinimum": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "simulated": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          },
+          "403": {
+            "description": "Not available in production",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/referrals": {
+      "get": {
+        "tags": [
+          "Referrals"
+        ],
+        "summary": "Get the caller's referral relationship, referred users, and earnings",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "myAddress": {
+                      "type": "string"
+                    },
+                    "referredBy": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "status": {
+                          "$ref": "#/components/schemas/ReferralStatus"
+                        },
+                        "referrerAddress": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "totalEarnedL1Usdt": {
+                      "type": "number"
+                    },
+                    "totalEarnedL2Usdt": {
+                      "type": "number"
+                    },
+                    "direct": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ReferralEdge"
+                      }
+                    },
+                    "indirect": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ReferralEdge"
+                      }
+                    },
+                    "l1PctOfPlatformFee": {
+                      "type": "number",
+                      "enum": [
+                        5
+                      ]
+                    },
+                    "l2PctOfPlatformFee": {
+                      "type": "number",
+                      "enum": [
+                        2
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          }
+        }
+      }
+    },
+    "/api/admin/overview": {
+      "get": {
+        "tags": [
+          "Admin: Overview"
+        ],
+        "summary": "Admin dashboard aggregate stats over a configurable day range",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 7,
+              "maximum": 90,
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK \u2014 wallet counts, balances, deposit/withdrawal totals + daily series, mining epoch summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "range": {
+                      "type": "integer"
+                    },
+                    "walletCount": {
+                      "type": "integer"
+                    },
+                    "newWallets": {
+                      "type": "integer"
+                    },
+                    "matchCount": {
+                      "type": "integer"
+                    },
+                    "balances": {
+                      "type": "object",
+                      "description": "Raw ledger sums by balance type, across all real wallets (excludes bot: and platform: pseudo-wallets except treasuryUsdt, which IS the platform:treasury wallet's own balance).",
+                      "properties": {
+                        "playUsdt": {
+                          "type": "number"
+                        },
+                        "gameRewardUsdt": {
+                          "type": "number"
+                        },
+                        "pts": {
+                          "type": "number"
+                        },
+                        "pendingDoge": {
+                          "type": "number"
+                        },
+                        "availableDoge": {
+                          "type": "number"
+                        },
+                        "recycledUsdt": {
+                          "type": "number"
+                        },
+                        "referralUsdt": {
+                          "type": "number"
+                        },
+                        "treasuryUsdt": {
+                          "type": "number",
+                          "description": "The platform treasury's real balance \u2014 30% platform fee net of referral commission paid out, credited at match entry. See src/lib/treasury.ts."
+                        }
+                      }
+                    },
+                    "availableUsdt": {
+                      "type": "number",
+                      "description": "User-withdrawable USDT liability \u2014 sum of RECYCLED_USDT + REFERRAL_USDT (the two balance types /api/wallet/withdraw accepts)."
+                    },
+                    "deposits": {
+                      "type": "object",
+                      "description": "Totals by status, a daily series, and the 8 most recent rows."
+                    },
+                    "withdrawals": {
+                      "type": "object",
+                      "description": "Totals by status, fees collected, a daily series, and the 8 most recent rows."
+                    },
+                    "mining": {
+                      "type": "object",
+                      "description": "Active mining power/contract counts and the latest epoch summary."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          }
+        }
+      }
+    },
+    "/api/admin/deposits": {
+      "get": {
+        "tags": [
+          "Admin: Deposits"
+        ],
+        "summary": "List on-chain deposits platform-wide (filter by status or tx hash)",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/DepositStatus"
+            }
+          },
+          {
+            "name": "txHash",
+            "in": "query",
+            "description": "Case-insensitive substring match; overrides status filter and the 100-row cap",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "chain": {
+                            "type": "string"
+                          },
+                          "txHash": {
+                            "type": "string"
+                          },
+                          "explorerUrl": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "fromAddress": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "confirmations": {
+                            "type": "integer"
+                          },
+                          "status": {
+                            "$ref": "#/components/schemas/DepositStatus"
+                          },
+                          "walletAddress": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "creditedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          }
+        }
+      }
+    },
+    "/api/admin/deposits/{id}/assign": {
+      "post": {
+        "tags": [
+          "Admin: Deposits"
+        ],
+        "summary": "Manually attribute an unmatched/pending deposit to a wallet address and credit it",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "address"
+                ],
+                "properties": {
+                  "address": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid address, or deposit already credited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          },
+          "404": {
+            "description": "No wallet found for that address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/withdrawals": {
+      "get": {
+        "tags": [
+          "Admin: Withdrawals"
+        ],
+        "summary": "List every withdrawal platform-wide (newest first, capped at 100)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "balanceType": {
+                            "$ref": "#/components/schemas/BalanceType"
+                          },
+                          "chain": {
+                            "type": "string"
+                          },
+                          "destinationAddress": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "networkFeeUsdt": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "status": {
+                            "$ref": "#/components/schemas/WithdrawalStatus"
+                          },
+                          "txHash": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "explorerUrl": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "completedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          }
+        }
+      }
+    },
+    "/api/admin/withdrawals/{id}/complete": {
+      "post": {
+        "tags": [
+          "Admin: Withdrawals"
+        ],
+        "summary": "Mark a pending withdrawal completed by recording the real on-chain tx hash",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "txHash"
+                ],
+                "properties": {
+                  "txHash": {
+                    "type": "string"
+                  },
+                  "networkFeeUsdt": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "COMPLETED"
+                      ]
+                    },
+                    "txHash": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Already completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/withdrawals/{id}/fee": {
+      "post": {
+        "tags": [
+          "Admin: Withdrawals"
+        ],
+        "summary": "Set or correct the network fee recorded on a withdrawal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "networkFeeUsdt"
+                ],
+                "properties": {
+                  "networkFeeUsdt": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "networkFeeUsdt": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid amount, or fee exceeds withdrawal amount",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "tags": [
+          "Admin: Users"
+        ],
+        "summary": "Search real (non-bot) wallet users by address substring",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Lowercased substring match against wallet address"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK \u2014 up to 25 rows, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "riskFlag": {
+                            "type": "string",
+                            "nullable": true,
+                            "enum": [
+                              null,
+                              "review",
+                              "blocked"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "balances": {
+                            "$ref": "#/components/schemas/WalletBalances"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}/risk-flag": {
+      "post": {
+        "tags": [
+          "Admin: Users"
+        ],
+        "summary": "Set or clear a wallet's risk flag",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "riskFlag"
+                ],
+                "properties": {
+                  "riskFlag": {
+                    "type": "string",
+                    "nullable": true,
+                    "enum": [
+                      "review",
+                      "blocked",
+                      null
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid riskFlag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          }
+        }
+      }
+    },
+    "/api/admin/settings": {
+      "get": {
+        "tags": [
+          "Admin: Settings"
+        ],
+        "summary": "Get withdrawal minimums and social links (with built-in defaults)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "minUsdtWithdrawal": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "minDogeWithdrawal": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "twitterUrl": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "telegramUrl": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "discordUrl": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "youtubeUrl": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedByAddress": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "defaults": {
+                      "type": "object",
+                      "properties": {
+                        "minUsdtWithdrawal": {
+                          "type": "number",
+                          "example": 5
+                        },
+                        "minDogeWithdrawal": {
+                          "type": "number",
+                          "example": 50
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Admin: Settings"
+        ],
+        "summary": "Update withdrawal minimums / social links (null clears override back to default)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "minUsdtWithdrawal": {
+                    "type": "number",
+                    "nullable": true
+                  },
+                  "minDogeWithdrawal": {
+                    "type": "number",
+                    "nullable": true
+                  },
+                  "twitterUrl": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "telegramUrl": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "discordUrl": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "youtubeUrl": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          }
+        }
+      }
+    },
+    "/api/admin/settings/admins": {
+      "get": {
+        "tags": [
+          "Admin: Settings"
+        ],
+        "summary": "List the full effective admin allowlist (env + DB, merged)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "null for env-sourced rows"
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "env",
+                              "db"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          },
+                          "addedByAddress": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    },
+                    "you": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Admin: Settings"
+        ],
+        "summary": "Grant a wallet address DB-managed admin access",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "address"
+                ],
+                "properties": {
+                  "address": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "address": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid address, or already an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          }
+        }
+      }
+    },
+    "/api/admin/settings/admins/{id}": {
+      "delete": {
+        "tags": [
+          "Admin: Settings"
+        ],
+        "summary": "Revoke a DB-managed admin's access (self-removal blocked)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Attempted self-removal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/admin/settings/deposit-chains": {
+      "get": {
+        "tags": [
+          "Admin: Settings"
+        ],
+        "summary": "List every configured deposit chain (enabled or not)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DepositChainConfig"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Admin: Settings"
+        ],
+        "summary": "Register a new deposit chain (EVM or TRON)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "chainKey",
+                  "label",
+                  "kind",
+                  "treasuryAddress",
+                  "tokenContract",
+                  "tokenDecimals",
+                  "minConfirmations"
+                ],
+                "properties": {
+                  "chainKey": {
+                    "type": "string",
+                    "pattern": "^[A-Z0-9_]+$",
+                    "maxLength": 20,
+                    "example": "POLYGON"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "EVM",
+                      "TRON"
+                    ]
+                  },
+                  "treasuryAddress": {
+                    "type": "string"
+                  },
+                  "tokenContract": {
+                    "type": "string"
+                  },
+                  "tokenDecimals": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 30
+                  },
+                  "minConfirmations": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "rpcUrl": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "explorerTxUrl": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "evmChainId": {
+                    "type": "integer",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "row": {
+                      "$ref": "#/components/schemas/DepositChainConfig"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failure or duplicate chainKey",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          }
+        }
+      }
+    },
+    "/api/admin/settings/deposit-chains/{id}": {
+      "patch": {
+        "tags": [
+          "Admin: Settings"
+        ],
+        "summary": "Edit or toggle an existing deposit chain (chainKey/kind immutable)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "treasuryAddress": {
+                    "type": "string"
+                  },
+                  "tokenContract": {
+                    "type": "string"
+                  },
+                  "tokenDecimals": {
+                    "type": "integer"
+                  },
+                  "minConfirmations": {
+                    "type": "integer"
+                  },
+                  "rpcUrl": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "explorerTxUrl": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "evmChainId": {
+                    "type": "integer",
+                    "nullable": true
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "row": {
+                      "$ref": "#/components/schemas/DepositChainConfig"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Admin: Settings"
+        ],
+        "summary": "Remove a deposit chain config",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/admin/settings/withdraw-chains": {
+      "get": {
+        "tags": [
+          "Admin: Settings"
+        ],
+        "summary": "List every configured withdrawal chain (enabled or not)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/WithdrawChainConfig"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Admin: Settings"
+        ],
+        "summary": "Add a new selectable withdrawal option (chain + coin + address format)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "chainKey",
+                  "label",
+                  "coinSymbol",
+                  "addressRegex"
+                ],
+                "properties": {
+                  "chainKey": {
+                    "type": "string",
+                    "pattern": "^[A-Z0-9_]+$",
+                    "maxLength": 20,
+                    "example": "DOGE"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "coinSymbol": {
+                    "type": "string",
+                    "enum": [
+                      "USDT",
+                      "DOGE"
+                    ]
+                  },
+                  "addressRegex": {
+                    "type": "string",
+                    "description": "Must be a valid JS regex source"
+                  },
+                  "explorerTxUrl": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "row": {
+                      "$ref": "#/components/schemas/WithdrawChainConfig"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failure, invalid regex, or duplicate chainKey",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          }
+        }
+      }
+    },
+    "/api/admin/settings/withdraw-chains/{id}": {
+      "patch": {
+        "tags": [
+          "Admin: Settings"
+        ],
+        "summary": "Edit or toggle an existing withdrawal chain (chainKey/coinSymbol immutable)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "addressRegex": {
+                    "type": "string"
+                  },
+                  "explorerTxUrl": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "row": {
+                      "$ref": "#/components/schemas/WithdrawChainConfig"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid regex or bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Admin: Settings"
+        ],
+        "summary": "Remove a withdrawal chain option",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    }
+  }
+}
