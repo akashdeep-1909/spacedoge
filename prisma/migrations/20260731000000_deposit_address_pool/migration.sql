@@ -27,8 +27,16 @@ CREATE TABLE "DepositAddressAssignment" (
 -- (the very next user to load the deposit page for that chain simply
 -- gets assigned this same address, first-come-first-served like every
 -- assignment after it).
+--
+-- gen_random_uuid() requires either Postgres 13+ (built in) or the
+-- pgcrypto extension on older versions — neither guaranteed on every
+-- deploy target (hit a Postgres 10 host with no pgcrypto installed at
+-- the OS level, not just un-enabled). This id only needs to be unique,
+-- never cryptographically unpredictable, so an md5-of-random+clock-time
+-- hash cast to uuid is a core-Postgres-only equivalent that's worked
+-- back to ancient versions, no extension required.
 INSERT INTO "DepositTreasuryAddress" ("id", "chainConfigId", "address", "enabled", "sortOrder", "createdAt")
-SELECT gen_random_uuid()::text, "id", "treasuryAddress", true, 0, now()
+SELECT md5(random()::text || clock_timestamp()::text)::uuid::text, "id", "treasuryAddress", true, 0, now()
 FROM "DepositChainConfig";
 
 -- AlterTable
