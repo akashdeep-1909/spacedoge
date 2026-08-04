@@ -31,6 +31,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <Link href="/admin/withdrawals" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
                 Withdrawals
               </Link>
+              <Link href="/admin/transfers" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
+                Transfers
+              </Link>
               <Link href="/admin/lobbies" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
                 Lobbies
               </Link>

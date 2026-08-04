@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAccount, useConnect, useSwitchChain, useWriteContract, useWaitForTransactionReceipt, useWatchAsset } from "wagmi";
 import { parseUnits } from "viem";
 import { waitForInjectedProvider, type wagmiConfig } from "@/lib/wagmi";
 import { isUserRejectionError, useAuth } from "@/lib/auth-context";
+import { useVerifyDeposit } from "@/lib/hooks";
 
 // Wraps a wallet-prompting promise (network switch, transaction confirm)
 // with a hard ceiling — without this, a wallet that never shows/responds
@@ -62,6 +63,7 @@ const ERC20_TRANSFER_ABI = [
 // — the caller passes which one.
 export function WalletDepositButton({
   chainId,
+  chainKey,
   chainLabel,
   treasuryAddress,
   tokenContract,
@@ -69,6 +71,7 @@ export function WalletDepositButton({
   minConfirmations,
 }: {
   chainId: number;
+  chainKey: string;
   chainLabel: string;
   treasuryAddress: string;
   tokenContract: string;
@@ -92,6 +95,28 @@ export function WalletDepositButton({
     hash: txHash,
     confirmations: 1, // just for "it landed" UI feedback — real crediting still waits for minConfirmations via the watcher
   });
+
+  // Self-verify the moment this button's own transaction lands, instead
+  // of purely waiting on the background cron watcher (src/lib/deposits.ts
+  // syncAllDeposits). That watcher only scans FORWARD from the block it
+  // happened to be at on a chain's first-ever sync cycle — a deposit
+  // that landed at/before that exact moment (entirely possible for a
+  // chain an admin just added, see the real incident this fixed) is
+  // permanently invisible to it. This button already has the exact
+  // txHash in hand right after sending, so it can call the same
+  // hash-based verify the manual "paste tx hash" flow uses
+  // (verifyDepositByTxHash — looks up the transaction directly via
+  // eth_getTransactionReceipt, no cursor involved) instead of hoping the
+  // passive watcher eventually notices. Idempotent either way
+  // (creditIfReady keys on txHash, "already settled — never re-credit"),
+  // so this can safely run alongside the cron with no double-credit risk.
+  const verifyDeposit = useVerifyDeposit();
+  const verifiedTxHash = useRef<string | null>(null);
+  useEffect(() => {
+    if (!receipt || !txHash || verifiedTxHash.current === txHash) return;
+    verifiedTxHash.current = txHash;
+    verifyDeposit.mutate({ txHash, chainKey });
+  }, [receipt, txHash, chainKey, verifyDeposit]);
 
   const [amount, setAmount] = useState("10");
   const [error, setError] = useState<string | null>(null);

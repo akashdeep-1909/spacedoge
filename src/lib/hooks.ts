@@ -753,6 +753,30 @@ export function useAdminDeposits(status?: string, txHash?: string) {
   });
 }
 
+export interface AdminTransferRow {
+  id: string;
+  fromAddress: string;
+  fromNickname: string | null;
+  toAddress: string;
+  toNickname: string | null;
+  balanceType: string;
+  amount: number;
+  note: string | null;
+  createdAt: string;
+}
+
+export function useAdminTransfers(q?: string) {
+  return useQuery({
+    queryKey: ["admin", "transfers", q ?? ""],
+    queryFn: async (): Promise<{ rows: AdminTransferRow[] }> => {
+      const qs = q ? `?q=${encodeURIComponent(q)}` : "";
+      const res = await fetch(`/api/admin/transfers${qs}`);
+      if (!res.ok) throw new Error("Failed to load transfers");
+      return res.json();
+    },
+  });
+}
+
 export function useAssignDeposit() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -1840,6 +1864,57 @@ export function useSendTransfer() {
   return useMutation({
     mutationFn: async (input: { fromBalanceType: TransferableBalanceType; toBalanceType: TransferableBalanceType; amount: number }) => {
       const res = await fetch("/api/wallet/transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Transfer failed");
+      return body;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["balances"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet-transactions"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------
+// User-to-user transfer — src/app/api/wallet/resolve-recipient +
+// transfer-to-user (sends Recycled/Referral USDT to a DIFFERENT
+// wallet's account, unlike useSendTransfer above)
+// ---------------------------------------------------------------------
+
+// Kept as a plain string union, same reasoning as TransferableBalanceType
+// above — must stay byte-identical to TRANSFERABLE_TO_OTHER_USER in
+// src/lib/transfers.ts.
+export type TransferableToOtherUserBalanceType = "RECYCLED_USDT" | "REFERRAL_USDT";
+
+export interface ResolvedRecipient {
+  address: string;
+  nickname: string | null;
+}
+
+// A lookup, not a useQuery — deliberately only runs when the user
+// explicitly asks (typing an address alone shouldn't trigger requests
+// on every keystroke), same "action, not passive fetch" reasoning as
+// useVerifyDeposit.
+export function useResolveRecipient() {
+  return useMutation({
+    mutationFn: async (address: string): Promise<ResolvedRecipient> => {
+      const res = await fetch(`/api/wallet/resolve-recipient?address=${encodeURIComponent(address)}`);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Could not find that wallet.");
+      return body;
+    },
+  });
+}
+
+export function useSendToUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { toAddress: string; balanceType: TransferableToOtherUserBalanceType; amount: number; note?: string }) => {
+      const res = await fetch("/api/wallet/transfer-to-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),

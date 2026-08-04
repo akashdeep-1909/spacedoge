@@ -67,6 +67,8 @@ model WalletProfile {
   invitationsReceived       LobbyInvitation[]          @relation("InvitationRecipient")
   pushSubscriptions         PushSubscription[]
   reserveSnapshotLeaves     ReserveSnapshotLeaf[]
+  transfersSent             InternalTransfer[]          @relation("TransferFrom")
+  transfersReceived         InternalTransfer[]          @relation("TransferTo")
 }
 
 // Browser Web Push subscriptions — one row per device/browser a wallet
@@ -171,6 +173,37 @@ model LedgerEntry {
 
   @@index([walletProfileId, balanceType])
   @@index([refType, refId])
+}
+
+// User-to-user transfer of a wallet's own RECYCLED_USDT/REFERRAL_USDT
+// balance to a DIFFERENT wallet's same balance type — see
+// src/lib/transfers.ts's TRANSFERABLE_TO_OTHER_USER for why PLAY_USDT
+// is deliberately excluded (funds gameplay only; letting it move
+// between accounts would let it be used to farm incentives across
+// throwaway wallets). Unlike every other same-wallet conversion in this
+// app (reconstructed purely from LedgerEntry rows, no dedicated table —
+// see doge_to_usdt_conversion/balance_transfer), this DOES get a real
+// row: a genuine counterparty across two different users is exactly
+// the case that convention doesn't cover, and admin needs an
+// efficient, indexed way to see who sent what to whom (searchable
+// admin view, not reconstructed from scattered ledger rows). Two
+// LedgerEntry rows (debit sender, credit recipient) still get created
+// alongside this row, referencing it via refType "InternalTransfer" —
+// this table is the source of truth for the pairing, the ledger rows
+// are what actually move the balance.
+model InternalTransfer {
+  id                  String        @id @default(cuid())
+  fromWalletProfileId String
+  fromWalletProfile   WalletProfile @relation("TransferFrom", fields: [fromWalletProfileId], references: [id])
+  toWalletProfileId   String
+  toWalletProfile     WalletProfile @relation("TransferTo", fields: [toWalletProfileId], references: [id])
+  balanceType         BalanceType
+  amount              Decimal       @db.Decimal(24, 8)
+  note                String?
+  createdAt           DateTime      @default(now())
+
+  @@index([fromWalletProfileId])
+  @@index([toWalletProfileId])
 }
 
 // ---------------------------------------------------------------------

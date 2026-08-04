@@ -166,16 +166,28 @@ function buildWagmiConfig(walletConnectProjectId?: string) {
               // must be a real HTTPS URL (matching `url` above) for
               // wallets to treat it as a valid return target.
               //
-              // The EXACT current page URL, not just the bare origin —
-              // Safari/Chrome match a universal-link return target
-              // against already-open tabs to decide whether to foreground
-              // the existing one or open a new one. Redirecting to just
-              // "/" while the user was actually on "/dashboard/play"
-              // never matches that open tab, so it opened a fresh tab on
-              // every single redirect back — this is constructed
-              // client-side only (see the walletConnectProjectId guard
-              // above), so window is always available here.
-              redirect: effectiveAppUrl ? { universal: typeof window !== "undefined" ? window.location.href : effectiveAppUrl } : undefined,
+              // The bare origin, deliberately NOT the exact current page
+              // URL — an earlier version tried window.location.href
+              // reasoning that Safari/Chrome match a universal-link
+              // target against already-open tabs by exact URL. That
+              // reasoning was right but the implementation couldn't work:
+              // this whole metadata object is only read ONCE, whenever
+              // WalletConnect's underlying provider first initializes
+              // (effectively on app boot, in Providers.tsx — see
+              // @wagmi/connectors' walletConnect.js getProvider(), which
+              // memoizes the provider instance permanently after the
+              // first call). Since this app navigates client-side with no
+              // full reloads, window.location.href at that one moment is
+              // frozen for the rest of the session — it was still stale
+              // for every page visited after the first, just a different
+              // (still wrong) stale value than the bare origin would be.
+              // The origin is at least always a VALID, correct URL rather
+              // than an arbitrary frozen snapshot; perfect same-tab reuse
+              // on every OS/browser isn't achievable from app code alone
+              // regardless (iOS 17+ blocks automatic return-to-browser
+              // redirect entirely at the OS level — confirmed against
+              // WalletConnect's and MetaMask's own docs/issue tracker).
+              redirect: effectiveAppUrl ? { universal: effectiveAppUrl } : undefined,
             },
           }),
         ]

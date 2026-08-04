@@ -20,6 +20,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  // Without this, Next.js can't resolve the relative openGraph/twitter
+  // image paths below into absolute URLs and silently falls back to
+  // "http://localhost:3000" — confirmed shipping to production as the
+  // literal og:image URL. NEXT_PUBLIC_APP_URL is already the app's one
+  // source of truth for its own public origin (see src/lib/publicUrl.ts).
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://spacedoge.games"),
   title: "Space DOGE — Play the Rush. Power the Hash. Claim DOGE.",
   description:
     "Wallet-first Coin Rush Arena with verifiable Scrypt cloud-mining rewards.",

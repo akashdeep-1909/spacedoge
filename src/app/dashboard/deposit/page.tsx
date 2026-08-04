@@ -210,6 +210,7 @@ function ChainDepositPanel({ chain, sendFromAddress }: { chain: DepositChainInfo
       {canDepositFromWallet && (
         <WalletDepositButton
           chainId={chain.evmChainId!}
+          chainKey={chain.chainKey}
           chainLabel={chain.label}
           treasuryAddress={chain.address}
           tokenContract={chain.tokenContract}
