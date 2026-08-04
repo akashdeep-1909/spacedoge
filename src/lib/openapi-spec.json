@@ -60,6 +60,10 @@
       "description": "Admin withdrawal completion queue"
     },
     {
+      "name": "Admin: Transfers",
+      "description": "Admin oversight of user-to-user wallet transfers"
+    },
+    {
       "name": "Admin: Users",
       "description": "Admin user search and risk flags"
     },
@@ -768,6 +772,135 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          }
+        }
+      }
+    },
+    "/api/wallet/resolve-recipient": {
+      "get": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Look up a wallet-to-wallet transfer recipient's nickname before committing to sending",
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    },
+                    "nickname": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/NotAuthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/wallet/transfer-to-user": {
+      "post": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Send Recycled or Referral USDT directly to a DIFFERENT wallet's account",
+        "description": "Unlike /api/wallet/transfer (which only moves balance between the caller's OWN buckets), this has a real counterparty. PLAY_USDT is not eligible — it funds gameplay only. Irreversible once sent, same as every other ledger action.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "toAddress",
+                  "balanceType",
+                  "amount"
+                ],
+                "properties": {
+                  "toAddress": {
+                    "type": "string",
+                    "description": "Recipient's EVM address — must already have a Space DOGE account"
+                  },
+                  "balanceType": {
+                    "type": "string",
+                    "enum": [
+                      "RECYCLED_USDT",
+                      "REFERRAL_USDT"
+                    ]
+                  },
+                  "amount": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 140
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "transferId": {
+                      "type": "string"
+                    },
+                    "recipientAddress": {
+                      "type": "string"
+                    },
+                    "recipientNickname": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "amount": {
+                      "type": "number"
+                    },
+                    "balanceType": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/NotAuthenticated"
@@ -2921,6 +3054,84 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/admin/transfers": {
+      "get": {
+        "tags": [
+          "Admin: Transfers"
+        ],
+        "summary": "List user-to-user wallet transfers platform-wide, searchable by either side's address or nickname",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Case-insensitive match against sender or recipient address/nickname",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "fromAddress": {
+                            "type": "string"
+                          },
+                          "fromNickname": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "toAddress": {
+                            "type": "string"
+                          },
+                          "toNickname": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "balanceType": {
+                            "type": "string",
+                            "enum": [
+                              "RECYCLED_USDT",
+                              "REFERRAL_USDT"
+                            ]
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "note": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/NotAuthorized"
           }
         }
       }
