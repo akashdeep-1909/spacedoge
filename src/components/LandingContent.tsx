@@ -126,9 +126,9 @@ export function LandingContent({ mining }: { mining: MiningStats }) {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-background text-foreground">
+    <div className="flex min-h-full flex-1 flex-col overflow-x-hidden bg-background text-foreground">
       {/* ---------------------------------------------------------- Header */}
-      <header className="sticky top-0 z-20 border-b border-gold/15 bg-background/85 backdrop-blur">
+      <header id="top" className="sticky top-0 z-20 border-b border-gold/15 bg-background/85 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
           <Link href="#" className="flex shrink-0 items-center gap-3">
             <Image src="/SpaceDOGE-icon.png" alt="SPACE DOGE" width={48} height={48} priority className="shrink-0 rounded-full" />
@@ -184,7 +184,19 @@ export function LandingContent({ mining }: { mining: MiningStats }) {
                 {t("landing.heroSubtitle")}
               </p>
               <div className="mt-1 flex flex-wrap items-center gap-3">
-                <ConnectWalletButton />
+                {/* Not a second ConnectWalletButton instance on purpose —
+                    the header above is `sticky top-0` (always on screen
+                    regardless of scroll position), so a second live copy
+                    of that same stateful component here was pure
+                    duplication, and a harmful one: once a connection was
+                    actually in progress, BOTH instances rendered their
+                    own full address-pill/Check-Wallet/disconnect row
+                    simultaneously, overflowing narrow mobile viewports
+                    (confirmed live). This just scrolls up to the one real
+                    button instead. */}
+                <a href="#top" className="btn-game hud-corner rounded-full px-4 py-2 text-sm">
+                  {t("common.connectWallet")}
+                </a>
                 <a href="#coin-rush" className="btn-game-outline hud-corner rounded-full px-4 py-2 text-sm font-bold uppercase tracking-wide">
                   {t("landing.exploreEcosystemButton")}
                 </a>

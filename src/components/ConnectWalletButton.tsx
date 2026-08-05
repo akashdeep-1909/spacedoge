@@ -303,7 +303,7 @@ export function ConnectWalletButton() {
   // logged in the whole time.
   if (session?.authenticated) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
         <NicknameEditor address={session.address!} nickname={session.nickname} onSaved={refresh} />
         {/* Below lg, MobileNav's own hamburger drawer (already open to
             every page link) carries its own Disconnect entry instead —
@@ -394,8 +394,8 @@ export function ConnectWalletButton() {
   if (!session?.authenticated) {
     const busy = status === "signing" || status === "verifying";
     return (
-      <div className="flex flex-col items-end gap-1">
-        <div className="flex items-center gap-2">
+      <div className="flex max-w-full flex-col items-end gap-1">
+        <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
           <span className="whitespace-nowrap rounded-full border border-line bg-panel px-3 py-1.5 text-xs text-muted">
             {address && shortenAddress(address)}
           </span>
