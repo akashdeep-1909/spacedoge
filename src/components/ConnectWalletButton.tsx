@@ -1,13 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { useAuth, isUserRejectionError } from "@/lib/auth-context";
 import { useSetNickname } from "@/lib/hooks";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { walletLog, errorDetails } from "@/lib/walletLog";
-import { waitForInjectedProvider } from "@/lib/wagmi";
-import { OpenInWalletAppLink } from "@/components/OpenInWalletAppLink";
+import { waitForInjectedProvider, metaMaskAppLink, AUTO_CONNECT_PARAM } from "@/lib/wagmi";
 
 // A hard ceiling on how long one connect attempt is allowed to sit
 // "busy" — mobile WalletConnect can leave connectAsync() permanently
@@ -158,6 +157,23 @@ export function ConnectWalletButton() {
     cancelSignIn,
   } = useAuth();
   const [connectFailure, setConnectFailure] = useState<string | null>(null);
+  // Drives which CTA is PRIMARY below — null while still checking (up
+  // to 1.5s, see waitForInjectedProvider), then true/false. Defaults to
+  // showing the normal Connect Wallet button while null so there's no
+  // flash of the wrong CTA on desktop (which resolves near-instantly
+  // anyway). Checked once on mount, not just at click-time like
+  // connectAndSignIn's own check below — this one decides page LAYOUT,
+  // so it needs to run before the user acts, not during.
+  const [injectedAvailable, setInjectedAvailable] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    waitForInjectedProvider().then((result) => {
+      if (!cancelled) setInjectedAvailable(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // Deliberately NOT useConnect()'s own isPending as the busy signal —
   // that reflects one specific connectAsync() promise, which can be
   // left permanently pending by an iOS bfcache resume (see
@@ -255,6 +271,26 @@ export function ConnectWalletButton() {
     }
   }
 
+  // Fires the connect flow automatically the moment this page loads
+  // via metaMaskAppLink()'s deep link (see AUTO_CONNECT_PARAM's
+  // doc-comment) — without this, landing inside MetaMask's browser was
+  // just an ordinary page load that connected nothing, leaving the
+  // user staring at a page that looks identical to before they tapped
+  // the link ("nothing happen no confirm, connect etc", confirmed
+  // live). Strips the marker from the URL right away via replaceState
+  // (not a Next.js navigation — this must NOT add a history entry or
+  // trigger a server round-trip) so refreshing afterward doesn't loop.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has(AUTO_CONNECT_PARAM)) return;
+    url.searchParams.delete(AUTO_CONNECT_PARAM);
+    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+    if (!session?.authenticated) connectAndSignIn();
+    // Deliberately only depends on mount — this must fire exactly once
+    // per real page load, not re-run as auth state resolves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const busy = attempting || status === "signing" || status === "verifying" || resuming;
 
   // A real signed-in session takes priority over wagmi's live wallet
@@ -285,30 +321,66 @@ export function ConnectWalletButton() {
   }
 
   if (!isConnected) {
+    const connectLabel = status === "signing"
+      ? t("common.checkWallet")
+      : status === "verifying"
+        ? t("common.verifying")
+        : attempting
+          ? t("common.connecting")
+          : resuming
+            ? t("common.reconnecting")
+            : t("common.connectWallet");
+
     return (
       <div className="flex flex-col items-end gap-1">
-        <button
-          onClick={connectAndSignIn}
-          disabled={busy}
-          className="btn-game hud-corner whitespace-nowrap rounded-full px-4 py-2 text-sm"
-        >
-          {status === "signing"
-            ? t("common.checkWallet")
-            : status === "verifying"
-              ? t("common.verifying")
-              : attempting
-                ? t("common.connecting")
-                : resuming
-                  ? t("common.reconnecting")
-                  : t("common.connectWallet")}
-        </button>
+        {/* injectedAvailable === false only ever means "no MetaMask
+            extension/app-browser detected" — on mobile that's exactly
+            when WalletConnect's browser round-trip is unreliable (see
+            metaMaskAppLink's doc-comment), so the deep link becomes
+            the PRIMARY action there, demoting the normal button to a
+            smaller fallback for people on a different wallet app. On
+            desktop the same false reading means "no extension, but
+            WalletConnect's QR code is the genuinely correct path" — a
+            mobile app deep link is meaningless on desktop — so the
+            normal button stays primary there via the lg: split below. */}
+        {injectedAvailable === false ? (
+          <>
+            <a
+              href={metaMaskAppLink()}
+              className="btn-game hud-corner whitespace-nowrap rounded-full px-4 py-2 text-sm lg:hidden"
+            >
+              {t("common.openInMetaMaskPrimary")}
+            </a>
+            <button
+              onClick={connectAndSignIn}
+              disabled={busy}
+              className="whitespace-nowrap text-[11px] text-muted underline decoration-dotted underline-offset-2 hover:text-gold lg:hidden"
+            >
+              {t("common.connectOtherWallet")}
+            </button>
+            <button
+              onClick={connectAndSignIn}
+              disabled={busy}
+              className="btn-game hud-corner hidden whitespace-nowrap rounded-full px-4 py-2 text-sm lg:inline-flex"
+            >
+              {connectLabel}
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={connectAndSignIn}
+            disabled={busy}
+            className="btn-game hud-corner whitespace-nowrap rounded-full px-4 py-2 text-sm"
+          >
+            {connectLabel}
+          </button>
+        )}
 
         <div className="flex max-w-56 flex-col items-end gap-1">
           {justAutoRecovered && (
             <span className="text-right text-xs text-mint">{t("common.autoRecoveredMessage")}</span>
           )}
           {connectFailure && <span className="text-right text-xs text-risk">{connectFailure}</span>}
-          <OpenInWalletAppLink />
         </div>
       </div>
     );

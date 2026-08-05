@@ -14,6 +14,8 @@ const ru = {
     disclaimer: "Отказ от ответственности",
     language: "Язык",
     openInMetaMask: "Faster: open in MetaMask app →",
+    openInMetaMaskPrimary: "Open in MetaMask",
+    connectOtherWallet: "Or connect a different wallet",
   },
   nav: {
     dashboard: "Панель управления",

@@ -14,6 +14,8 @@ const fil = {
     disclaimer: "Paalala",
     language: "Wika",
     openInMetaMask: "Faster: open in MetaMask app →",
+    openInMetaMaskPrimary: "Open in MetaMask",
+    connectOtherWallet: "Or connect a different wallet",
   },
   nav: {
     dashboard: "Dashboard",

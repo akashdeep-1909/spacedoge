@@ -14,6 +14,8 @@ const th = {
     disclaimer: "ข้อจำกัดความรับผิดชอบ",
     language: "ภาษา",
     openInMetaMask: "Faster: open in MetaMask app →",
+    openInMetaMaskPrimary: "Open in MetaMask",
+    connectOtherWallet: "Or connect a different wallet",
   },
   nav: {
     dashboard: "แดชบอร์ด",

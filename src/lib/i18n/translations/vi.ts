@@ -14,6 +14,8 @@ const vi = {
     disclaimer: "Miễn trừ trách nhiệm",
     language: "Ngôn ngữ",
     openInMetaMask: "Faster: open in MetaMask app →",
+    openInMetaMaskPrimary: "Open in MetaMask",
+    connectOtherWallet: "Or connect a different wallet",
   },
   nav: {
     dashboard: "Bảng điều khiển",

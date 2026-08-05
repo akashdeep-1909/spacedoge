@@ -30,6 +30,8 @@ const en = {
     disclaimer: "Disclaimer",
     language: "Language",
     openInMetaMask: "Faster: open in MetaMask app →",
+    openInMetaMaskPrimary: "Open in MetaMask",
+    connectOtherWallet: "Or connect a different wallet",
   },
   nav: {
     dashboard: "Dashboard",

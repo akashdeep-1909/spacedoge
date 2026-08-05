@@ -14,6 +14,8 @@ const id = {
     disclaimer: "Sangkalan",
     language: "Bahasa",
     openInMetaMask: "Faster: open in MetaMask app →",
+    openInMetaMaskPrimary: "Open in MetaMask",
+    connectOtherWallet: "Or connect a different wallet",
   },
   nav: {
     dashboard: "Dasbor",

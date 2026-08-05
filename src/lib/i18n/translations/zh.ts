@@ -14,6 +14,8 @@ const zh = {
     disclaimer: "免责声明",
     language: "语言",
     openInMetaMask: "Faster: open in MetaMask app →",
+    openInMetaMaskPrimary: "Open in MetaMask",
+    connectOtherWallet: "Or connect a different wallet",
   },
   nav: {
     dashboard: "仪表盘",

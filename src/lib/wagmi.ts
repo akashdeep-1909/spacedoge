@@ -36,6 +36,17 @@ export async function waitForInjectedProvider(timeoutMs = 1500): Promise<boolean
   return false;
 }
 
+// Marks a page load as having arrived via metaMaskAppLink() below, so
+// ConnectWalletButton knows to auto-trigger the connect flow instead
+// of silently doing nothing until the user finds the button and taps
+// it a second time — confirmed live as genuinely confusing ("nothing
+// happen no confirm, connect etc"): landing inside MetaMask's browser
+// via the deep link is just a normal fresh page load, it doesn't
+// connect anything by itself. Stripped from the URL immediately after
+// use (see the effect in ConnectWalletButton.tsx) so a later manual
+// refresh of the same page never re-triggers it.
+export const AUTO_CONNECT_PARAM = "wcauto";
+
 // MetaMask's own documented Universal Link format for opening a
 // specific URL directly inside its in-app browser
 // (metamask.io/en-GB/faqs, "Deep Linking"). The real fix for mobile
@@ -53,7 +64,9 @@ export async function waitForInjectedProvider(timeoutMs = 1500): Promise<boolean
 // MetaMask's own fallback if it isn't.
 export function metaMaskAppLink(): string {
   if (typeof window === "undefined") return "https://metamask.app.link";
-  return `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}${window.location.search}`;
+  const target = new URL(window.location.href);
+  target.searchParams.set(AUTO_CONNECT_PARAM, "1");
+  return `https://metamask.app.link/dapp/${target.host}${target.pathname}${target.search}`;
 }
 
 // SIWE sign-in itself is chain-agnostic — whatever network the wallet

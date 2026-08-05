@@ -14,6 +14,8 @@ const km = {
     disclaimer: "ការបដិសេធទំនួលខុសត្រូវ",
     language: "ភាសា",
     openInMetaMask: "Faster: open in MetaMask app →",
+    openInMetaMaskPrimary: "Open in MetaMask",
+    connectOtherWallet: "Or connect a different wallet",
   },
   nav: {
     dashboard: "ផ្ទាំងគ្រប់គ្រង",

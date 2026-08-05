@@ -14,6 +14,8 @@ const ko = {
     disclaimer: "면책 조항",
     language: "언어",
     openInMetaMask: "Faster: open in MetaMask app →",
+    openInMetaMaskPrimary: "Open in MetaMask",
+    connectOtherWallet: "Or connect a different wallet",
   },
   nav: {
     dashboard: "대시보드",
