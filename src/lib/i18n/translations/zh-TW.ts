@@ -13,6 +13,7 @@ const zhTW = {
     autoRecoveredMessage: "我們偵測到並清除了卡住的錢包連線。請點擊 Connect Wallet 重新嘗試。",
     disclaimer: "免責聲明",
     language: "語言",
+    openInMetaMask: "Faster: open in MetaMask app →",
   },
   nav: {
     dashboard: "儀表板",

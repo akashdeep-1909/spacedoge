@@ -13,6 +13,7 @@ const vi = {
     autoRecoveredMessage: "Chúng tôi đã phát hiện và xóa kết nối ví bị kẹt. Vui lòng nhấn Connect Wallet để thử lại.",
     disclaimer: "Miễn trừ trách nhiệm",
     language: "Ngôn ngữ",
+    openInMetaMask: "Faster: open in MetaMask app →",
   },
   nav: {
     dashboard: "Bảng điều khiển",

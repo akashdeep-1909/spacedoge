@@ -6,6 +6,7 @@ import { parseUnits } from "viem";
 import { waitForInjectedProvider, type wagmiConfig } from "@/lib/wagmi";
 import { isUserRejectionError, useAuth } from "@/lib/auth-context";
 import { useVerifyDeposit } from "@/lib/hooks";
+import { OpenInWalletAppLink } from "@/components/OpenInWalletAppLink";
 
 // Wraps a wallet-prompting promise (network switch, transaction confirm)
 // with a hard ceiling — without this, a wallet that never shows/responds
@@ -298,13 +299,16 @@ export function WalletDepositButton({
         you to confirm it, same as sending from any app.
       </p>
       {!isConnected ? (
-        <button
-          onClick={reconnect}
-          disabled={reconnecting}
-          className="btn-game mt-3 rounded-full px-4 py-2 text-sm disabled:opacity-50"
-        >
-          {reconnecting ? "Reconnecting…" : "Reconnect Wallet to Deposit"}
-        </button>
+        <div className="mt-3 flex flex-col items-start gap-1.5">
+          <button
+            onClick={reconnect}
+            disabled={reconnecting}
+            className="btn-game rounded-full px-4 py-2 text-sm disabled:opacity-50"
+          >
+            {reconnecting ? "Reconnecting…" : "Reconnect Wallet to Deposit"}
+          </button>
+          <OpenInWalletAppLink />
+        </div>
       ) : (
         <div className="mt-3 flex gap-2">
           <div className="relative flex-1">

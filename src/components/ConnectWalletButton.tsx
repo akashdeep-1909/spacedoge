@@ -7,6 +7,7 @@ import { useSetNickname } from "@/lib/hooks";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { walletLog, errorDetails } from "@/lib/walletLog";
 import { waitForInjectedProvider } from "@/lib/wagmi";
+import { OpenInWalletAppLink } from "@/components/OpenInWalletAppLink";
 
 // A hard ceiling on how long one connect attempt is allowed to sit
 // "busy" — mobile WalletConnect can leave connectAsync() permanently
@@ -307,6 +308,7 @@ export function ConnectWalletButton() {
             <span className="text-right text-xs text-mint">{t("common.autoRecoveredMessage")}</span>
           )}
           {connectFailure && <span className="text-right text-xs text-risk">{connectFailure}</span>}
+          <OpenInWalletAppLink />
         </div>
       </div>
     );

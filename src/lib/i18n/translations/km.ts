@@ -13,6 +13,7 @@ const km = {
     autoRecoveredMessage: "យើងបានរកឃើញ និងបានសម្អាតការតភ្ជាប់កាបូបដែលជាប់គាំង។ សូមចុច Connect Wallet ដើម្បីព្យាយាមម្តងទៀត។",
     disclaimer: "ការបដិសេធទំនួលខុសត្រូវ",
     language: "ភាសា",
+    openInMetaMask: "Faster: open in MetaMask app →",
   },
   nav: {
     dashboard: "ផ្ទាំងគ្រប់គ្រង",

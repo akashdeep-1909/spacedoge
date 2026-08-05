@@ -36,6 +36,26 @@ export async function waitForInjectedProvider(timeoutMs = 1500): Promise<boolean
   return false;
 }
 
+// MetaMask's own documented Universal Link format for opening a
+// specific URL directly inside its in-app browser
+// (metamask.io/en-GB/faqs, "Deep Linking"). The real fix for mobile
+// WalletConnect being slow/redirect-prone (QR/relay round-trip, then
+// an app-switch back to the browser that Apple's own OS has blocked
+// from happening automatically since iOS 17 — confirmed against
+// MetaMask's and WalletConnect's own docs/issue trackers, not
+// something any in-app code change can override): skip WalletConnect
+// entirely and land the user inside MetaMask's OWN browser instead,
+// where window.ethereum is just there directly — instant connect, and
+// no "return to Safari" step exists to go wrong in the first place.
+// Plain navigation (this is a normal https:// link, not any kind of
+// wallet-specific SDK call), so it works identically whether or not
+// MetaMask is already installed — the App/Play Store prompt is
+// MetaMask's own fallback if it isn't.
+export function metaMaskAppLink(): string {
+  if (typeof window === "undefined") return "https://metamask.app.link";
+  return `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}${window.location.search}`;
+}
+
 // SIWE sign-in itself is chain-agnostic — whatever network the wallet
 // happens to be on when it signs is fine, see auth-context.tsx/verify/
 // route.ts, neither of which check or require a specific chain. Real

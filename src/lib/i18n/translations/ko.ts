@@ -13,6 +13,7 @@ const ko = {
     autoRecoveredMessage: "멈춘 지갑 연결을 감지하여 정리했습니다. Connect Wallet을 다시 눌러 시도해 주세요.",
     disclaimer: "면책 조항",
     language: "언어",
+    openInMetaMask: "Faster: open in MetaMask app →",
   },
   nav: {
     dashboard: "대시보드",

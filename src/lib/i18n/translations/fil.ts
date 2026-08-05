@@ -13,6 +13,7 @@ const fil = {
     autoRecoveredMessage: "Napansin at nalinis namin ang natigil na koneksyon ng wallet. Paki-tap ang Connect Wallet para subukan ulit.",
     disclaimer: "Paalala",
     language: "Wika",
+    openInMetaMask: "Faster: open in MetaMask app →",
   },
   nav: {
     dashboard: "Dashboard",
