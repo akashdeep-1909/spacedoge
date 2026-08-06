@@ -162,3 +162,13 @@ Then Restart the app from the cPanel Node.js App page.
   expression` warning during `npm run build` (from
   `viem/.../tempo/...`) is expected and harmless — it's a known quirk
   in one of viem's chain definitions, unrelated to anything in this app.
+- If `npm install` fails with `Error: Could not find Prisma Schema...`
+  even though `prisma/schema.prisma` genuinely exists — confirmed on
+  cPanel's Node.js Selector, where `node_modules` is a symlink into a
+  separate `~/nodevenv/<app>/<version>/lib/node_modules` directory —
+  that's `package.json`'s own `postinstall` hook resolving its working
+  directory through that symlink's real target instead of the actual
+  project folder. Harmless: `postinstall` has `|| true` so it can't
+  abort `npm install` itself, and `deploy.sh` runs its own explicit
+  `npx prisma generate --schema=./prisma/schema.prisma` right after,
+  from the correct directory, which is the step actually relied on.
