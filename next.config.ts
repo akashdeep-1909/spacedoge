@@ -20,6 +20,22 @@ const nextConfig: NextConfig = {
     memoryBasedWorkersCount: true,
     webpackBuildWorker: true,
     webpackMemoryOptimizations: true,
+    // Source map generation is a real, direct memory cost during the
+    // exact "Creating an optimized production build" phase that was
+    // getting OOM-killed — turning it off removes that cost outright
+    // rather than just hoping worker-count tuning alone is enough.
+    serverSourceMaps: false,
+  },
+  productionBrowserSourceMaps: false,
+  // The build's own separate "Running TypeScript" pass is skipped here
+  // — not skipped blindly: `npx tsc --noEmit` is run locally (and
+  // should be run in CI) before every deploy, so type errors are
+  // already caught before this config is even reached. Re-running the
+  // full project's type-checking a second time, in-process, during an
+  // already memory-constrained build is one more multi-hundred-MB
+  // phase this account's memory limit doesn't have room for.
+  typescript: {
+    ignoreBuildErrors: true,
   },
   // Webpack-only fallback (`next dev --webpack` / `next build --webpack`)
   // for when Turbopack itself can't run (e.g. Windows without Developer
@@ -34,7 +50,7 @@ const nextConfig: NextConfig = {
   // is ever constructed. Aliasing all four to `false` (Webpack 5's
   // "resolve to an empty module" convention) reproduces Turbopack's
   // behavior without installing wallet SDKs the app doesn't use.
-  webpack: (config) => {
+  webpack: (config, { dev }) => {
     config.resolve.alias = {
       ...config.resolve.alias,
       porto: false,
@@ -43,6 +59,14 @@ const nextConfig: NextConfig = {
       "@coinbase/wallet-sdk": false,
       "@metamask/connect-evm": false,
     };
+    // Webpack's persistent build cache trades memory (and disk) for
+    // faster REPEAT builds — no benefit on a CI-style deploy that
+    // builds once and throws the checkout away, only cost. Production
+    // only; dev keeps the cache (fast rebuilds while iterating still
+    // matter there).
+    if (!dev && config.cache) {
+      config.cache = Object.freeze({ type: "memory" });
+    }
     return config;
   },
   // Turbopack auto-detects the workspace root by walking UP for the
