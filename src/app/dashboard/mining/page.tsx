@@ -23,6 +23,7 @@ import { CompositionBar } from "@/components/CompositionBar";
 import { AmountField } from "@/components/AmountField";
 import { RigIllustration } from "@/components/RigIllustration";
 import { InfoTooltip } from "@/components/InfoTooltip";
+import { SuccessModal, type SuccessModalRow } from "@/components/SuccessModal";
 import {
   useBalances,
   useMiningProof,
@@ -110,12 +111,17 @@ function MiningContent() {
   const [source, setSource] = useState<FundingSource>("GAME_REWARD_USDT");
   const [activateSource, setActivateSource] = useState<FundingSource>("GAME_REWARD_USDT");
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [successModal, setSuccessModal] = useState<{ title: string; body?: string; rows: SuccessModalRow[] } | null>(null);
 
   async function doActivate() {
     setFeedback(null);
     try {
       await activate.mutateAsync({ source: activateSource });
-      setFeedback(t("mining.activationSuccessFeedback"));
+      setSuccessModal({
+        title: t("mining.activationSuccessTitle"),
+        body: t("mining.activationSuccessBody"),
+        rows: [{ label: t("mining.activationSuccessAmountLabel"), value: `$${ACTIVATION_PRICE_USDT.toFixed(2)} ${SOURCE_LABEL[activateSource]}` }],
+      });
     } catch (err) {
       setFeedback(err instanceof Error ? err.message : t("mining.activationFailedFeedback"));
     }
@@ -124,13 +130,22 @@ function MiningContent() {
   async function doPurchase() {
     setFeedback(null);
     try {
-      const res = await purchase.mutateAsync({ amountUsdt: amount, source });
-      setFeedback(
-        t("mining.purchaseSuccessFeedback", {
-          power: res.miningPower.toFixed(1),
-          level: levelDisplayNameWithPlus(res.level, res.miningPower),
-        })
-      );
+      const spentUsdt = amount;
+      const spentSource = source;
+      const res = await purchase.mutateAsync({ amountUsdt: spentUsdt, source: spentSource });
+      setSuccessModal({
+        title: t("mining.purchaseSuccessTitle"),
+        rows: [
+          { label: t("mining.purchaseSuccessHashrateLabel"), value: `+${res.miningPower.toFixed(1)} MH/s` },
+          { label: t("mining.purchaseSuccessPackageLabel"), value: levelDisplayNameWithPlus(res.level, res.miningPower) },
+          { label: t("mining.purchaseSuccessAmountLabel"), value: `$${spentUsdt.toFixed(2)}` },
+          { label: t("mining.purchaseSuccessSourceLabel"), value: SOURCE_LABEL[spentSource] },
+        ],
+      });
+      // Reset the input back to 0 now that the purchase went through —
+      // leaving the last-purchased amount sitting there reads as if it
+      // hasn't been spent yet.
+      setAmount(0);
     } catch (err) {
       setFeedback(err instanceof Error ? err.message : t("mining.purchaseFailedFeedback"));
     }
@@ -286,7 +301,16 @@ function MiningContent() {
       </section>
 
       {feedback && (
-        <p className="game-panel rounded-xl px-4 py-2 text-sm">{feedback}</p>
+        <p className="game-panel rounded-xl px-4 py-2 text-sm text-risk">{feedback}</p>
+      )}
+
+      {successModal && (
+        <SuccessModal
+          title={successModal.title}
+          body={successModal.body}
+          rows={successModal.rows}
+          onClose={() => setSuccessModal(null)}
+        />
       )}
 
       <section>

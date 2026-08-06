@@ -5,25 +5,27 @@ import Link from "next/link";
 import Image from "next/image";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { MobileNav } from "@/components/MobileNav";
+import { DesktopMoreNav } from "@/components/DesktopMoreNav";
 import { BottomTabBar } from "@/components/BottomTabBar";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { SocialLinks } from "@/components/SocialLinks";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 
-const NAV_LINKS = [
+// Split into a small always-visible primary set (guaranteed to fit next
+// to the logo and wallet controls at any width `lg:` and up, no
+// horizontal scrolling needed) plus a "More" dropdown for the rest —
+// see DesktopMoreNav.tsx. Replaces the old single 12-item horizontal-
+// scroll pill, which had no real room left for all 12 labels on a
+// laptop-width (1024-1440px) window: it silently clipped the trailing
+// items (confirmed live: "POOL" cut to "PO") since a horizontally
+// scrollable container gives no visual hint that there's more to its
+// right.
+const PRIMARY_NAV_LINKS = [
   { href: "/dashboard", key: "nav.dashboard" as const },
   { href: "/dashboard/play", key: "nav.play" as const },
   { href: "/dashboard/mining", key: "nav.miningRig" as const },
   { href: "/dashboard/wallet", key: "nav.wallet" as const },
-  { href: "/dashboard/deposit", key: "nav.deposit" as const },
-  { href: "/dashboard/convert", key: "nav.convert" as const },
-  { href: "/dashboard/transfer", key: "nav.transfer" as const },
-  { href: "/dashboard/withdraw", key: "nav.withdraw" as const },
-  { href: "/dashboard/refer", key: "nav.refer" as const },
-  { href: "/dashboard/history", key: "nav.history" as const },
-  { href: "/dashboard/leaderboard", key: "nav.leaderboard" as const },
-  { href: "/pool", key: "nav.pool" as const },
 ];
 
 export function DashboardChrome({ children }: { children: ReactNode }) {
@@ -46,8 +48,8 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
             <p className="text-[11px] text-muted">{t("landing.tagline")}</p>
           </div>
         </Link>
-        <nav className="scroll-fade-x hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-full border border-line bg-panel p-1 text-xs font-semibold lg:flex">
-          {NAV_LINKS.map((l) => (
+        <nav className="hidden min-w-0 flex-1 items-center gap-1 rounded-full border border-line bg-panel p-1 text-xs font-semibold lg:flex">
+          {PRIMARY_NAV_LINKS.map((l) => (
             <Link
               key={l.href}
               href={l.href}
@@ -56,6 +58,7 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
               {t(l.key)}
             </Link>
           ))}
+          <DesktopMoreNav />
         </nav>
         {/* min-w-0 + overflow-x-auto is a safety net, not the primary
             fix — content here is sized to fit a real phone screen on its

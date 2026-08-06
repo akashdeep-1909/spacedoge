@@ -3,15 +3,26 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { shortenWalletAddress } from "@/lib/game-config";
 import { BALANCE_TRANSFER_REASON, TRANSFER_REF_TYPE, USER_TRANSFER_SENT_REASON, USER_TRANSFER_RECEIVED_REASON } from "@/lib/transfers";
+import en from "@/lib/i18n/translations/en";
 
+// Sourced directly from the EN translations object (a plain data
+// module, safe to import server-side) instead of a hand-duplicated
+// table — a second hardcoded copy of these names previously drifted
+// out of sync with the real display names (e.g. still said "Play USDT"
+// and "Recycled USDT" here after the balance cards elsewhere had
+// already been renamed to "Deposit Balance" and "Mining Earnings"),
+// producing "Transfer: Recycled USDT → Play USDT" rows next to balance
+// cards showing the new names. This endpoint has never been localized
+// (every REASON_LABEL below is English-only too), so EN is the correct
+// single source of truth to read from, not a full i18n rewire.
 const BALANCE_TYPE_SHORT: Record<string, string> = {
-  PLAY_USDT: "Play USDT",
-  GAME_REWARD_USDT: "Game Reward USDT",
-  RECYCLED_USDT: "Recycled USDT",
-  REFERRAL_USDT: "Referral USDT",
-  PTS: "PTS",
-  PENDING_DOGE: "Pending DOGE",
-  AVAILABLE_DOGE: "Available DOGE",
+  PLAY_USDT: en.dashboardHome.playUsdt,
+  GAME_REWARD_USDT: en.dashboardHome.gameRewardUsdt,
+  RECYCLED_USDT: en.wallet.recycledUsdtLabel,
+  REFERRAL_USDT: en.dashboardHome.referralUsdt,
+  PTS: en.wallet.ptsLabel,
+  PENDING_DOGE: en.dashboardHome.pendingDoge,
+  AVAILABLE_DOGE: en.dashboardHome.availableDoge,
 };
 function balanceTypeShort(balanceType: string): string {
   return BALANCE_TYPE_SHORT[balanceType] ?? balanceType.replaceAll("_", " ");

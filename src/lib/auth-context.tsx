@@ -708,7 +708,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus("error");
       setError(
         isUserRejectionError(err)
-          ? "Signature request declined. If MetaMask showed a \"could not verify this site\" warning, that's expected for local testing (no public domain to check yet) — look past it for the actual message to approve, then tap Sign In again."
+          ? "Signature request declined. If MetaMask showed a \"could not verify this site\" warning, look past it for the actual message to approve, then tap Sign In again."
           : err instanceof Error
             ? err.message
             : "Sign-in failed."

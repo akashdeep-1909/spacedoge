@@ -277,7 +277,7 @@ export function WalletDepositButton({
       return `Your wallet doesn't support ${chainLabel}. If you're using Phantom, switch to MetaMask for this deposit (or in Phantom, turn off Settings → Default App Wallet and set it to "Always Ask"), then try again.`;
     }
     if (isUserRejectionError(err)) {
-      return 'Transaction declined. If your wallet showed a "could not verify this site" warning, that\'s expected for local/unverified testing — look past it for the actual transaction to approve, then try again.';
+      return 'Transaction declined. If your wallet showed a "could not verify this site" warning, look past it for the actual transaction to approve, then try again.';
     }
     return err instanceof Error ? err.message : "Transaction failed or was rejected.";
   }

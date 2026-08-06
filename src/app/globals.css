@@ -122,8 +122,21 @@ body {
 .text-glow-gold { text-shadow: 0 0 16px rgba(201, 162, 39, 0.55); }
 .text-glow-mint { text-shadow: 0 0 16px rgba(45, 212, 167, 0.55); }
 
+/* display:inline-flex here (not just per-usage utility classes) is
+   load-bearing: an <a> is `display: inline` by default, and min-height
+   has NO effect on plain inline elements — a button missing an
+   `inline-flex` utility class at its call site would silently ignore
+   the 40px min-height set below and render shorter, with its text
+   sitting at the top of the padding box instead of vertically centered.
+   Baking the flex layout into the base class guarantees every button
+   everywhere (present and future) is centered and consistently sized,
+   instead of depending on every call site remembering to add it. */
 .btn-game {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -145,6 +158,10 @@ body {
 
 .btn-game-outline {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   font-weight: 700;
   letter-spacing: 0.03em;
   border: 1px solid rgba(45, 212, 167, 0.35);
@@ -176,4 +193,189 @@ body {
   font-variant-numeric: tabular-nums;
   font-weight: 800;
   letter-spacing: -0.01em;
+}
+
+/* ------------------------------------------------------------------
+   Landing (marketing) page style — matches the reference design the
+   user supplied: soft rounded cards + shadows + solid gradient CTAs
+   on a deep navy background, instead of the in-app "Neon Arcade" HUD
+   treatment (clipped corners, glow pulses) used past the wallet-
+   connect gate. Scoped entirely under .ld-root, which only wraps
+   LandingContent.tsx — a descendant's own custom-property declaration
+   always wins over an ancestor's (here, :root's), so this repaints
+   every existing bg-panel/border-line/text-muted/text-gold/etc.
+   utility already used on the landing page for free, without having
+   to touch dashboard/admin styling or hunt down every className. */
+.ld-root {
+  --background: #020b14;
+  --panel: rgba(7, 20, 34, 0.86);
+  --panel-2: rgba(11, 26, 43, 0.9);
+  --line: rgba(141, 196, 225, 0.17);
+  --foreground: #f5f7fb;
+  --muted: #9eabbc;
+  --gold: #ffb516;
+  --gold-soft: rgba(255, 181, 22, 0.14);
+  --mint: #22e193;
+  --mint-soft: rgba(34, 225, 147, 0.14);
+}
+.ld-root .hud-corner { clip-path: none; }
+.ld-root .game-panel {
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.34);
+}
+.ld-root .game-panel::before { display: none; }
+.ld-root .rounded-2xl,
+.ld-root .rounded-xl { border-radius: 18px; }
+
+.ld-root .btn-game,
+.ld-root .btn-game-outline {
+  clip-path: none;
+  border-radius: 8px !important;
+  min-height: 40px;
+  padding-inline: 18px !important;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+.ld-root .btn-game {
+  background: linear-gradient(180deg, #f2c245 0%, #e0a812 100%);
+  color: #1a1204;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+.ld-root .btn-game:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.3) inset, 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+.ld-root .btn-game:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.97);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset, 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+/* Compact inline buttons (e.g. the nickname editor's "Save", next to a
+   small text input) opt out of the 40px/18px full-CTA sizing above —
+   marked with this second class so the selector's higher specificity
+   wins over the general .btn-game rule. */
+.ld-root .btn-game.btn-game-sm {
+  min-height: 0;
+  padding-inline: 10px !important;
+  font-size: 0.75rem;
+}
+.ld-root .btn-game-outline {
+  border-color: var(--line);
+  background: transparent;
+  color: var(--foreground);
+}
+.ld-root .btn-game-outline:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(255, 201, 69, 0.6);
+  background: rgba(255, 181, 22, 0.06);
+}
+.ld-root .btn-game-outline:active:not(:disabled) { transform: translateY(0); }
+
+/* A handful of custom (non btn-game) pill CTAs on the landing page —
+   the feature-card CTAs (which set their own bg/text color via inline
+   style) and "Join Waitlist" (which doesn't) — share only the sizing/
+   shape here, matching every other button on the page, without a
+   blanket .rounded-full override (that class is also used on the
+   circular logo/avatar images, which must stay circles). */
+.ld-btn-flat {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border-radius: 8px !important;
+  min-height: 40px;
+  padding-inline: 18px !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.ld-btn-flat:hover { transform: translateY(-1px); }
+.ld-btn-flat:active { transform: translateY(0); }
+
+/* The ghost/tertiary CTA specifically ("Join Waitlist") — given a
+   visible border + brighter text at rest so it reads as a real button
+   instead of nearly disappearing into the dark background. */
+.ld-btn-ghost {
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  color: #e8edf5 !important;
+}
+.ld-btn-ghost:hover {
+  border-color: rgba(255, 181, 22, 0.55) !important;
+  color: #ffd873 !important;
+  background: rgba(255, 181, 22, 0.06);
+}
+
+/* Reference's .container: width: min(1180px, calc(100% - 36px)) — an
+   18px gutter on each side at every width, not a breakpoint-stepped
+   Tailwind padding scale. */
+.ld-container {
+  width: min(1180px, calc(100% - 36px));
+  margin-inline: auto;
+}
+
+.ld-eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Reference's h2: font-size: clamp(30px, 4vw, 46px); line-height: 1.08;
+   letter-spacing: -0.025em. Used for every section heading. */
+.ld-h2 {
+  font-size: clamp(1.5rem, 2.6vw, 2.125rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 800;
+}
+
+/* Reference's .feature-content h3: font-size: 30px; line-height: 1.08. */
+.ld-h3 {
+  font-size: clamp(1.0625rem, 1.6vw, 1.25rem);
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+/* Glass card used across the redesigned landing page: soft inner
+   highlight + outer shadow, no clipped HUD corners. Hover state is
+   driven from JS (TiltCard) via inline style for the cursor-tracked
+   spotlight — this class only sets the static base look. */
+.ld-glass {
+  position: relative;
+  border-radius: 20px;
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0) 45%), var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Slow-drifting blurred color blobs — the "alive background" behind
+   hero/CTA sections. Respects reduced-motion by freezing in place. */
+@keyframes aurora-drift-1 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(6%, 4%) scale(1.08); } }
+@keyframes aurora-drift-2 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-6%, 5%) scale(1.05); } }
+@keyframes aurora-drift-3 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(4%, -6%) scale(1.1); } }
+.ld-aurora { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.ld-aurora span { position: absolute; border-radius: 999px; filter: blur(80px); }
+
+@keyframes ld-orbit-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes ld-orbit-spin-rev { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
+@keyframes ld-twinkle-star { 0%, 100% { opacity: 0.15; transform: scale(0.7); } 50% { opacity: 0.9; transform: scale(1); } }
+
+/* FAQ answer expand/collapse — grid-template-rows 0fr→1fr is the one
+   reliable CSS-only way to transition to an intrinsic/auto height
+   (animating max-height requires guessing a cap; this doesn't). */
+.ld-faq-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ld-faq-panel.open { grid-template-rows: 1fr; }
+.ld-faq-panel > div { overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ld-aurora span,
+  [style*="ld-orbit-spin"] { animation: none !important; }
 }

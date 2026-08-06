@@ -40,6 +40,18 @@ const CONNECT_TIMEOUT_MS = 120_000;
 function isTransientRelayError(err: unknown): boolean {
   return err instanceof Error && /WebSocket connection failed/i.test(err.message);
 }
+
+// wagmi's ConnectorAlreadyConnectedError — thrown when connect() is
+// called on a connector wagmi's own state already considers active
+// (e.g. a double-tap on Connect Wallet, or a connector left connected
+// from an earlier session while the SIWE step never completed). This
+// isn't a real failure — the wallet genuinely is connected — so it
+// should never surface wagmi's raw internal error text ("Connector
+// already connected. Version: @wagmi/core@3.6.4", confirmed live) to a
+// real user; see the recovery branch in connectAndSignIn's catch below.
+function isAlreadyConnectedError(err: unknown): boolean {
+  return err instanceof Error && (err.name === "ConnectorAlreadyConnectedError" || /already connected/i.test(err.message));
+}
 async function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -108,7 +120,7 @@ function NicknameEditor({ address, nickname, onSaved }: { address: string; nickn
         <button
           onClick={save}
           disabled={setNickname.isPending}
-          className="btn-game whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs disabled:opacity-50"
+          className="btn-game btn-game-sm whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs disabled:opacity-50"
         >
           {setNickname.isPending ? "…" : "Save"}
         </button>
@@ -141,7 +153,7 @@ function NicknameEditor({ address, nickname, onSaved }: { address: string; nickn
 // this app.
 export function ConnectWalletButton() {
   const { t } = useLocale();
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
   const { connectAsync, connectors } = useConnect();
   const { disconnect } = useDisconnect();
   const {
@@ -255,12 +267,18 @@ export function ConnectWalletButton() {
       await signIn(result.accounts[0], result.chainId);
     } catch (err) {
       walletLog("connect attempt failed", { attemptId: myAttemptId, ...errorDetails(err) });
-      if (attemptIdRef.current === myAttemptId) {
+      // The connector wagmi's own state already considers connected —
+      // not a real failure, so recover silently by signing in with the
+      // address it already reports instead of showing an error at all.
+      if (isAlreadyConnectedError(err) && address && chainId != null) {
+        walletLog("connector already connected, signing in directly", { attemptId: myAttemptId, address, chainId });
+        if (attemptIdRef.current === myAttemptId) await signIn(address, chainId);
+      } else if (attemptIdRef.current === myAttemptId) {
         setConnectFailure(
           isTransientRelayError(err)
             ? "Couldn't reach the wallet network — check your connection and try again."
             : isUserRejectionError(err)
-              ? "Connection request declined. If MetaMask showed a \"could not verify this site\" warning, that's expected for local testing — look past it for the actual connect request, then tap Connect Wallet again."
+              ? "Connection request declined. If your wallet showed a \"could not verify this site\" warning, look past it for the actual connect request, then tap Connect Wallet again."
               : err instanceof Error
                 ? err.message
                 : "Failed to connect wallet."

@@ -1,6 +1,7 @@
 import { ReferralCapture } from "@/components/ReferralCapture";
 import { LandingContent } from "@/components/LandingContent";
 import { settleYesterdayIfNeeded, reconcileExpiredContracts } from "@/lib/mining";
+import { getPlatformStats } from "@/lib/platformStats";
 
 export default async function Home({
   searchParams,
@@ -14,6 +15,8 @@ export default async function Home({
   const epoch = await settleYesterdayIfNeeded();
   // Day-180 close-out, same lazy-trigger convention as settleYesterdayIfNeeded above.
   await reconcileExpiredContracts();
+
+  const platformStats = await getPlatformStats();
 
   // Decimal (Prisma) fields aren't serializable across the server/client
   // boundary — convert to plain numbers/strings here before handing off
@@ -29,7 +32,7 @@ export default async function Home({
   return (
     <>
       <ReferralCapture code={ref} />
-      <LandingContent mining={mining} />
+      <LandingContent mining={mining} platformStats={platformStats} />
     </>
   );
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { motion, useMotionValue, useSpring, useReducedMotion } from "framer-motion";
 import {
   Shield,
   FileText,
@@ -14,14 +15,15 @@ import {
   ChevronDown,
   Rocket,
   ArrowRight,
+  Pickaxe,
 } from "lucide-react";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { EnterDashboard } from "@/components/EnterDashboard";
 import { InfoTooltip } from "@/components/InfoTooltip";
-import { SocialLinks } from "@/components/SocialLinks";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
-import type { TranslationKey } from "@/lib/i18n/LocaleProvider";
+import { Reveal, StatCounter, TiltCard, EASE, Starfield } from "@/components/motionPrimitives";
 
 interface MiningStats {
   epochDateLabel: string;
@@ -31,14 +33,13 @@ interface MiningStats {
   netDistributableDoge: number;
 }
 
-const NAV_LINKS = [
-  { href: "#how-it-works", key: "landing.navHowItWorks" as const },
-  { href: "#coin-rush", key: "landing.navCoinRush" as const },
-  { href: "#doge-mining", key: "landing.navDogeMining" as const },
-  { href: "/pool", key: "landing.navProofOfHash" as const },
-  { href: "#referral-network", key: "landing.navReferralNetwork" as const },
-  { href: "#faq", key: "landing.navFaq" as const },
-] as const;
+interface PlatformStats {
+  walletCount: number;
+  matchCount: number;
+  activeMinerCount: number;
+  totalHashrateGhs: number;
+  lifetimeDogeDistributed: number;
+}
 
 const HERO_BADGES = [
   { Icon: Shield, key: "landing.heroBadgeWallet" as const },
@@ -75,257 +76,310 @@ const FAQ_KEYS = [
   { qKey: "landing.faq6Q" as const, aKey: "landing.faq6A" as const },
 ] as const;
 
-// Footer link columns. `href: null` entries have no real destination
-// yet (no standalone page exists for them today) — rendered as
-// visually-present but inert text rather than a live link, so nothing
-// 404s. Anything that already maps to a real route/section uses that.
-const FOOTER_COLUMNS: { headingKey: TranslationKey; links: { labelKey: TranslationKey; href: string | null }[] }[] = [
-  {
-    headingKey: "landing.footerEcosystemHeading",
-    links: [
-      { labelKey: "landing.navCoinRush", href: "#coin-rush" },
-      { labelKey: "landing.navDogeMining", href: "#doge-mining" },
-      { labelKey: "landing.navProofOfHash", href: "/pool" },
-      { labelKey: "landing.navReferralNetwork", href: "#referral-network" },
-    ],
-  },
-  {
-    headingKey: "landing.footerResourcesHeading",
-    links: [
-      { labelKey: "landing.navHowItWorks", href: "#how-it-works" },
-      { labelKey: "landing.footerMissionControl", href: null },
-      { labelKey: "landing.footerDailyRewards", href: null },
-      { labelKey: "landing.footerDocumentation", href: null },
-      { labelKey: "landing.footerBlog", href: null },
-    ],
-  },
-  {
-    headingKey: "landing.footerCompanyHeading",
-    links: [
-      { labelKey: "landing.footerAboutUs", href: null },
-      { labelKey: "landing.footerCareers", href: null },
-      { labelKey: "landing.footerPartners", href: null },
-      { labelKey: "landing.footerMediaKit", href: null },
-      { labelKey: "landing.footerContactUs", href: null },
-    ],
-  },
-  {
-    headingKey: "landing.footerLegalHeading",
-    links: [
-      { labelKey: "landing.footerTerms", href: null },
-      { labelKey: "landing.footerPrivacy", href: null },
-      { labelKey: "landing.footerRisk", href: null },
-      { labelKey: "landing.footerRefund", href: null },
-      { labelKey: "landing.footerCookie", href: null },
-    ],
-  },
-];
-
-export function LandingContent({ mining }: { mining: MiningStats }) {
+export function LandingContent({ mining, platformStats }: { mining: MiningStats; platformStats: PlatformStats }) {
   const { t } = useLocale();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const reduceMotion = useReducedMotion();
+
+  // Mouse-parallax on the hero mascot — a couple of degrees of tilt
+  // toward the cursor, nothing that fights readability of the text
+  // beside it.
+  const heroTiltX = useMotionValue(0);
+  const heroTiltY = useMotionValue(0);
+  const heroSpringX = useSpring(heroTiltX, { stiffness: 60, damping: 18 });
+  const heroSpringY = useSpring(heroTiltY, { stiffness: 60, damping: 18 });
+  function handleHeroMouseMove(e: ReactMouseEvent<HTMLDivElement>) {
+    if (reduceMotion) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width - 0.5;
+    const py = (e.clientY - rect.top) / rect.height - 0.5;
+    heroTiltX.set(py * 10);
+    heroTiltY.set(px * -10);
+  }
+  function handleHeroMouseLeave() {
+    heroTiltX.set(0);
+    heroTiltY.set(0);
+  }
 
   return (
-    <div className="flex min-h-full flex-1 flex-col overflow-x-hidden bg-background text-foreground">
-      {/* ---------------------------------------------------------- Header */}
-      <header id="top" className="sticky top-0 z-20 border-b border-gold/15 bg-background/85 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
-          <Link href="#" className="flex shrink-0 items-center gap-3">
-            <Image src="/SpaceDOGE-icon.png" alt="SPACE DOGE" width={48} height={48} priority className="shrink-0 rounded-full" />
-            <div className="hidden min-w-0 sm:block">
-              <h1 className="text-sm font-black uppercase tracking-widest">{t("landing.brandName")}</h1>
-              <p className="text-[11px] text-muted">{t("landing.tagline")}</p>
-            </div>
-          </Link>
-          <nav className="hidden items-center gap-5 text-xs font-semibold uppercase tracking-wide text-muted lg:flex">
-            {NAV_LINKS.map((l) => (
-              <a key={l.href} href={l.href} className="transition hover:text-gold">
-                {t(l.key)}
-              </a>
-            ))}
-          </nav>
-          <div className="flex shrink-0 items-center gap-2">
-            <LanguageSwitcher />
-            <ConnectWalletButton />
-          </div>
-        </div>
-      </header>
+    <div className="ld-root flex min-h-full flex-1 flex-col overflow-x-hidden bg-background text-foreground">
+      <SiteHeader />
 
       <main className="flex-1">
         {/* -------------------------------------------------------- Hero */}
-        <section className="relative overflow-hidden">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 -z-10"
-            style={{
-              background:
-                "radial-gradient(60% 50% at 50% 0%, rgba(201,162,39,0.22) 0%, transparent 65%), radial-gradient(45% 40% at 80% 20%, rgba(45,212,167,0.16) 0%, transparent 70%), radial-gradient(35% 35% at 10% 80%, rgba(45,212,167,0.10) 0%, transparent 70%)",
-            }}
-          />
+        <section className="relative overflow-hidden" onMouseMove={handleHeroMouseMove} onMouseLeave={handleHeroMouseLeave}>
+          <div aria-hidden className="ld-aurora -z-10">
+            <span
+              style={{ left: "8%", top: "-10%", width: 480, height: 480, background: "rgba(201,162,39,0.25)", animation: "aurora-drift-1 16s ease-in-out infinite" }}
+            />
+            <span
+              style={{ right: "4%", top: "6%", width: 420, height: 420, background: "rgba(34,225,147,0.18)", animation: "aurora-drift-2 20s ease-in-out infinite" }}
+            />
+            <span
+              style={{ left: "30%", bottom: "-16%", width: 460, height: 460, background: "rgba(167,139,250,0.14)", animation: "aurora-drift-3 18s ease-in-out infinite" }}
+            />
+          </div>
+          <Starfield className="-z-10" />
           <div aria-hidden className="pointer-events-none absolute inset-0 select-none overflow-hidden">
             <span className="absolute left-[6%] top-[18%] text-4xl sm:text-5xl" style={{ animation: "float-coin 3.4s ease-in-out infinite" }}>🪙</span>
             <span className="absolute right-[2%] top-[30%] text-3xl sm:right-[8%] sm:top-[24%] sm:text-4xl" style={{ animation: "float-coin-alt 2.9s ease-in-out infinite", animationDelay: "0.4s" }}>🪙</span>
             <span className="absolute left-[14%] bottom-[16%] text-3xl sm:text-4xl" style={{ animation: "float-coin 3.1s ease-in-out infinite", animationDelay: "1.1s" }}>💎</span>
             <span className="absolute right-[14%] bottom-[20%] text-4xl sm:text-5xl" style={{ animation: "float-coin-alt 3.7s ease-in-out infinite", animationDelay: "0.7s" }}>🪙</span>
-            <span className="absolute left-[4%] top-[6%] text-xl sm:left-[26%] sm:top-[10%] sm:text-2xl" style={{ animation: "twinkle 2.2s ease-in-out infinite", animationDelay: "0.2s" }}>✨</span>
-            <span className="absolute right-[3%] top-[4%] text-lg sm:right-[24%] sm:top-[14%] sm:text-xl" style={{ animation: "twinkle 1.8s ease-in-out infinite", animationDelay: "0.9s" }}>✨</span>
-            <span className="absolute left-[9%] top-[52%] text-lg sm:text-xl" style={{ animation: "twinkle 2.5s ease-in-out infinite", animationDelay: "1.4s" }}>✨</span>
             <span className="absolute right-[9%] top-[48%] text-xl sm:text-2xl" style={{ animation: "twinkle 2s ease-in-out infinite", animationDelay: "0.5s" }}>🚀</span>
             <span className="absolute left-[3%] bottom-[36%] text-2xl sm:text-3xl opacity-80" style={{ animation: "spin-slow 12s linear infinite" }}>🌕</span>
           </div>
 
-          <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-2">
-            <div className="flex flex-col items-start gap-5 text-left">
-              <span className="text-xs font-black uppercase tracking-[0.25em] text-mint">{t("landing.heroEyebrow")}</span>
-              <h2 className="text-glow-gold text-balance text-4xl font-black leading-[1.1] tracking-tight sm:text-5xl">
+          <div className="ld-container relative grid items-center gap-[26px] py-9 sm:py-[72px] lg:min-h-[680px] lg:grid-cols-2">
+            <div className="flex flex-col items-start gap-4 text-left sm:gap-5">
+              <motion.span
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: EASE }}
+                className="ld-eyebrow text-mint"
+              >
+                {t("landing.heroEyebrow")}
+              </motion.span>
+              <motion.h2
+                initial={{ clipPath: "inset(0 100% 0 0)", opacity: 0 }}
+                animate={{ clipPath: "inset(0 0% 0 0)", opacity: 1 }}
+                transition={{ duration: reduceMotion ? 0.2 : 0.9, delay: 0.1, ease: EASE }}
+                className="text-glow-gold text-balance max-w-[600px] text-[clamp(1.875rem,4vw,3.25rem)] font-extrabold leading-[1.08] tracking-[-0.03em]"
+              >
                 {t("landing.heroTitle")}
-              </h2>
-              <p className="max-w-xl text-pretty text-base leading-relaxed text-muted sm:text-lg">
+              </motion.h2>
+              <motion.p
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.35, ease: EASE }}
+                className="max-w-[560px] text-pretty text-[15px] leading-relaxed text-muted"
+              >
                 {t("landing.heroSubtitle")}
-              </p>
-              <div className="mt-1 flex flex-wrap items-center gap-3">
-                {/* Not a second ConnectWalletButton instance on purpose —
-                    the header above is `sticky top-0` (always on screen
-                    regardless of scroll position), so a second live copy
-                    of that same stateful component here was pure
+              </motion.p>
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.45, ease: EASE }}
+                className="mt-[14px] mb-[4px] flex flex-wrap items-center gap-[12px]"
+              >
+                {/* No standalone Connect Wallet CTA here — the header
+                    above is `sticky top-0` (always on screen regardless
+                    of scroll position) and already has one. A second
+                    live ConnectWalletButton instance here was pure
                     duplication, and a harmful one: once a connection was
                     actually in progress, BOTH instances rendered their
                     own full address-pill/Check-Wallet/disconnect row
                     simultaneously, overflowing narrow mobile viewports
-                    (confirmed live). This just scrolls up to the one real
-                    button instead. */}
-                <a href="#top" className="btn-game hud-corner rounded-full px-4 py-2 text-sm">
-                  {t("common.connectWallet")}
-                </a>
-                <a href="#coin-rush" className="btn-game-outline hud-corner rounded-full px-4 py-2 text-sm font-bold uppercase tracking-wide">
+                    (confirmed live). */}
+                <a
+                  href="#coin-rush"
+                  className="btn-game hud-corner text-sm font-bold uppercase tracking-wide"
+                >
                   {t("landing.exploreEcosystemButton")}
                 </a>
-              </div>
+                <a
+                  href="#faq"
+                  className="ld-btn-flat ld-btn-ghost group inline-flex items-center gap-1.5 border bg-panel-2 text-xs font-bold uppercase tracking-wide"
+                >
+                  {t("landing.joinWaitlistButton")}
+                  <ArrowRight size={13} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
+                </a>
+              </motion.div>
               <EnterDashboard />
-              <a
-                href="#faq"
-                className="rounded-full border border-line bg-panel px-4 py-2 text-xs font-bold uppercase tracking-wide text-muted transition hover:border-gold/40 hover:text-gold"
+              <motion.div
+                initial="hidden"
+                animate="show"
+                variants={{ show: { transition: { staggerChildren: 0.08, delayChildren: 0.6 } } }}
+                className="mt-3 flex flex-wrap gap-[8px]"
               >
-                {t("landing.joinWaitlistButton")}
-              </a>
-              <div className="mt-2 flex flex-wrap gap-2">
                 {HERO_BADGES.map(({ Icon, key }) => (
-                  <span
+                  <motion.span
                     key={key}
-                    className="flex items-center gap-1.5 rounded-full border border-line bg-panel px-3 py-1.5 text-[11px] font-semibold text-muted"
+                    variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
+                    transition={{ duration: 0.4, ease: EASE }}
+                    className="flex items-center gap-[6px] rounded-[10px] border border-line bg-panel px-[10px] py-[7px] text-[12px] font-semibold text-muted"
                   >
-                    <Icon size={13} className="shrink-0 text-mint" />
+                    <Icon size={14} className="shrink-0 text-gold" />
                     {t(key)}
-                  </span>
+                  </motion.span>
                 ))}
-              </div>
+              </motion.div>
             </div>
 
-            <div className="relative mx-auto hidden aspect-square w-full max-w-md items-center justify-center lg:flex">
+            <div className="relative mx-auto hidden aspect-square w-full max-w-[560px] items-center justify-center lg:flex">
               <div
                 aria-hidden
                 className="absolute inset-0 rounded-full"
                 style={{ background: "radial-gradient(closest-side, rgba(201,162,39,0.25), transparent 75%)" }}
               />
-              <Image
-                src="/SpaceDOGE-icon.png"
-                alt="Space DOGE"
-                width={360}
-                height={360}
-                priority
-                className="relative shrink-0 drop-shadow-2xl"
-                style={{ animation: "float-coin 6s ease-in-out infinite" }}
+              <div
+                aria-hidden
+                className="absolute inset-[6%] rounded-full border border-dashed"
+                style={{ borderColor: "rgba(255,181,22,0.25)", animation: "ld-orbit-spin 40s linear infinite" }}
               />
+              <div
+                aria-hidden
+                className="absolute inset-[14%] rounded-full border border-dashed"
+                style={{ borderColor: "rgba(34,225,147,0.2)", animation: "ld-orbit-spin-rev 55s linear infinite" }}
+              />
+              <motion.div style={{ rotateX: heroSpringX, rotateY: heroSpringY, transformPerspective: 1000 }}>
+                <Image
+                  src="/SpaceDOGE-icon.png"
+                  alt="Space DOGE"
+                  width={360}
+                  height={360}
+                  priority
+                  className="relative shrink-0 drop-shadow-2xl"
+                  style={{ animation: "float-coin 6s ease-in-out infinite" }}
+                />
+              </motion.div>
+
+              {/* Live proof-of-hash chip — real data (same numbers as the
+                  Proof of Hash section below), not a decorative fake stat. */}
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.5, delay: 1, ease: EASE }}
+                className="ld-glass absolute -bottom-2 inset-x-4 mx-auto flex w-fit max-w-[92%] items-center justify-center gap-2 px-4 py-2.5 text-center text-xs font-bold"
+                style={{ animation: "float-coin-alt 5s ease-in-out infinite" }}
+              >
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-mint" style={{ animation: "led-pulse 1.6s ease-in-out infinite" }} />
+                <span className="text-mint">{mining.netDistributableDoge.toFixed(2)} DOGE</span>
+                <span className="text-muted">{t("landing.netOutputSettled")}</span>
+              </motion.div>
             </div>
+          </div>
+        </section>
+
+        {/* ------------------------------------------- Platform At A Glance */}
+        <section className="border-t border-line bg-panel/40">
+          <div className="ld-container py-6 sm:py-9">
+            <Reveal>
+              <span className="ld-eyebrow mb-4 block text-center text-gold sm:text-left">{t("landing.statsEyebrow")}</span>
+              <div className="ld-glass grid grid-cols-2 divide-y divide-line sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+                {[
+                  { Icon: Users, value: platformStats.walletCount, label: t("landing.statsWallets"), decimals: 0, suffix: "" },
+                  { Icon: Gamepad2, value: platformStats.matchCount, label: t("landing.statsMatches"), decimals: 0, suffix: "" },
+                  { Icon: Pickaxe, value: platformStats.activeMinerCount, label: t("landing.statsMiners"), decimals: 0, suffix: "" },
+                  { Icon: Coins, value: platformStats.lifetimeDogeDistributed, label: t("landing.statsLifetimeDoge"), decimals: 2, suffix: " DOGE" },
+                ].map((s) => (
+                  <div key={s.label} className="flex items-center gap-3 p-5">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-gold-soft text-gold">
+                      <s.Icon size={18} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-lg leading-tight">
+                        <StatCounter value={s.value} decimals={s.decimals} suffix={s.suffix} />
+                      </p>
+                      <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted">{s.label}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
           </div>
         </section>
 
         {/* ---------------------------------------- Coin Rush / DOGE Mining */}
         <section className="border-t border-line bg-panel/40" id="coin-rush">
-          <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8">
-            <span className="text-xs font-black uppercase tracking-[0.25em] text-mint">{t("landing.ecosystemEyebrow")}</span>
-            <h3 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">{t("landing.ecosystemHeading")}</h3>
+          <div className="ld-container py-9 sm:py-[72px]">
+            <Reveal>
+              <span className="ld-eyebrow text-mint">{t("landing.ecosystemEyebrow")}</span>
+              <h3 className="ld-h2 mt-2">{t("landing.ecosystemHeading")}</h3>
+            </Reveal>
 
-            <div className="mt-8 grid gap-6 lg:grid-cols-2">
-              <div className="game-panel hud-corner rounded-2xl border-l-4 p-7" style={{ borderLeftColor: "#a78bfa" }}>
-                <span
-                  className="grid h-11 w-11 place-items-center rounded-xl text-xl"
-                  style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa" }}
-                >
-                  <Gamepad2 size={22} />
-                </span>
-                <h4 className="mt-4 text-lg font-black uppercase tracking-wide">{t("landing.coinRushLabel")}</h4>
-                <p className="mt-1 text-sm text-muted">{t("landing.coinRushTagline")}</p>
-                <ul className="mt-4 flex flex-col gap-2 text-sm text-muted">
-                  {(["landing.coinRushBullet1", "landing.coinRushBullet2", "landing.coinRushBullet3", "landing.coinRushBullet4", "landing.coinRushBullet5"] as const).map((k) => (
-                    <li key={k} className="flex items-center gap-2">
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "#a78bfa" }} />
-                      {t(k)}
-                    </li>
-                  ))}
-                </ul>
-                <a
-                  href="#how-it-works"
-                  className="mt-6 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-black uppercase tracking-wide text-black"
-                  style={{ background: "#a78bfa" }}
-                >
-                  {t("landing.playCoinRushButton")} <ArrowRight size={14} />
-                </a>
-              </div>
+            <div className="mt-[28px] grid gap-[22px] lg:grid-cols-2" style={{ perspective: 1200 }}>
+              <Reveal delay={0.05}>
+                <TiltCard glow="rgba(167,139,250,0.22)" className="h-full p-8" style={{ borderColor: "rgba(168,92,255,0.46)" }}>
+                  <span
+                    className="grid h-11 w-11 place-items-center rounded-xl text-xl"
+                    style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa" }}
+                  >
+                    <Gamepad2 size={22} />
+                  </span>
+                  <h4 className="ld-h3 mt-4 uppercase tracking-wide">{t("landing.coinRushLabel")}</h4>
+                  <p className="mt-1 text-sm text-muted">{t("landing.coinRushTagline")}</p>
+                  <ul className="mt-4 flex flex-col gap-2 text-sm text-muted">
+                    {(["landing.coinRushBullet1", "landing.coinRushBullet2", "landing.coinRushBullet3", "landing.coinRushBullet4", "landing.coinRushBullet5"] as const).map((k) => (
+                      <li key={k} className="flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "#a78bfa" }} />
+                        {t(k)}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href="/coin-rush"
+                    className="ld-btn-flat group mt-6 inline-flex items-center gap-1.5 uppercase text-black shadow-[0_4px_12px_rgba(0,0,0,0.25)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.3)]"
+                    style={{ background: "linear-gradient(180deg, #b898fc, #9b6ef0)" }}
+                  >
+                    {t("landing.playCoinRushButton")}
+                    <ArrowRight size={14} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
+                  </Link>
+                </TiltCard>
+              </Reveal>
 
-              <div id="doge-mining" className="game-panel hud-corner rounded-2xl border-l-4 border-mint/60 p-7">
-                <span className="grid h-11 w-11 place-items-center rounded-xl bg-mint-soft text-mint">
-                  <Zap size={22} />
-                </span>
-                <h4 className="mt-4 text-lg font-black uppercase tracking-wide">{t("landing.dogeMiningLabel")}</h4>
-                <p className="mt-1 text-sm text-muted">{t("landing.dogeMiningTagline")}</p>
-                <ul className="mt-4 flex flex-col gap-2 text-sm text-muted">
-                  {(["landing.dogeMiningBullet1", "landing.dogeMiningBullet2", "landing.dogeMiningBullet3", "landing.dogeMiningBullet4", "landing.dogeMiningBullet5"] as const).map((k) => (
-                    <li key={k} className="flex items-center gap-2">
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-mint" />
-                      {t(k)}
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-5 flex items-end justify-between gap-4">
-                  <a href="#how-it-works" className="btn-game inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs">
-                    {t("landing.exploreDogeMiningButton")} <ArrowRight size={14} />
-                  </a>
-                  <Image
-                    src="/dogemine-badge.png"
-                    alt=""
-                    width={72}
-                    height={72}
-                    className="hidden shrink-0 rounded-xl opacity-90 sm:block"
-                  />
-                </div>
-              </div>
+              <Reveal delay={0.12}>
+                <TiltCard id="doge-mining" glow="rgba(34,225,147,0.22)" className="h-full p-8" style={{ borderColor: "rgba(34,225,147,0.38)" }}>
+                  <span className="grid h-11 w-11 place-items-center rounded-xl bg-mint-soft text-mint">
+                    <Zap size={22} />
+                  </span>
+                  <h4 className="ld-h3 mt-4 uppercase tracking-wide">{t("landing.dogeMiningLabel")}</h4>
+                  <p className="mt-1 text-sm text-muted">{t("landing.dogeMiningTagline")}</p>
+                  <ul className="mt-4 flex flex-col gap-2 text-sm text-muted">
+                    {(["landing.dogeMiningBullet1", "landing.dogeMiningBullet2", "landing.dogeMiningBullet3", "landing.dogeMiningBullet4", "landing.dogeMiningBullet5"] as const).map((k) => (
+                      <li key={k} className="flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-mint" />
+                        {t(k)}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href="/doge-mining"
+                    className="ld-btn-flat group mt-6 inline-flex items-center gap-1.5 uppercase text-black shadow-[0_4px_12px_rgba(0,0,0,0.25)] hover:shadow-[0_6px_16px_rgba(0,0,0,0.3)]"
+                    style={{ background: "linear-gradient(180deg, #4eeead, #1fb87e)" }}
+                  >
+                    {t("landing.exploreDogeMiningButton")}
+                    <ArrowRight size={14} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
+                  </Link>
+                </TiltCard>
+              </Reveal>
             </div>
           </div>
         </section>
 
         {/* ------------------------------------------------ Your Journey */}
         <section className="border-t border-line" id="how-it-works">
-          <div className="mx-auto max-w-7xl px-5 py-16 text-center sm:px-8">
-            <span className="text-xs font-black uppercase tracking-[0.25em] text-gold">{t("landing.journeyEyebrow")}</span>
-            <h3 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">{t("landing.journeyHeading")}</h3>
+          <div className="ld-container py-9 text-center sm:py-[72px]">
+            <Reveal>
+              <span className="ld-eyebrow text-gold">{t("landing.journeyEyebrow")}</span>
+              <h3 className="ld-h2 mt-2">{t("landing.journeyHeading")}</h3>
+            </Reveal>
 
             <div className="relative mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              <div aria-hidden className="absolute left-0 right-0 top-9 hidden border-t border-dashed border-line lg:block" />
-              {JOURNEY_STEPS.map((s) => (
-                <div key={s.n} className="relative flex flex-col items-center gap-3 px-2">
-                  <span
-                    className={`relative grid h-16 w-16 shrink-0 place-items-center rounded-full border-2 bg-background text-lg font-black ${
-                      s.tone === "mint" ? "border-mint text-mint" : s.tone === "gold" ? "border-gold text-gold" : "border-[#a78bfa]"
-                    }`}
-                    style={s.tone === "purple" ? { color: "#a78bfa" } : undefined}
-                  >
-                    <s.Icon size={24} />
-                  </span>
-                  <span className="text-xs font-black text-muted">{s.n}</span>
-                  <h4 className="text-sm font-bold">{t(s.titleKey)}</h4>
-                  <p className="text-xs leading-relaxed text-muted">{t(s.bodyKey)}</p>
-                </div>
+              <motion.div
+                aria-hidden
+                className="absolute left-0 right-0 top-11 hidden origin-left border-t border-dashed border-line lg:block"
+                initial={{ scaleX: 0 }}
+                whileInView={{ scaleX: 1 }}
+                viewport={{ once: true, margin: "-10% 0px" }}
+                transition={{ duration: 1, ease: EASE }}
+              />
+              {JOURNEY_STEPS.map((s, i) => (
+                <Reveal key={s.n} delay={i * 0.1} y={20}>
+                  <div className="relative flex flex-col items-center gap-3 px-2">
+                    <motion.span
+                      whileHover={{ scale: 1.06 }}
+                      className={`relative grid h-[92px] w-[92px] shrink-0 place-items-center rounded-full border-2 bg-background text-lg font-black ${
+                        s.tone === "mint" ? "border-mint text-mint" : s.tone === "gold" ? "border-gold text-gold" : "border-[#a78bfa]"
+                      }`}
+                      style={s.tone === "purple" ? { color: "#a78bfa" } : undefined}
+                    >
+                      <s.Icon size={30} />
+                    </motion.span>
+                    <span className="text-2xl font-black text-muted">{s.n}</span>
+                    <h4 className="text-base font-bold">{t(s.titleKey)}</h4>
+                    <p className="text-sm leading-relaxed text-muted">{t(s.bodyKey)}</p>
+                  </div>
+                </Reveal>
               ))}
             </div>
           </div>
@@ -333,17 +387,25 @@ export function LandingContent({ mining }: { mining: MiningStats }) {
 
         {/* ------------------------------------------------ Transparency */}
         <section className="border-t border-line bg-panel/40">
-          <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8">
-            <span className="text-xs font-black uppercase tracking-[0.25em] text-mint">{t("landing.transparencyEyebrow")}</span>
+          <div className="ld-container py-9 sm:py-[72px]">
+            <Reveal>
+              <span className="ld-eyebrow text-mint">{t("landing.transparencyEyebrow")}</span>
+            </Reveal>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {TRANSPARENCY_BADGES.map((b) => (
-                <div key={b.titleKey} className="game-panel hud-corner rounded-2xl border-mint/15 p-6">
-                  <span className="grid h-10 w-10 place-items-center rounded-lg bg-mint-soft text-mint">
-                    <b.Icon size={19} />
-                  </span>
-                  <h4 className="mt-3 text-sm font-bold">{t(b.titleKey)}</h4>
-                  <p className="mt-1.5 text-xs leading-relaxed text-muted">{t(b.bodyKey)}</p>
-                </div>
+              {TRANSPARENCY_BADGES.map((b, i) => (
+                <Reveal key={b.titleKey} delay={i * 0.08}>
+                  <motion.div
+                    whileHover={{ y: -4 }}
+                    className="ld-glass h-full p-6 transition-shadow duration-300 hover:shadow-[0_0_40px_rgba(34,225,147,0.12)]"
+                    style={{ borderColor: "rgba(34,225,147,0.15)" }}
+                  >
+                    <span className="grid h-[54px] w-[54px] place-items-center rounded-[14px] bg-mint-soft text-mint">
+                      <b.Icon size={19} />
+                    </span>
+                    <h4 className="mt-3 text-sm font-bold">{t(b.titleKey)}</h4>
+                    <p className="mt-1.5 text-xs leading-relaxed text-muted">{t(b.bodyKey)}</p>
+                  </motion.div>
+                </Reveal>
               ))}
             </div>
           </div>
@@ -351,19 +413,27 @@ export function LandingContent({ mining }: { mining: MiningStats }) {
 
         {/* -------------------------------------------- Referral Network */}
         <section className="border-t border-line" id="referral-network">
-          <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8">
-            <span className="text-xs font-black uppercase tracking-[0.25em]" style={{ color: "#a78bfa" }}>
-              {t("landing.referralEyebrow")}
-            </span>
+          <div className="ld-container py-9 sm:py-[72px]">
+            <Reveal>
+              <span className="ld-eyebrow" style={{ color: "#a78bfa" }}>
+                {t("landing.referralEyebrow")}
+              </span>
+            </Reveal>
             <div className="mt-6 grid gap-4 sm:grid-cols-3">
-              {REFERRAL_BADGES.map((b) => (
-                <div key={b.titleKey} className="game-panel hud-corner rounded-2xl p-6" style={{ borderColor: "rgba(167,139,250,0.2)" }}>
-                  <span className="grid h-10 w-10 place-items-center rounded-lg" style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa" }}>
-                    <b.Icon size={19} />
-                  </span>
-                  <h4 className="mt-3 text-sm font-bold">{t(b.titleKey)}</h4>
-                  <p className="mt-1.5 text-xs leading-relaxed text-muted">{t(b.bodyKey)}</p>
-                </div>
+              {REFERRAL_BADGES.map((b, i) => (
+                <Reveal key={b.titleKey} delay={i * 0.08}>
+                  <motion.div
+                    whileHover={{ y: -4 }}
+                    className="ld-glass h-full p-[28px] transition-shadow duration-300 hover:shadow-[0_0_40px_rgba(167,139,250,0.12)]"
+                    style={{ borderColor: "rgba(167,139,250,0.2)" }}
+                  >
+                    <span className="grid h-[54px] w-[54px] place-items-center rounded-[14px]" style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa" }}>
+                      <b.Icon size={22} />
+                    </span>
+                    <h4 className="mt-3 text-sm font-bold">{t(b.titleKey)}</h4>
+                    <p className="mt-1.5 text-xs leading-relaxed text-muted">{t(b.bodyKey)}</p>
+                  </motion.div>
+                </Reveal>
               ))}
             </div>
           </div>
@@ -371,36 +441,48 @@ export function LandingContent({ mining }: { mining: MiningStats }) {
 
         {/* ------------------------------------------ Proof of Hash (real data) */}
         <section className="border-t border-line bg-panel/40" id="proof-of-hash">
-          <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.2em] text-gold">
-                ⚡ {t("landing.outputHeading")} — {mining.epochDateLabel}
-                <InfoTooltip text={t("landing.miningProofTooltip")} />
-              </h3>
-            </div>
+          <div className="ld-container py-9 sm:py-[72px]">
+            <Reveal>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.2em] text-gold">
+                  ⚡ {t("landing.outputHeading")} — {mining.epochDateLabel}
+                  <InfoTooltip text={t("landing.miningProofTooltip")} />
+                </h3>
+              </div>
+            </Reveal>
             <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="game-panel hud-corner rounded-2xl p-5">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("landing.contractedHashrate")}</p>
-                <p className="stat-value mt-1.5 text-xl">
-                  {mining.contractedHashrate.toFixed(2)} <span className="text-sm text-muted">GH/s</span>
-                </p>
-              </div>
-              <div className="game-panel hud-corner rounded-2xl p-5">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("landing.observed")}</p>
-                <p className="stat-value mt-1.5 text-xl">
-                  {mining.observedHashrate.toFixed(2)} <span className="text-sm text-muted">GH/s</span>
-                </p>
-              </div>
-              <div className="game-panel hud-corner rounded-2xl p-5">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("landing.effectiveMhHours")}</p>
-                <p className="stat-value mt-1.5 text-xl">{mining.totalEffectiveMp.toLocaleString()}</p>
-              </div>
-              <div className="game-panel hud-corner glow-mint rounded-2xl border-mint/25 p-5">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-mint">{t("landing.netOutputSettled")}</p>
-                <p className="stat-value text-glow-mint mt-1.5 text-xl text-mint">
-                  {mining.netDistributableDoge.toFixed(4)} <span className="text-sm">DOGE</span>
-                </p>
-              </div>
+              <Reveal delay={0}>
+                <div className="ld-glass h-full p-5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("landing.contractedHashrate")}</p>
+                  <p className="mt-1.5 text-xl">
+                    <StatCounter value={mining.contractedHashrate} decimals={2} /> <span className="text-sm text-muted">GH/s</span>
+                  </p>
+                </div>
+              </Reveal>
+              <Reveal delay={0.06}>
+                <div className="ld-glass h-full p-5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("landing.observed")}</p>
+                  <p className="mt-1.5 text-xl">
+                    <StatCounter value={mining.observedHashrate} decimals={2} /> <span className="text-sm text-muted">GH/s</span>
+                  </p>
+                </div>
+              </Reveal>
+              <Reveal delay={0.12}>
+                <div className="ld-glass h-full p-5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("landing.effectiveMhHours")}</p>
+                  <p className="mt-1.5 text-xl">
+                    <StatCounter value={mining.totalEffectiveMp} />
+                  </p>
+                </div>
+              </Reveal>
+              <Reveal delay={0.18}>
+                <div className="ld-glass glow-mint h-full border-mint/25 p-5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-mint">{t("landing.netOutputSettled")}</p>
+                  <p className="text-glow-mint mt-1.5 text-xl text-mint">
+                    <StatCounter value={mining.netDistributableDoge} decimals={4} /> <span className="text-sm">DOGE</span>
+                  </p>
+                </div>
+              </Reveal>
             </div>
             <Link href="/pool" className="mt-4 inline-block text-xs font-bold uppercase tracking-wide text-gold hover:underline">
               {t("landing.poolLinkLabel")}
@@ -410,112 +492,86 @@ export function LandingContent({ mining }: { mining: MiningStats }) {
 
         {/* -------------------------------------------------------- FAQ */}
         <section className="border-t border-line" id="faq">
-          <div className="mx-auto max-w-5xl px-5 py-16 sm:px-8">
-            <span className="text-xs font-black uppercase tracking-[0.25em] text-gold">{t("landing.faqEyebrow")}</span>
+          <div className="ld-container py-9 sm:py-[72px]">
+            <Reveal>
+              <span className="ld-eyebrow text-gold">{t("landing.faqEyebrow")}</span>
+            </Reveal>
             <div className="mt-6 grid gap-8 lg:grid-cols-[1.4fr_1fr] lg:items-start">
               <div className="flex flex-col gap-2">
                 {FAQ_KEYS.map((f, i) => {
                   const open = openFaq === i;
                   return (
-                    <div key={f.qKey} className="game-panel hud-corner rounded-xl">
-                      <button
-                        onClick={() => setOpenFaq(open ? null : i)}
-                        className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left text-sm font-semibold"
-                        aria-expanded={open}
-                      >
-                        {t(f.qKey)}
-                        <ChevronDown size={16} className={`shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
-                      </button>
-                      {open && <p className="px-4 pb-4 text-sm leading-relaxed text-muted">{t(f.aKey)}</p>}
-                    </div>
+                    <Reveal key={f.qKey} delay={i * 0.05} y={16}>
+                      <div className="ld-glass overflow-hidden">
+                        <button
+                          onClick={() => setOpenFaq(open ? null : i)}
+                          className="flex w-full items-center justify-between gap-3 px-[18px] py-[15px] text-left text-sm font-semibold"
+                          aria-expanded={open}
+                        >
+                          {t(f.qKey)}
+                          <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.25, ease: EASE }} className="shrink-0 text-muted">
+                            <ChevronDown size={16} />
+                          </motion.span>
+                        </button>
+                        <div className={`ld-faq-panel ${open ? "open" : ""}`} aria-hidden={!open}>
+                          <div>
+                            <p className="px-[18px] pb-4 text-sm leading-relaxed text-muted">{t(f.aKey)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </Reveal>
                   );
                 })}
               </div>
 
-              <div className="game-panel hud-corner flex flex-col items-center gap-4 rounded-2xl p-7 text-center">
-                <span className="text-5xl">🐕‍🦺</span>
-                <p className="text-sm font-bold">{t("landing.faqMoreQuestionsHeading")}</p>
-                <p className="text-xs text-muted">{t("landing.faqMoreQuestionsBody")}</p>
-                <a
-                  href="mailto:support@spacedoge.games"
-                  className="btn-game-outline rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide"
-                >
-                  {t("landing.faqViewAllButton")}
-                </a>
-              </div>
+              <Reveal delay={0.2}>
+                <div className="ld-glass flex min-h-[280px] flex-col items-center justify-center gap-4 p-[30px] text-center">
+                  <span className="text-5xl" style={{ animation: "float-coin 3.6s ease-in-out infinite" }}>🐕‍🦺</span>
+                  <p className="text-sm font-bold">{t("landing.faqMoreQuestionsHeading")}</p>
+                  <p className="text-xs text-muted">{t("landing.faqMoreQuestionsBody")}</p>
+                  <a
+                    href="mailto:support@spacedoge.games"
+                    className="btn-game-outline text-xs font-bold uppercase tracking-wide"
+                  >
+                    {t("landing.faqViewAllButton")}
+                  </a>
+                </div>
+              </Reveal>
             </div>
           </div>
         </section>
 
         {/* -------------------------------------------------- Final CTA */}
-        <section className="border-t border-line bg-panel/40">
-          <div className="mx-auto max-w-5xl px-5 py-16 sm:px-8">
-            <div className="game-panel hud-corner glow-gold flex flex-col items-center gap-5 rounded-2xl p-10 text-center">
-              <Rocket size={36} className="text-gold" style={{ animation: "float-coin 3s ease-in-out infinite" }} />
-              <h3 className="text-glow-gold text-2xl font-black tracking-tight sm:text-3xl">{t("landing.finalCtaHeading")}</h3>
-              <p className="max-w-xl text-sm text-muted">{t("landing.finalCtaBody")}</p>
-              <div className="flex flex-wrap items-center justify-center gap-3">
-                <ConnectWalletButton />
-                <a href="#faq" className="rounded-full border border-line bg-panel px-4 py-2 text-xs font-bold uppercase tracking-wide text-muted hover:border-gold/40 hover:text-gold">
-                  {t("landing.joinWaitlistButton")}
-                </a>
+        <section className="relative overflow-hidden border-t border-line bg-panel/40">
+          <div aria-hidden className="ld-aurora">
+            <span style={{ left: "10%", top: "-30%", width: 420, height: 420, background: "rgba(255,181,22,0.16)", animation: "aurora-drift-1 14s ease-in-out infinite" }} />
+            <span style={{ right: "8%", bottom: "-30%", width: 380, height: 380, background: "rgba(34,225,147,0.12)", animation: "aurora-drift-2 17s ease-in-out infinite" }} />
+          </div>
+          <div className="ld-container relative py-9 sm:py-[72px]">
+            <Reveal>
+              <div className="ld-glass glow-gold flex min-h-[220px] flex-col items-center justify-center gap-5 p-[42px] text-center">
+                <motion.div
+                  animate={{ y: [0, -8, 0], rotate: [0, -4, 4, 0] }}
+                  transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <Rocket size={36} className="text-gold" />
+                </motion.div>
+                <h3 className="text-glow-gold ld-h2">{t("landing.finalCtaHeading")}</h3>
+                <p className="max-w-xl text-sm text-muted">{t("landing.finalCtaBody")}</p>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <ConnectWalletButton />
+                  <a href="#faq" className="ld-btn-flat ld-btn-ghost group inline-flex items-center gap-1.5 border bg-panel-2 text-xs font-bold uppercase tracking-wide">
+                    {t("landing.joinWaitlistButton")}
+                    <ArrowRight size={13} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
+                  </a>
+                </div>
               </div>
-            </div>
+            </Reveal>
           </div>
         </section>
       </main>
 
-      {/* -------------------------------------------------------- Footer */}
-      <footer className="border-t border-line px-5 py-12 sm:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-10">
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-6">
-            <div className="lg:col-span-2">
-              <div className="flex items-center gap-2.5">
-                <Image src="/SpaceDOGE-icon.png" alt="SPACE DOGE" width={36} height={36} className="rounded-full" />
-                <div>
-                  <p className="text-xs font-black uppercase tracking-widest">{t("landing.brandName")}</p>
-                  <p className="text-[10px] text-muted">{t("landing.tagline")}</p>
-                </div>
-              </div>
-              <p className="mt-3 max-w-xs text-xs leading-relaxed text-muted">{t("landing.footerBrandBlurb")}</p>
-            </div>
-            {FOOTER_COLUMNS.map((col) => (
-              <div key={col.headingKey}>
-                <h5 className="text-[11px] font-black uppercase tracking-widest text-gold">{t(col.headingKey)}</h5>
-                <ul className="mt-3 flex flex-col gap-2 text-xs text-muted">
-                  {col.links.map((l) =>
-                    l.href ? (
-                      <li key={l.labelKey}>
-                        <a href={l.href} className="transition hover:text-gold">
-                          {t(l.labelKey)}
-                        </a>
-                      </li>
-                    ) : (
-                      <li key={l.labelKey} className="opacity-60">
-                        {t(l.labelKey)}
-                      </li>
-                    )
-                  )}
-                </ul>
-              </div>
-            ))}
-            <div>
-              <h5 className="text-[11px] font-black uppercase tracking-widest text-gold">{t("landing.footerCommunityHeading")}</h5>
-              <div className="mt-3">
-                <SocialLinks />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col items-center gap-2 border-t border-line pt-6 text-center text-[11px] text-muted">
-            <div className="flex items-center gap-1.5">
-              <span>{t("common.disclaimer")}</span>
-              <InfoTooltip text={t("landing.disclaimerTooltip")} />
-            </div>
-            <p>{t("landing.footerCopyright")}</p>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

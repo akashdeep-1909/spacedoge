@@ -717,8 +717,11 @@ export function CoinRushArena({
       }
 
       // Magnet pull (an addition beyond the prototype, kept from the
-      // earlier build) — pulls nearby coins toward the human ship.
-      if (you.magnet > 0) {
+      // earlier build) — pulls nearby coins toward the human ship. Gated
+      // on you.active so a magnet still counting down at the moment of
+      // death doesn't keep dragging coins toward a dead ship's last
+      // position for the rest of its duration.
+      if (you.active && you.magnet > 0) {
         for (const it of g.items) {
           const d = dist(you, it);
           if (d < 90 * DPR) {
@@ -741,8 +744,13 @@ export function CoinRushArena({
       // count never actually drops; they're gone from right here for a
       // moment, then back in play somewhere else, same as they always
       // were.
+      //
+      // Gated on you.active — without it, a fire burst still counting
+      // down at the moment the player dies kept auto-firing bullets from
+      // the dead ship's last position for the rest of its 10s window
+      // (confirmed live: the rocket dies but fire keeps bursting).
       g.fireShotCd = Math.max(0, g.fireShotCd - dt);
-      if (you.fire > 0 && g.fireShotCd <= 0) {
+      if (you.active && you.fire > 0 && g.fireShotCd <= 0) {
         g.fireShotCd = 0.16;
         for (const da of [-0.18, 0, 0.18]) {
           const a = you.angle + da;

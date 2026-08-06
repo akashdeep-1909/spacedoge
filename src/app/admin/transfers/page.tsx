@@ -4,11 +4,8 @@ import { useState } from "react";
 import { PaginationControls } from "@/components/PaginationControls";
 import { usePagination } from "@/lib/usePagination";
 import { useAdminTransfers, type AdminTransferRow } from "@/lib/hooks";
-
-const BALANCE_TYPE_SHORT: Record<string, string> = {
-  RECYCLED_USDT: "Recycled USDT",
-  REFERRAL_USDT: "Referral USDT",
-};
+import { balanceTypeLabel } from "@/lib/balance-labels";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 function shortenAddress(address: string): string {
   return address.length > 10 ? `${address.slice(0, 6)}...${address.slice(-4)}` : address;
@@ -100,12 +97,13 @@ export default function AdminTransfersPage() {
 }
 
 function TransferRow({ row }: { row: AdminTransferRow }) {
+  const { t } = useLocale();
   return (
     <tr className="border-b border-line align-top last:border-0">
       <td className="px-4 py-3 font-semibold">
         ${row.amount.toFixed(2)}
         <span className="ml-2 rounded-full border border-line px-1.5 py-0.5 text-[10px] font-bold uppercase text-muted">
-          {BALANCE_TYPE_SHORT[row.balanceType] ?? row.balanceType}
+          {balanceTypeLabel(t, row.balanceType)}
         </span>
       </td>
       <td className="px-4 py-3 text-xs text-muted">
