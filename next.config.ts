@@ -2,6 +2,25 @@ import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Production build was getting SIGKILL'd by the OS's out-of-memory
+  // killer partway through "Creating an optimized production build"
+  // on cPanel shared hosting (confirmed live: `npm run build` -> "863070
+  // Killed", no other error) — this app has 87+ routes, and Next.js's
+  // default worker count is based on the HOST's reported CPU count,
+  // which on shared hosting commonly overstates what the account's
+  // actual memory allocation can support (many CPUs visible, a small
+  // memory cgroup limit). memoryBasedWorkersCount switches worker-count
+  // selection to available memory instead of CPU count (this is exactly
+  // the scenario it exists for); cpus is a hard ceiling on top of that;
+  // webpackBuildWorker/webpackMemoryOptimizations are Next's own
+  // documented lower-peak-memory build options (see
+  // node_modules/next/dist/docs/01-app/02-guides/memory-usage.md).
+  experimental: {
+    cpus: 1,
+    memoryBasedWorkersCount: true,
+    webpackBuildWorker: true,
+    webpackMemoryOptimizations: true,
+  },
   // Webpack-only fallback (`next dev --webpack` / `next build --webpack`)
   // for when Turbopack itself can't run (e.g. Windows without Developer
   // Mode, which Turbopack needs for the symlinks its build cache
