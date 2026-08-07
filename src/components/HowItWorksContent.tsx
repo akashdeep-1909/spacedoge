@@ -21,6 +21,7 @@ import {
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
+import { WaitlistModal } from "@/components/WaitlistModal";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { Reveal, StatCounter, TiltCard, EASE, Starfield } from "@/components/motionPrimitives";
 
@@ -126,6 +127,7 @@ const WHY_ITEMS = [
 export function HowItWorksContent({ platformStats }: { platformStats: PlatformStats }) {
   const { t } = useLocale();
   const [activeFlow, setActiveFlow] = useState(0);
+  const [waitlistOpen, setWaitlistOpen] = useState(false);
   const reduceMotion = useReducedMotion();
   const flow = FLOW_STEPS[activeFlow];
 
@@ -470,15 +472,21 @@ export function HowItWorksContent({ platformStats }: { platformStats: PlatformSt
                 <p className="max-w-xl text-sm text-muted">{t("howItWorks.ctaBody")}</p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   <ConnectWalletButton />
-                  <Link href="/#faq" className="ld-btn-flat ld-btn-ghost rounded-full border bg-panel-2 px-4 text-xs font-bold uppercase tracking-wide">
+                  <button
+                    type="button"
+                    onClick={() => setWaitlistOpen(true)}
+                    className="ld-btn-flat ld-btn-ghost rounded-full border bg-panel-2 px-4 text-xs font-bold uppercase tracking-wide"
+                  >
                     {t("landing.joinWaitlistButton")}
-                  </Link>
+                  </button>
                 </div>
               </div>
             </Reveal>
           </div>
         </section>
       </main>
+
+      {waitlistOpen && <WaitlistModal source="how_it_works_cta" onClose={() => setWaitlistOpen(false)} />}
 
       <SiteFooter />
     </div>

@@ -1,60 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { useAuth, isUserRejectionError } from "@/lib/auth-context";
+import { useEffect, useState } from "react";
+import { useAccount, useDisconnect } from "wagmi";
+import { useAuth } from "@/lib/auth-context";
 import { useSetNickname } from "@/lib/hooks";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
-import { walletLog, errorDetails } from "@/lib/walletLog";
-import { waitForInjectedProvider, metaMaskAppLink, AUTO_CONNECT_PARAM } from "@/lib/wagmi";
-
-// A hard ceiling on how long one connect attempt is allowed to sit
-// "busy" — mobile WalletConnect can leave connectAsync() permanently
-// pending after an iOS bfcache resume (the underlying relay socket gets
-// silently dropped while Safari is backgrounded and never delivers a
-// resolution). auth-context.tsx's resume handler independently retries
-// via reconnectAsync() and will flip isConnected on its own if that
-// succeeds — this timeout exists only so the BUTTON itself can never
-// get stuck if that recovery path also comes up empty.
-//
-// Was 30s — confirmed on a real device to be way too tight: a user who
-// actually takes their time reading/approving inside MetaMask (or whose
-// wallet app is slow to open) routinely blows past 30 seconds before
-// MetaMask's own auto-redirect ever fires, so this timeout was firing
-// FIRST and showing "Connection timed out" for a connection that was
-// about to succeed — confirmed by the same flow working every time when
-// the user manually switched back to Safari fast enough to beat this
-// clock. This only needs to be long enough to eventually recover a
-// truly-stuck case (the bfcache scenario above), not short enough to
-// race an ordinary human decision + app-switch.
-const CONNECT_TIMEOUT_MS = 120_000;
-
-// "WebSocket connection failed for host: ..." is WalletConnect's own
-// relay-connection error (thrown from deep inside @walletconnect/core,
-// shared by every wallet path — nothing wallet-specific about it),
-// surfaced verbatim by connectAsync() rejecting. It's a transient
-// network hiccup connecting to WalletConnect's relay infrastructure —
-// common on mobile data — not a sign that a given wallet app doesn't
-// work. A short, bounded retry clears most of these without the user
-// having to notice or tap Connect Wallet a second time themselves.
-function isTransientRelayError(err: unknown): boolean {
-  return err instanceof Error && /WebSocket connection failed/i.test(err.message);
-}
-
-// wagmi's ConnectorAlreadyConnectedError — thrown when connect() is
-// called on a connector wagmi's own state already considers active
-// (e.g. a double-tap on Connect Wallet, or a connector left connected
-// from an earlier session while the SIWE step never completed). This
-// isn't a real failure — the wallet genuinely is connected — so it
-// should never surface wagmi's raw internal error text ("Connector
-// already connected. Version: @wagmi/core@3.6.4", confirmed live) to a
-// real user; see the recovery branch in connectAndSignIn's catch below.
-function isAlreadyConnectedError(err: unknown): boolean {
-  return err instanceof Error && (err.name === "ConnectorAlreadyConnectedError" || /already connected/i.test(err.message));
-}
-async function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+import { AUTO_CONNECT_PARAM } from "@/lib/wagmi";
+import { useConnectAndSignIn } from "@/lib/useConnectAndSignIn";
 
 function shortenAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -153,8 +105,7 @@ function NicknameEditor({ address, nickname, onSaved }: { address: string; nickn
 // this app.
 export function ConnectWalletButton() {
   const { t } = useLocale();
-  const { address, isConnected, chainId } = useAccount();
-  const { connectAsync, connectors } = useConnect();
+  const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const {
     session,
@@ -165,129 +116,9 @@ export function ConnectWalletButton() {
     signIn,
     signOut,
     refresh,
-    markWalletAction,
     cancelSignIn,
   } = useAuth();
-  const [connectFailure, setConnectFailure] = useState<string | null>(null);
-  // Drives which CTA is PRIMARY below — null while still checking (up
-  // to 1.5s, see waitForInjectedProvider), then true/false. Defaults to
-  // showing the normal Connect Wallet button while null so there's no
-  // flash of the wrong CTA on desktop (which resolves near-instantly
-  // anyway). Checked once on mount, not just at click-time like
-  // connectAndSignIn's own check below — this one decides page LAYOUT,
-  // so it needs to run before the user acts, not during.
-  const [injectedAvailable, setInjectedAvailable] = useState<boolean | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    waitForInjectedProvider().then((result) => {
-      if (!cancelled) setInjectedAvailable(result);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  // Deliberately NOT useConnect()'s own isPending as the busy signal —
-  // that reflects one specific connectAsync() promise, which can be
-  // left permanently pending by an iOS bfcache resume (see
-  // auth-context.tsx's resume-handling comment). This flag is always
-  // bounded instead: set right before the attempt, and guaranteed to
-  // clear via finally, an explicit reject, OR the timeout race below —
-  // never left to hang on a promise that may simply never settle.
-  const [attempting, setAttempting] = useState(false);
-  // Bumped on every new attempt so a stale attempt's finally/catch
-  // (e.g. one still waiting out the timeout from a prior tap) can't
-  // clobber state set by a newer attempt or by the resume handler
-  // having already gotten the wallet connected out-of-band.
-  const attemptIdRef = useRef(0);
-
-  // Connecting AND signing in as one action — the address/chainId
-  // come straight off connectAsync's resolved result rather than the
-  // useAccount() hook, which wouldn't have re-rendered with the new
-  // value yet at this point in the same event handler.
-  async function connectAndSignIn() {
-    const myAttemptId = ++attemptIdRef.current;
-    markWalletAction();
-    setConnectFailure(null);
-    // Bounded wait, not a synchronous check — see waitForInjectedProvider's
-    // doc-comment. A real-device log showed this race actually losing:
-    // reconnectAsync() finding "nothing authorized" instantly on every
-    // retry even from INSIDE MetaMask's own in-app browser, consistent
-    // with this app having fallen back to walletConnect() because
-    // window.ethereum hadn't finished injecting at the exact moment of
-    // the tap.
-    const injectedAvailable = await waitForInjectedProvider();
-    const targetConnector = injectedAvailable
-      ? connectors.find((c) => c.type === "injected")
-      : connectors.find((c) => c.type === "walletConnect");
-
-    walletLog("connect attempt", {
-      injectedAvailable,
-      connectorId: targetConnector?.id,
-      connectorName: targetConnector?.name,
-      attemptId: myAttemptId,
-    });
-
-    if (!targetConnector) {
-      setConnectFailure(
-        injectedAvailable
-          ? "No wallet extension found."
-          : "No wallet extension found, and mobile wallet connect isn't configured yet — open this page inside your wallet app's own browser instead."
-      );
-      return;
-    }
-
-    setAttempting(true);
-    try {
-      let result;
-      const MAX_RELAY_RETRIES = 2;
-      for (let relayAttempt = 0; ; relayAttempt++) {
-        try {
-          result = await Promise.race([
-            connectAsync({ connector: targetConnector }),
-            new Promise<never>((_, reject) => {
-              setTimeout(() => reject(new Error("Connection timed out. Please try again.")), CONNECT_TIMEOUT_MS);
-            }),
-          ]);
-          break;
-        } catch (err) {
-          const willRetry = isTransientRelayError(err) && relayAttempt < MAX_RELAY_RETRIES;
-          walletLog("connectAsync attempt failed", { relayAttempt, willRetry, ...errorDetails(err) });
-          if (!willRetry) throw err;
-          await delay(600 * (relayAttempt + 1));
-        }
-      }
-      walletLog("connectAsync resolved", { accounts: result.accounts, chainId: result.chainId, attemptId: myAttemptId });
-      // A newer attempt (or the resume handler's own reconnectAsync)
-      // already took over — don't let this now-stale attempt also fire
-      // signIn() a second time.
-      if (attemptIdRef.current !== myAttemptId) {
-        walletLog("connect attempt superseded, skipping signIn", { attemptId: myAttemptId });
-        return;
-      }
-      await signIn(result.accounts[0], result.chainId);
-    } catch (err) {
-      walletLog("connect attempt failed", { attemptId: myAttemptId, ...errorDetails(err) });
-      // The connector wagmi's own state already considers connected —
-      // not a real failure, so recover silently by signing in with the
-      // address it already reports instead of showing an error at all.
-      if (isAlreadyConnectedError(err) && address && chainId != null) {
-        walletLog("connector already connected, signing in directly", { attemptId: myAttemptId, address, chainId });
-        if (attemptIdRef.current === myAttemptId) await signIn(address, chainId);
-      } else if (attemptIdRef.current === myAttemptId) {
-        setConnectFailure(
-          isTransientRelayError(err)
-            ? "Couldn't reach the wallet network — check your connection and try again."
-            : isUserRejectionError(err)
-              ? "Connection request declined. If your wallet showed a \"could not verify this site\" warning, look past it for the actual connect request, then tap Connect Wallet again."
-              : err instanceof Error
-                ? err.message
-                : "Failed to connect wallet."
-        );
-      }
-    } finally {
-      if (attemptIdRef.current === myAttemptId) setAttempting(false);
-    }
-  }
+  const { connectAndSignIn, attempting, connectFailure } = useConnectAndSignIn();
 
   // Fires the connect flow automatically the moment this page loads
   // via metaMaskAppLink()'s deep link (see AUTO_CONNECT_PARAM's
@@ -351,48 +182,24 @@ export function ConnectWalletButton() {
 
     return (
       <div className="flex flex-col items-end gap-1">
-        {/* injectedAvailable === false only ever means "no MetaMask
-            extension/app-browser detected" — on mobile that's exactly
-            when WalletConnect's browser round-trip is unreliable (see
-            metaMaskAppLink's doc-comment), so the deep link becomes
-            the PRIMARY action there, demoting the normal button to a
-            smaller fallback for people on a different wallet app. On
-            desktop the same false reading means "no extension, but
-            WalletConnect's QR code is the genuinely correct path" — a
-            mobile app deep link is meaningless on desktop — so the
-            normal button stays primary there via the lg: split below. */}
-        {injectedAvailable === false ? (
-          <>
-            <a
-              href={metaMaskAppLink()}
-              className="btn-game hud-corner whitespace-nowrap rounded-full px-4 py-2 text-sm lg:hidden"
-            >
-              {t("common.openInMetaMaskPrimary")}
-            </a>
-            <button
-              onClick={connectAndSignIn}
-              disabled={busy}
-              className="whitespace-nowrap text-[11px] text-muted underline decoration-dotted underline-offset-2 hover:text-gold lg:hidden"
-            >
-              {t("common.connectOtherWallet")}
-            </button>
-            <button
-              onClick={connectAndSignIn}
-              disabled={busy}
-              className="btn-game hud-corner hidden whitespace-nowrap rounded-full px-4 py-2 text-sm lg:inline-flex"
-            >
-              {connectLabel}
-            </button>
-          </>
-        ) : (
-          <button
-            onClick={connectAndSignIn}
-            disabled={busy}
-            className="btn-game hud-corner whitespace-nowrap rounded-full px-4 py-2 text-sm"
-          >
-            {connectLabel}
-          </button>
-        )}
+        {/* One button everywhere, mobile included — it always opens the
+            real wallet-choice flow (connectAndSignIn: injected() when
+            already inside a wallet app's own browser, otherwise
+            walletConnect()'s own modal, which lists every wallet the
+            user can pick from). Previously this jumped mobile users
+            straight into MetaMask's app via metaMaskAppLink() before
+            they got a choice — confirmed unwanted: users on a different
+            wallet were being forced through MetaMask's install/open
+            flow instead of picking their own. See OpenInWalletAppLink
+            for the deliberately-secondary "open in MetaMask" shortcut
+            that still exists elsewhere for people who want it. */}
+        <button
+          onClick={connectAndSignIn}
+          disabled={busy}
+          className="btn-game hud-corner whitespace-nowrap rounded-full px-4 py-2 text-sm"
+        >
+          {connectLabel}
+        </button>
 
         <div className="flex max-w-56 flex-col items-end gap-1">
           {justAutoRecovered && (

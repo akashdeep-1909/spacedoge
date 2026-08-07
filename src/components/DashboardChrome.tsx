@@ -34,7 +34,7 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-full flex-1 flex-col bg-background pb-16 text-foreground lg:pb-0">
       <header className="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-gold/15 bg-background/90 px-4 py-4 backdrop-blur sm:px-6">
-        <Link href="/dashboard" className="flex shrink-0 items-center gap-3">
+        <Link href="/" className="flex shrink-0 items-center gap-3">
           <Image
             src="/SpaceDOGE-icon.png"
             alt="SPACE DOGE"

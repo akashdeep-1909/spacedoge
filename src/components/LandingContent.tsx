@@ -22,6 +22,7 @@ import { EnterDashboard } from "@/components/EnterDashboard";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
+import { WaitlistModal } from "@/components/WaitlistModal";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { Reveal, StatCounter, TiltCard, EASE, Starfield } from "@/components/motionPrimitives";
 
@@ -79,6 +80,7 @@ const FAQ_KEYS = [
 export function LandingContent({ mining, platformStats }: { mining: MiningStats; platformStats: PlatformStats }) {
   const { t } = useLocale();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [waitlistSource, setWaitlistSource] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
 
   // Mouse-parallax on the hero mascot — a couple of degrees of tilt
@@ -176,13 +178,14 @@ export function LandingContent({ mining, platformStats }: { mining: MiningStats;
                 >
                   {t("landing.exploreEcosystemButton")}
                 </a>
-                <a
-                  href="#faq"
+                <button
+                  type="button"
+                  onClick={() => setWaitlistSource("landing_hero")}
                   className="ld-btn-flat ld-btn-ghost group inline-flex items-center gap-1.5 border bg-panel-2 text-xs font-bold uppercase tracking-wide"
                 >
                   {t("landing.joinWaitlistButton")}
                   <ArrowRight size={13} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
-                </a>
+                </button>
               </motion.div>
               <EnterDashboard />
               <motion.div
@@ -560,16 +563,22 @@ export function LandingContent({ mining, platformStats }: { mining: MiningStats;
                 <p className="max-w-xl text-sm text-muted">{t("landing.finalCtaBody")}</p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   <ConnectWalletButton />
-                  <a href="#faq" className="ld-btn-flat ld-btn-ghost group inline-flex items-center gap-1.5 border bg-panel-2 text-xs font-bold uppercase tracking-wide">
+                  <button
+                    type="button"
+                    onClick={() => setWaitlistSource("landing_final_cta")}
+                    className="ld-btn-flat ld-btn-ghost group inline-flex items-center gap-1.5 border bg-panel-2 text-xs font-bold uppercase tracking-wide"
+                  >
                     {t("landing.joinWaitlistButton")}
                     <ArrowRight size={13} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
-                  </a>
+                  </button>
                 </div>
               </div>
             </Reveal>
           </div>
         </section>
       </main>
+
+      {waitlistSource && <WaitlistModal source={waitlistSource} onClose={() => setWaitlistSource(null)} />}
 
       <SiteFooter />
     </div>

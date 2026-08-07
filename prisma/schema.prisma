@@ -104,6 +104,20 @@ model AuthNonce {
   @@index([address])
 }
 
+// Public "Join Waitlist" popup submissions (marketing pages only, no
+// wallet/session required) — src/components/WaitlistModal.tsx /
+// POST /api/waitlist. Unique on email so a repeat submission from the
+// same address is a harmless no-op rather than a duplicate row.
+model WaitlistEntry {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  // Which page/button opened the popup, e.g. "landing_hero",
+  // "landing_final_cta", "how_it_works_cta" — free text, admin-visible
+  // only, purely for knowing which CTA is actually driving signups.
+  source    String?
+  createdAt DateTime @default(now())
+}
+
 // ---------------------------------------------------------------------
 // Wallet balances — append-only ledger (doc section 11)
 // ---------------------------------------------------------------------
@@ -900,6 +914,12 @@ model PlatformSettings {
   telegramUrl            String?
   discordUrl             String?
   youtubeUrl             String?
+  instagramUrl           String?
+  facebookUrl            String?
+  linkedinUrl            String?
+  redditUrl              String?
+  tiktokUrl              String?
+  mediumUrl              String?
   // Overrides NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID (src/lib/wagmi.ts) —
   // lets an admin set/rotate the WalletConnect Cloud (cloud.reown.com)
   // project ID at runtime, no redeploy. Blank/null falls back to the

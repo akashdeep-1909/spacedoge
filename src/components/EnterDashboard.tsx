@@ -1,22 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 
-// The landing page's job ends at "authenticated" — this is what actually
-// moves the user into the app once ConnectWalletButton finishes the
-// connect+SIWE flow. Without it, a signed-in user is stuck staring at
-// the marketing copy with no way in except typing /dashboard by hand.
+// Shown once signed in, right alongside the header's own connected
+// state (address pill + Disconnect) — landing on "/" (e.g. clicking the
+// logo) while connected should show the homepage as normal with a way
+// in, not silently bounce straight to /dashboard before the user ever
+// sees the page. Only navigates on an actual click.
 export function EnterDashboard() {
   const { session } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (session?.authenticated) {
-      router.push("/dashboard");
-    }
-  }, [session, router]);
 
   if (!session?.authenticated) return null;
 

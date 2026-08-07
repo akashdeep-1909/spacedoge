@@ -83,6 +83,11 @@ export async function POST(request: NextRequest) {
   const startsAt = new Date();
   const expiresAt = new Date(startsAt.getTime() + HASHRATE_TERM_DAYS * 24 * 60 * 60 * 1000);
 
+  // Mining referral commission is NOT paid here on purchase — it's a
+  // recurring daily carve-out of this contract's own electricity-cost
+  // deduction instead, computed in src/lib/mining.ts settleEpochForDate
+  // for as long as the contract stays active. See
+  // src/lib/referrals.ts creditMiningReferralDoge's doc-comment.
   const contract = await db.$transaction(async (tx) => {
     await tx.ledgerEntry.create({
       data: {

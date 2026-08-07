@@ -1,10 +1,11 @@
 import { db } from "@/lib/db";
-import { seededRandom } from "@/lib/game-config";
+import { seededRandom, REFERRAL_L1_PCT, REFERRAL_L2_PCT } from "@/lib/game-config";
 import { BalanceType } from "@/generated/prisma/enums";
 import { EXAMPLE_NET_DOGE_PER_MHS_DAY, ACTIVATION_PRICE_USDT, DEFAULT_FLEET_CAPACITY_MHS } from "@/lib/mining-shared";
 import { fetchDogeUsdtRate } from "@/lib/conversion";
 import { getPlatformTreasuryWalletProfileId } from "@/lib/treasury";
 import { getMiningEconomicsConfig, getMiningProtectionReserveBalanceUsdt } from "@/lib/mining-settings";
+import { batchLookupMiningReferrals, creditMiningReferralDoge } from "@/lib/referrals";
 
 export {
   ACTIVATION_PRICE_USDT,
@@ -243,6 +244,10 @@ export async function settleEpochForDate(epochDate: Date) {
 
   const dogeUsdtRate = await fetchDogeUsdtRate();
 
+  // Two queries total (not one per contract) — see
+  // batchLookupMiningReferrals's own doc-comment.
+  const miningReferralsByWallet = await batchLookupMiningReferrals(contracts.map((c) => c.walletProfileId));
+
   const rand = seededRandom(`epoch:${dayStart.toISOString()}`);
   // Day-average active hashrate, in GH/s — TEH is hashrate-HOURS, so
   // dividing by 24h recovers an average instantaneous hashrate.
@@ -271,6 +276,21 @@ export async function settleEpochForDate(epochDate: Date) {
   // "seeing" the full starting balance and overdrawing it collectively.
   let reserveBalanceRemaining = teh > 0 ? await getMiningProtectionReserveBalanceUsdt() : 0;
 
+  // Mining referral reward — recurring, daily, carved OUT of each
+  // contract's own electricity-cost deduction (never paid on top): of
+  // the 100% modeled electricity cost, up to 7% is redirected — 5% to
+  // the wallet's direct (L1) referrer, 2% to the extended (L2) referrer
+  // — instead of being subtracted as real cost. Only the levels that
+  // actually exist get carved (no L1 referrer ⇒ nothing carved at all;
+  // L1 but no L2 ⇒ only the 5% is carved), so this never invents an
+  // "unclaimed" bucket — organicNet below uses whatever's genuinely
+  // left after real payouts, same as everywhere else in this ledger.
+  // Aggregated by wallet+level across every contract before crediting
+  // (below, inside the transaction) since one referrer can earn from
+  // several referred wallets' contracts on the same day.
+  const referralDogeByWalletLevel = new Map<string, number>(); // key: `${walletId}:${level}`
+  const referralQualifyIdByL1Wallet = new Map<string, string>();
+
   for (const c of contracts) {
     const eh = ehByContract.get(c.id);
     if (!eh || eh <= 0) continue;
@@ -278,7 +298,25 @@ export async function settleEpochForDate(epochDate: Date) {
     const grossShare = dailyFleetGrossOutputUsdt * share;
     const electricityShare = dailyElectricityCostUsdt * share;
     const poolFeeShare = dailyPoolFeeUsdt * share;
-    const organicNet = grossShare - electricityShare - poolFeeShare;
+
+    const referral = miningReferralsByWallet.get(c.walletProfileId);
+    let netElectricityShare = electricityShare;
+    if (referral) {
+      const l1Usdt = electricityShare * REFERRAL_L1_PCT;
+      netElectricityShare -= l1Usdt;
+      const l1Key = `${referral.l1ReferrerProfileId}:1`;
+      referralDogeByWalletLevel.set(l1Key, (referralDogeByWalletLevel.get(l1Key) ?? 0) + l1Usdt / dogeUsdtRate);
+      referralQualifyIdByL1Wallet.set(referral.l1ReferrerProfileId, referral.l1ReferralId);
+
+      if (referral.l2ReferrerProfileId) {
+        const l2Usdt = electricityShare * REFERRAL_L2_PCT;
+        netElectricityShare -= l2Usdt;
+        const l2Key = `${referral.l2ReferrerProfileId}:2`;
+        referralDogeByWalletLevel.set(l2Key, (referralDogeByWalletLevel.get(l2Key) ?? 0) + l2Usdt / dogeUsdtRate);
+      }
+    }
+
+    const organicNet = grossShare - netElectricityShare - poolFeeShare;
     const target = (Number(c.pricePaidUsdt) * (1 + Number(c.targetRoiPct))) / c.termDays;
     const deduction = organicNet - target;
 
@@ -298,7 +336,7 @@ export async function settleEpochForDate(epochDate: Date) {
       walletProfileId: c.walletProfileId,
       eh,
       grossShare,
-      electricityShare,
+      electricityShare: netElectricityShare,
       poolFeeShare,
       organicNet,
       target,
@@ -371,8 +409,13 @@ export async function settleEpochForDate(epochDate: Date) {
           update: { effectiveMp: eh, dogeAllocated: doge },
         });
 
+        // Filtered by reason too (not just refType+refId+walletProfileId)
+        // — a wallet can be both a miner earning its own epoch allocation
+        // AND a referrer earning mining_referral_l1/l2 from other wallets'
+        // contracts on the same day, and those are separate ledger
+        // entries under the same refId now, not mutually exclusive.
         const alreadyCredited = await tx.ledgerEntry.findFirst({
-          where: { refType: "MiningEpoch", refId: epoch.id, walletProfileId },
+          where: { refType: "MiningEpoch", refId: epoch.id, walletProfileId, reason: "mining_epoch_allocation" },
         });
         if (!alreadyCredited) {
           await tx.ledgerEntry.create({
@@ -386,6 +429,23 @@ export async function settleEpochForDate(epochDate: Date) {
             },
           });
         }
+      }
+
+      // Mining referral reward — daily carve-out of each referred
+      // wallet's own electricity-cost deduction (see the aggregation
+      // above this transaction). One credit per (referrer wallet,
+      // level) pair, already summed across every contract that
+      // contributed to it today.
+      for (const [key, doge] of referralDogeByWalletLevel) {
+        const [walletProfileId, levelStr] = key.split(":");
+        const level = Number(levelStr) as 1 | 2;
+        await creditMiningReferralDoge(tx, {
+          walletProfileId,
+          level,
+          amountDoge: doge,
+          epochId: epoch.id,
+          qualifyReferralId: level === 1 ? referralQualifyIdByL1Wallet.get(walletProfileId) : undefined,
+        });
       }
 
       // Per-contract rows (idempotent via @@unique([epochId, contractId])

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DogeMiningContent } from "@/components/DogeMiningContent";
 import { getPlatformStats } from "@/lib/platformStats";
 import { getMiningEconomicsConfig, getMiningProtectionReserveBalanceUsdt } from "@/lib/mining-settings";
+import { fetchDogeUsdtRate } from "@/lib/conversion";
 
 export const metadata: Metadata = {
   title: "DOGE Mining — Space DOGE",
@@ -9,10 +10,11 @@ export const metadata: Metadata = {
 };
 
 export default async function DogeMiningPage() {
-  const [platformStats, economicsConfig, reserveBalanceUsdt] = await Promise.all([
+  const [platformStats, economicsConfig, reserveBalanceUsdt, dogeUsdtRate] = await Promise.all([
     getPlatformStats(),
     getMiningEconomicsConfig(),
     getMiningProtectionReserveBalanceUsdt(),
+    fetchDogeUsdtRate(),
   ]);
 
   // Prisma Decimal isn't serializable across the server/client boundary
@@ -27,5 +29,5 @@ export default async function DogeMiningPage() {
     targetRoiPct: Number(economicsConfig.targetRoiPct),
   };
 
-  return <DogeMiningContent platformStats={platformStats} economics={economics} reserveBalanceUsdt={reserveBalanceUsdt} />;
+  return <DogeMiningContent platformStats={platformStats} economics={economics} reserveBalanceUsdt={reserveBalanceUsdt} dogeUsdtRate={dogeUsdtRate} />;
 }

@@ -130,10 +130,34 @@ function ReferContent() {
         </div>
       </div>
 
+      <div className="game-panel hud-corner rounded-2xl border-gold/15 p-5">
+        <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gold">
+          ⛏️ {t("refer.miningRewardsLabel")}
+          <InfoTooltip text={t("refer.miningRewardsTooltip")} />
+        </p>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-line bg-panel-2 p-4 text-sm">
+            <p className="font-bold">{t("refer.miningLevel1Title", { pct: data?.miningL1Pct ?? 5 })}</p>
+            <p className="mt-1 text-muted">{t("refer.miningLevel1Body")}</p>
+            <p className="stat-value text-glow-gold mt-2 text-lg text-gold">
+              {(data?.totalEarnedL1Doge ?? 0).toFixed(4)} DOGE
+            </p>
+          </div>
+          <div className="rounded-xl border border-line bg-panel-2 p-4 text-sm">
+            <p className="font-bold">{t("refer.miningLevel2Title", { pct: data?.miningL2Pct ?? 2 })}</p>
+            <p className="mt-1 text-muted">{t("refer.miningLevel2Body")}</p>
+            <p className="stat-value text-glow-gold mt-2 text-lg text-gold">
+              {(data?.totalEarnedL2Doge ?? 0).toFixed(4)} DOGE
+            </p>
+          </div>
+        </div>
+      </div>
+
       <ReferralTable title={`▸ ${t("refer.directReferralsTitle")}`} rows={data?.direct} isLoading={isLoading} />
       <ReferralTable title={`▸ ${t("refer.indirectReferralsTitle")}`} rows={data?.indirect} isLoading={isLoading} />
 
       <CommissionActivityTable />
+      <MiningCommissionActivityTable />
 
       {shareOpen && (
         <ShareSheet link={link} message={SHARE_MESSAGE} onClose={() => setShareOpen(false)} />
@@ -188,6 +212,45 @@ function CommissionActivityTable() {
               ),
               <span key="amount" className="text-mint">
                 +${r.amount.toFixed(4)}
+              </span>,
+            ])}
+          />
+          <PaginationControls page={page} pageCount={pageCount} start={start} pageSize={pageSize} total={total} onChange={setPage} />
+        </>
+      )}
+    </div>
+  );
+}
+
+// The mining-referral counterpart to CommissionActivityTable above —
+// one row per (day, level) DOGE credit, not per match. There's no
+// single "referred wallet" or "won/lost" to show per row here: each
+// entry is the aggregated carve-out across every contributing referred
+// wallet's active contract that day (see creditMiningReferralDoge in
+// src/lib/referrals.ts), so the table only ever shows date, level and
+// amount.
+function MiningCommissionActivityTable() {
+  const { t } = useLocale();
+  const { data, isLoading } = useReferralActivity();
+  const { pageItems, page, pageCount, setPage, start, pageSize, total } = usePagination(data?.miningRows ?? []);
+
+  return (
+    <div>
+      <h2 className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-gold">
+        ▸ {t("referActivity.miningActivityHeading")}
+      </h2>
+      {isLoading ? (
+        <p className="text-sm text-muted">{t("mining.loadingLabel")}</p>
+      ) : (
+        <>
+          <DataTable
+            columns={[t("wallet.dateColumn"), t("history.levelColumn"), t("wallet.amountColumn")]}
+            empty={t("referActivity.noMiningActivityYet")}
+            rows={pageItems.map((r) => [
+              new Date(r.createdAt).toLocaleDateString(),
+              r.level,
+              <span key="amount" className="text-gold">
+                +{r.amountDoge.toFixed(4)} DOGE
               </span>,
             ])}
           />

@@ -1,6 +1,17 @@
 "use client";
 
-import { XIcon, TelegramIcon, DiscordIcon, YoutubeIcon } from "@/components/icons/SocialIcons";
+import {
+  XIcon,
+  TelegramIcon,
+  DiscordIcon,
+  YoutubeIcon,
+  InstagramIcon,
+  FacebookIcon,
+  LinkedInIcon,
+  RedditIcon,
+  TikTokIcon,
+  MediumIcon,
+} from "@/components/icons/SocialIcons";
 import { usePublicSettings } from "@/lib/hooks";
 
 // Reads admin-configured links from /admin/settings (src/lib/settings.ts
@@ -19,6 +30,12 @@ export function SocialLinks() {
     social.telegram && { href: social.telegram, label: "Telegram", Icon: TelegramIcon },
     social.discord && { href: social.discord, label: "Discord", Icon: DiscordIcon },
     social.youtube && { href: social.youtube, label: "YouTube", Icon: YoutubeIcon },
+    social.instagram && { href: social.instagram, label: "Instagram", Icon: InstagramIcon },
+    social.facebook && { href: social.facebook, label: "Facebook", Icon: FacebookIcon },
+    social.linkedin && { href: social.linkedin, label: "LinkedIn", Icon: LinkedInIcon },
+    social.reddit && { href: social.reddit, label: "Reddit", Icon: RedditIcon },
+    social.tiktok && { href: social.tiktok, label: "TikTok", Icon: TikTokIcon },
+    social.medium && { href: social.medium, label: "Medium", Icon: MediumIcon },
   ].filter(Boolean) as { href: string; label: string; Icon: typeof XIcon }[];
 
   if (links.length === 0) return null;

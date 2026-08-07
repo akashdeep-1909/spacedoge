@@ -129,6 +129,95 @@ export async function distributeEntryFeeToTreasuryAndReferrals(
   }
 }
 
+// Mining v2 economy — recurring DAILY referral reward (not a one-time
+// purchase bonus): every day a referred wallet's hashrate contract is
+// active, 7% of THAT CONTRACT'S OWN daily electricity-cost deduction is
+// carved out — 5% to the direct (L1) referrer, 2% to the extended (L2)
+// referrer — converted to DOGE and credited to AVAILABLE_DOGE, same
+// asset the contract itself earns. Same product split as the
+// match-entry referral system above (that one settles in USDT, this
+// one in DOGE, deliberately different ledgers), but the trigger here is
+// recurring settlement activity, not a single purchase event — mirrors
+// how the match-entry version is "carved out of an existing cost" (the
+// platform fee there, the electricity-cost deduction here) rather than
+// paid on top as new value.
+//
+// Called from src/lib/mining.ts settleEpochForDate(), once per relevant
+// wallet PER DAY, inside that function's own settlement transaction —
+// see MiningReferralCarve's doc-comment for how each contract's share
+// of the carve is computed before this is called.
+export interface MiningReferralLookup {
+  l1ReferralId: string;
+  l1ReferrerProfileId: string;
+  l1Status: ReferralStatus;
+  l2ReferrerProfileId: string | null;
+}
+
+// Batch-fetches L1 (direct) and L2 (one hop up) referral edges for a
+// set of wallets in exactly two queries, regardless of how many
+// contracts/wallets are being settled that day — the settlement loop
+// this feeds runs once per contract, so a per-contract query here would
+// scale with fleet size instead of staying flat.
+export async function batchLookupMiningReferrals(walletProfileIds: string[]): Promise<Map<string, MiningReferralLookup>> {
+  const uniqueIds = [...new Set(walletProfileIds)];
+  if (uniqueIds.length === 0) return new Map();
+
+  const l1Rows = await db.referral.findMany({ where: { referredProfileId: { in: uniqueIds } } });
+  const l1ReferrerIds = [...new Set(l1Rows.map((r) => r.referrerProfileId))];
+  const l2Rows = l1ReferrerIds.length > 0 ? await db.referral.findMany({ where: { referredProfileId: { in: l1ReferrerIds } } }) : [];
+  const l2ByReferredId = new Map(l2Rows.map((r) => [r.referredProfileId, r]));
+
+  const result = new Map<string, MiningReferralLookup>();
+  for (const l1 of l1Rows) {
+    const l2 = l2ByReferredId.get(l1.referrerProfileId);
+    result.set(l1.referredProfileId, {
+      l1ReferralId: l1.id,
+      l1ReferrerProfileId: l1.referrerProfileId,
+      l1Status: l1.status,
+      l2ReferrerProfileId: l2?.referrerProfileId ?? null,
+    });
+  }
+  return result;
+}
+
+// Credits one day's aggregated mining-referral DOGE for one (wallet,
+// level) pair — called once per wallet per level from within
+// settleEpochForDate's own transaction, after every contract's own
+// carve for that day has been summed. Idempotent the same way the rest
+// of that transaction is: guarded by refType+refId+walletProfileId+
+// reason, so a re-run of an already-settled epoch (defense-in-depth;
+// settleEpochForDate itself already early-returns on that case) can
+// never double-credit.
+export async function creditMiningReferralDoge(
+  tx: Prisma.TransactionClient,
+  params: { walletProfileId: string; level: 1 | 2; amountDoge: number; epochId: string; qualifyReferralId?: string }
+) {
+  const { walletProfileId, level, amountDoge, epochId, qualifyReferralId } = params;
+  if (amountDoge <= 0) return;
+  const reason = level === 1 ? "mining_referral_l1" : "mining_referral_l2";
+
+  const already = await tx.ledgerEntry.findFirst({ where: { refType: "MiningEpoch", refId: epochId, walletProfileId, reason } });
+  if (!already) {
+    await tx.ledgerEntry.create({
+      data: {
+        walletProfileId,
+        balanceType: BalanceType.AVAILABLE_DOGE,
+        amount: round8(amountDoge),
+        reason,
+        refType: "MiningEpoch",
+        refId: epochId,
+      },
+    });
+  }
+
+  if (level === 1 && qualifyReferralId) {
+    const referral = await tx.referral.findUnique({ where: { id: qualifyReferralId } });
+    if (referral?.status === ReferralStatus.PENDING) {
+      await tx.referral.update({ where: { id: qualifyReferralId }, data: { status: ReferralStatus.QUALIFIED, qualifiedAt: new Date() } });
+    }
+  }
+}
+
 export const KOL_BONUS_LIFETIME_PLAYS = 3;
 export const KOL_BONUS_PTS_CAP = 300; // 0.3 USDT at the fixed 1000 PTS : 1 USDT rate
 

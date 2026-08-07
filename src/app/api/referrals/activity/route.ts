@@ -58,5 +58,26 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ rows });
+  // Mining referral commission — one row per (day, level), not per
+  // referred wallet: creditMiningReferralDoge (src/lib/referrals.ts)
+  // aggregates every contributing contract's carve-out into a single
+  // daily ledger entry per level, so there's no single "referred
+  // wallet" to attribute an individual row to the way match commission
+  // rows above can.
+  const miningEntries = await db.ledgerEntry.findMany({
+    where: {
+      walletProfileId: me,
+      reason: { in: ["mining_referral_l1", "mining_referral_l2"] },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  });
+  const miningRows = miningEntries.map((e) => ({
+    id: e.id,
+    createdAt: e.createdAt.toISOString(),
+    level: e.reason === "mining_referral_l1" ? "L1" : "L2",
+    amountDoge: Number(e.amount),
+  }));
+
+  return NextResponse.json({ rows, miningRows });
 }

@@ -37,9 +37,9 @@ const FOOTER_COLUMNS: { headingKey: TranslationKey; links: { labelKey: Translati
   {
     headingKey: "landing.footerCompanyHeading",
     links: [
-      { labelKey: "landing.footerAboutUs", href: null },
+      { labelKey: "landing.footerAboutUs", href: "/about-us" },
       { labelKey: "landing.footerCareers", href: null },
-      { labelKey: "landing.footerPartners", href: null },
+      { labelKey: "landing.footerPartners", href: "/partners" },
       { labelKey: "landing.footerMediaKit", href: null },
       { labelKey: "landing.footerContactUs", href: null },
     ],
@@ -47,11 +47,11 @@ const FOOTER_COLUMNS: { headingKey: TranslationKey; links: { labelKey: Translati
   {
     headingKey: "landing.footerLegalHeading",
     links: [
-      { labelKey: "landing.footerTerms", href: null },
-      { labelKey: "landing.footerPrivacy", href: null },
+      { labelKey: "landing.footerTerms", href: "/terms-of-service" },
+      { labelKey: "landing.footerPrivacy", href: "/privacy-policy" },
       { labelKey: "landing.footerRisk", href: null },
       { labelKey: "landing.footerRefund", href: null },
-      { labelKey: "landing.footerCookie", href: null },
+      { labelKey: "landing.footerCookie", href: "/cookie-policy" },
     ],
   },
 ];

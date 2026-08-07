@@ -404,6 +404,10 @@ export interface ReferralInfo {
   l2PctOfPlatformFee: number;
   totalEarnedL1Usdt: number;
   totalEarnedL2Usdt: number;
+  miningL1Pct: number;
+  miningL2Pct: number;
+  totalEarnedL1Doge: number;
+  totalEarnedL2Doge: number;
   direct: ReferralEdge[];
   indirect: ReferralEdge[];
 }
@@ -430,13 +434,24 @@ export interface ReferralActivityRow {
   won: boolean | null;
 }
 
+// Mining referral commission is a daily (day, level) rollup, not a
+// per-match event — see /api/referrals/activity's own doc-comment for
+// why there's no referredAddress/mode/won here the way the USDT rows
+// above have.
+export interface MiningReferralActivityRow {
+  id: string;
+  createdAt: string;
+  level: "L1" | "L2";
+  amountDoge: number;
+}
+
 // The per-event detail behind the Refer page's aggregate Level 1/2
 // totals — every individual commission credit, which match earned it,
 // and whether the referred wallet won or lost that match.
 export function useReferralActivity() {
   return useQuery({
     queryKey: ["referral-activity"],
-    queryFn: async (): Promise<{ rows: ReferralActivityRow[] }> => {
+    queryFn: async (): Promise<{ rows: ReferralActivityRow[]; miningRows: MiningReferralActivityRow[] }> => {
       const res = await fetch("/api/referrals/activity");
       if (!res.ok) throw new Error("Failed to load referral activity");
       return res.json();
@@ -822,6 +837,27 @@ export function useAdminUsers(query: string, includeBots = false) {
   });
 }
 
+export interface AdminWaitlistRow {
+  id: string;
+  email: string;
+  source: string | null;
+  createdAt: string;
+}
+
+export function useAdminWaitlist(query: string) {
+  return useQuery({
+    queryKey: ["admin", "waitlist", query],
+    queryFn: async (): Promise<{ rows: AdminWaitlistRow[]; totalCount: number }> => {
+      const params = new URLSearchParams();
+      if (query) params.set("q", query);
+      const qs = params.toString();
+      const res = await fetch(`/api/admin/waitlist${qs ? `?${qs}` : ""}`);
+      if (!res.ok) throw new Error("Failed to load waitlist");
+      return res.json();
+    },
+  });
+}
+
 export function useCreditUserBalance() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -984,7 +1020,18 @@ export interface PublicWithdrawChain {
 export interface PublicSettings {
   minUsdtWithdrawal: number;
   minDogeWithdrawal: number;
-  social: { twitter: string | null; telegram: string | null; discord: string | null; youtube: string | null };
+  social: {
+    twitter: string | null;
+    telegram: string | null;
+    discord: string | null;
+    youtube: string | null;
+    instagram: string | null;
+    facebook: string | null;
+    linkedin: string | null;
+    reddit: string | null;
+    tiktok: string | null;
+    medium: string | null;
+  };
   withdrawChains: PublicWithdrawChain[];
 }
 
@@ -1007,6 +1054,12 @@ export interface AdminPlatformSettings {
   telegramUrl: string | null;
   discordUrl: string | null;
   youtubeUrl: string | null;
+  instagramUrl: string | null;
+  facebookUrl: string | null;
+  linkedinUrl: string | null;
+  redditUrl: string | null;
+  tiktokUrl: string | null;
+  mediumUrl: string | null;
   walletConnectProjectId: string | null;
   weeklyLeaderboardEnabled: boolean;
   weeklyLeaderboardPoolUsdt: number | null;

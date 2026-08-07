@@ -741,6 +741,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetch("/api/auth/logout", { method: "POST" });
     setSession(null);
     disconnect();
+    // A full reload (not just clearing React Query state client-side) —
+    // per-page hooks (balances, mining stats, referral data, etc.) don't
+    // re-key or refetch off `session` alone, so without this the
+    // previous wallet's numbers stayed visible on screen after
+    // disconnecting even though the session was gone underneath them.
+    // Reloading also correctly re-triggers dashboard/layout.tsx's
+    // server-side auth check if the user was sitting on a /dashboard/*
+    // route, same as a real fresh page load would.
+    window.location.reload();
   }, [disconnect]);
 
   const markWalletAction = useCallback(() => {

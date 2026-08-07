@@ -1087,6 +1087,12 @@ function SocialSection() {
   const [telegramUrl, setTelegramUrl] = useState("");
   const [discordUrl, setDiscordUrl] = useState("");
   const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [instagramUrl, setInstagramUrl] = useState("");
+  const [facebookUrl, setFacebookUrl] = useState("");
+  const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [redditUrl, setRedditUrl] = useState("");
+  const [tiktokUrl, setTiktokUrl] = useState("");
+  const [mediumUrl, setMediumUrl] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1101,6 +1107,12 @@ function SocialSection() {
     setTelegramUrl(data.telegramUrl ?? "");
     setDiscordUrl(data.discordUrl ?? "");
     setYoutubeUrl(data.youtubeUrl ?? "");
+    setInstagramUrl(data.instagramUrl ?? "");
+    setFacebookUrl(data.facebookUrl ?? "");
+    setLinkedinUrl(data.linkedinUrl ?? "");
+    setRedditUrl(data.redditUrl ?? "");
+    setTiktokUrl(data.tiktokUrl ?? "");
+    setMediumUrl(data.mediumUrl ?? "");
   }, [data]);
 
   async function save() {
@@ -1112,6 +1124,12 @@ function SocialSection() {
         telegramUrl: telegramUrl.trim() || null,
         discordUrl: discordUrl.trim() || null,
         youtubeUrl: youtubeUrl.trim() || null,
+        instagramUrl: instagramUrl.trim() || null,
+        facebookUrl: facebookUrl.trim() || null,
+        linkedinUrl: linkedinUrl.trim() || null,
+        redditUrl: redditUrl.trim() || null,
+        tiktokUrl: tiktokUrl.trim() || null,
+        mediumUrl: mediumUrl.trim() || null,
       });
       setSaved(true);
     } catch (err) {
@@ -1147,6 +1165,24 @@ function SocialSection() {
         </Field>
         <Field label="YouTube URL">
           <input value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} placeholder="https://youtube.com/@…" className={inputClass} />
+        </Field>
+        <Field label="Instagram URL">
+          <input value={instagramUrl} onChange={(e) => setInstagramUrl(e.target.value)} placeholder="https://instagram.com/…" className={inputClass} />
+        </Field>
+        <Field label="Facebook URL">
+          <input value={facebookUrl} onChange={(e) => setFacebookUrl(e.target.value)} placeholder="https://facebook.com/…" className={inputClass} />
+        </Field>
+        <Field label="LinkedIn URL">
+          <input value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/company/…" className={inputClass} />
+        </Field>
+        <Field label="Reddit URL">
+          <input value={redditUrl} onChange={(e) => setRedditUrl(e.target.value)} placeholder="https://reddit.com/r/…" className={inputClass} />
+        </Field>
+        <Field label="TikTok URL">
+          <input value={tiktokUrl} onChange={(e) => setTiktokUrl(e.target.value)} placeholder="https://tiktok.com/@…" className={inputClass} />
+        </Field>
+        <Field label="Medium URL">
+          <input value={mediumUrl} onChange={(e) => setMediumUrl(e.target.value)} placeholder="https://medium.com/@…" className={inputClass} />
         </Field>
       </div>
 

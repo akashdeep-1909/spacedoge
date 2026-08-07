@@ -50,7 +50,7 @@ export function SiteHeader() {
         <div className="ld-container relative flex min-h-[76px] items-center gap-3 py-3 sm:gap-6">
           <Link href="/" className="flex min-w-0 shrink-0 items-center gap-2.5 sm:gap-3">
             <Image src="/SpaceDOGE-icon.png" alt="SPACE DOGE" width={44} height={44} priority className="h-9 w-9 shrink-0 rounded-full sm:h-12 sm:w-12" />
-            <div className="hidden min-w-0 sm:block">
+            <div className="hidden min-w-0 lg:block">
               <h1 className="text-sm font-black uppercase tracking-widest">{t("landing.brandName")}</h1>
               <p className="text-[11px] text-muted">{t("landing.tagline")}</p>
             </div>

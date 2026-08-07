@@ -20,6 +20,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
+import { GatedLink } from "@/components/GatedLink";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
@@ -146,10 +147,10 @@ export function CoinRushContent({ platformStats }: { platformStats: PlatformStat
                 transition={{ duration: 0.5, delay: 0.4, ease: EASE }}
                 className="mt-1 flex flex-wrap items-center gap-3"
               >
-                <Link href="/dashboard/play" className="btn-game hud-corner group inline-flex items-center gap-1.5 text-sm">
+                <GatedLink href="/dashboard/play" className="btn-game hud-corner group inline-flex items-center gap-1.5 text-sm">
                   {t("coinRush.playButton")}
                   <ArrowRight size={15} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
-                </Link>
+                </GatedLink>
                 <Link href="/how-it-works" className="btn-game-outline hud-corner text-sm font-bold uppercase tracking-wide">
                   {t("coinRush.howButton")}
                 </Link>
@@ -278,10 +279,10 @@ export function CoinRushContent({ platformStats }: { platformStats: PlatformStat
                     </li>
                   ))}
                 </ul>
-                <Link href="/dashboard/play" className="ld-btn-flat btn-game group mt-6 inline-flex items-center gap-1.5 text-xs">
+                <GatedLink href="/dashboard/play" className="ld-btn-flat btn-game group mt-6 inline-flex items-center gap-1.5 text-xs">
                   {t("coinRush.arenaButton")}
                   <ArrowRight size={14} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
-                </Link>
+                </GatedLink>
               </Reveal>
 
               <Reveal delay={0.1}>
@@ -339,9 +340,9 @@ export function CoinRushContent({ platformStats }: { platformStats: PlatformStat
                     <span className="rounded-full border border-line bg-panel-2 px-3 py-1">{t("coinRush.tierDifficulty")}: {DIFFICULTY_BY_MODE.PRACTICE.difficultyLabel}</span>
                   </div>
                 </div>
-                <Link href="/dashboard/play" className="btn-game-outline hud-corner shrink-0 text-xs font-bold uppercase tracking-wide">
+                <GatedLink href="/dashboard/play" className="btn-game-outline hud-corner shrink-0 text-xs font-bold uppercase tracking-wide">
                   {t("coinRush.demoCta")}
-                </Link>
+                </GatedLink>
               </div>
             </Reveal>
 
@@ -377,14 +378,14 @@ export function CoinRushContent({ platformStats }: { platformStats: PlatformStat
                       <p className="mt-3 text-xs text-muted">
                         {t("coinRush.poolPanelLabel")}: <span className="font-bold text-gold">{playerPoolUsdt} USDT</span>
                       </p>
-                      <Link
+                      <GatedLink
                         href="/dashboard/play"
                         className="ld-btn-flat group mt-4 inline-flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wide text-black"
                         style={{ background: `linear-gradient(180deg, ${color}, ${color}cc)` }}
                       >
                         {t("coinRush.tierPlay")}
                         <ArrowRight size={13} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
-                      </Link>
+                      </GatedLink>
                     </TiltCard>
                   </Reveal>
                 );
@@ -463,10 +464,10 @@ export function CoinRushContent({ platformStats }: { platformStats: PlatformStat
                     ))}
                   </div>
                   <p className="mt-4 flex-1 text-[11px] leading-relaxed text-muted/80">{t("coinRush.leaderboardNote")}</p>
-                  <Link href="/dashboard/leaderboard" className="ld-btn-flat btn-game-outline group mt-4 inline-flex items-center justify-center gap-1.5 text-xs">
+                  <GatedLink href="/dashboard/leaderboard" className="ld-btn-flat btn-game-outline group mt-4 inline-flex items-center justify-center gap-1.5 text-xs">
                     {t("coinRush.leaderboardCta")}
                     <ArrowRight size={13} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
-                  </Link>
+                  </GatedLink>
                 </div>
               </Reveal>
 
@@ -510,9 +511,9 @@ export function CoinRushContent({ platformStats }: { platformStats: PlatformStat
                 <p className="max-w-xl text-sm text-muted">{t("coinRush.ctaBody")}</p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   <ConnectWalletButton />
-                  <Link href="/dashboard/play" className="ld-btn-flat ld-btn-ghost rounded-full border bg-panel-2 px-4 text-xs font-bold uppercase tracking-wide">
+                  <GatedLink href="/dashboard/play" className="ld-btn-flat ld-btn-ghost rounded-full border bg-panel-2 px-4 text-xs font-bold uppercase tracking-wide">
                     {t("coinRush.playButton")}
-                  </Link>
+                  </GatedLink>
                 </div>
               </div>
             </Reveal>

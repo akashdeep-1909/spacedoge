@@ -35,6 +35,12 @@ export async function updatePlatformSettings(
     telegramUrl?: string | null;
     discordUrl?: string | null;
     youtubeUrl?: string | null;
+    instagramUrl?: string | null;
+    facebookUrl?: string | null;
+    linkedinUrl?: string | null;
+    redditUrl?: string | null;
+    tiktokUrl?: string | null;
+    mediumUrl?: string | null;
     walletConnectProjectId?: string | null;
     weeklyLeaderboardEnabled?: boolean;
     weeklyLeaderboardPoolUsdt?: number | null;
@@ -92,6 +98,12 @@ export async function getSocialLinks() {
     telegram: settings.telegramUrl || null,
     discord: settings.discordUrl || null,
     youtube: settings.youtubeUrl || null,
+    instagram: settings.instagramUrl || null,
+    facebook: settings.facebookUrl || null,
+    linkedin: settings.linkedinUrl || null,
+    reddit: settings.redditUrl || null,
+    tiktok: settings.tiktokUrl || null,
+    medium: settings.mediumUrl || null,
   };
 }
 

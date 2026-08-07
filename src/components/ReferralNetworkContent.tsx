@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type MouseEvent as ReactMouseEvent } from "react";
-import Link from "next/link";
 import { motion, useMotionValue, useReducedMotion, useSpring } from "framer-motion";
 import {
   Users,
@@ -17,18 +16,23 @@ import {
   Ban,
   Layers,
   ScrollText,
+  Server,
+  Cpu,
 } from "lucide-react";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
+import { GatedLink } from "@/components/GatedLink";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { Reveal, StatCounter, TiltCard, EASE, Starfield } from "@/components/motionPrimitives";
 import { REFERRAL_L1_PCT, REFERRAL_L2_PCT } from "@/lib/game-config";
+import { MINING_PACKAGES } from "@/lib/mining-shared";
 
 interface ReferralStats {
   totalRelationships: number;
   qualifiedRelationships: number;
   distributedUsdt: number;
+  distributedDoge: number;
 }
 
 const HERO_BADGES = [
@@ -44,6 +48,14 @@ const HOW_IT_WORKS_STEPS = [
   { n: "03", Icon: Users, color: "#22e193", titleKey: "referralNetwork.step3Title" as const, bodyKey: "referralNetwork.step3Body" as const },
   { n: "04", Icon: Coins, color: "#ffb516", titleKey: "referralNetwork.step4Title" as const, bodyKey: "referralNetwork.step4Body" as const },
   { n: "05", Icon: TrendingUp, color: "#22e193", titleKey: "referralNetwork.step5Title" as const, bodyKey: "referralNetwork.step5Body" as const },
+] as const;
+
+const MINING_FLOW_STEPS = [
+  { n: "01", Icon: Wallet, color: "#5ea3ff", titleKey: "referralNetwork.miningStep1Title" as const, bodyKey: "referralNetwork.miningStep1Body" as const },
+  { n: "02", Icon: Share2, color: "#a78bfa", titleKey: "referralNetwork.miningStep2Title" as const, bodyKey: "referralNetwork.miningStep2Body" as const },
+  { n: "03", Icon: Server, color: "#22e193", titleKey: "referralNetwork.miningStep3Title" as const, bodyKey: "referralNetwork.miningStep3Body" as const },
+  { n: "04", Icon: Coins, color: "#ffb516", titleKey: "referralNetwork.miningStep4Title" as const, bodyKey: "referralNetwork.miningStep4Body" as const },
+  { n: "05", Icon: TrendingUp, color: "#22e193", titleKey: "referralNetwork.miningStep5Title" as const, bodyKey: "referralNetwork.miningStep5Body" as const },
 ] as const;
 
 const TRUST_ITEMS = [
@@ -62,6 +74,8 @@ const FAQ_KEYS = [
   { qKey: "referralNetwork.faq6Q" as const, aKey: "referralNetwork.faq6A" as const },
   { qKey: "referralNetwork.faq7Q" as const, aKey: "referralNetwork.faq7A" as const },
   { qKey: "referralNetwork.faq8Q" as const, aKey: "referralNetwork.faq8A" as const },
+  { qKey: "referralNetwork.faq9Q" as const, aKey: "referralNetwork.faq9A" as const },
+  { qKey: "referralNetwork.faq10Q" as const, aKey: "referralNetwork.faq10A" as const },
 ] as const;
 
 // Real Rookie Rush ($1 entry, 4-player room) math — same constants the
@@ -74,10 +88,39 @@ const EXAMPLE_PLATFORM_FEE = EXAMPLE_ROOM_VOLUME * 0.3;
 const EXAMPLE_L1 = EXAMPLE_PLATFORM_FEE * REFERRAL_L1_PCT;
 const EXAMPLE_L2 = EXAMPLE_PLATFORM_FEE * REFERRAL_L2_PCT;
 
-export function ReferralNetworkContent({ stats }: { stats: ReferralStats }) {
+// Real Galaxy mining package — same worked example used on the DOGE
+// Mining page's own referral section (see DogeMiningContent.tsx). Its
+// daily electricity cost (the actual carve-out base) depends on the
+// live fleet economics, computed in the component body below.
+const MINING_EXAMPLE_PACKAGE = MINING_PACKAGES.find((p) => p.name === "Galaxy")!;
+
+interface MiningEconomics {
+  fleetCapacityMhs: number;
+  minerPowerKw: number;
+  electricityRateUsdtPerKwh: number;
+}
+
+export function ReferralNetworkContent({
+  stats,
+  dogeUsdtRate,
+  miningEconomics,
+}: {
+  stats: ReferralStats;
+  dogeUsdtRate: number;
+  miningEconomics: MiningEconomics;
+}) {
   const { t } = useLocale();
   const reduceMotion = useReducedMotion();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+
+  // Mining referral worked example — same formula as DogeMiningContent's
+  // own calculator/worked example: this package's share of the fleet
+  // times the modeled daily electricity cost, 5%/2% of which is what
+  // settleEpochForDate actually carves out to referrers every day.
+  const miningExampleShare = MINING_EXAMPLE_PACKAGE.mhs / miningEconomics.fleetCapacityMhs;
+  const miningExampleDailyElectricityUsdt = miningExampleShare * miningEconomics.minerPowerKw * 24 * miningEconomics.electricityRateUsdtPerKwh;
+  const miningExampleL1Doge = (miningExampleDailyElectricityUsdt * REFERRAL_L1_PCT) / dogeUsdtRate;
+  const miningExampleL2Doge = (miningExampleDailyElectricityUsdt * REFERRAL_L2_PCT) / dogeUsdtRate;
 
   const heroTiltX = useMotionValue(0);
   const heroTiltY = useMotionValue(0);
@@ -138,16 +181,24 @@ export function ReferralNetworkContent({ stats }: { stats: ReferralStats }) {
               >
                 {t("referralNetwork.lead")}
               </motion.p>
+              <motion.p
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.32, ease: EASE }}
+                className="max-w-[520px] rounded-[10px] border border-gold/25 bg-gold-soft px-3.5 py-3 text-xs leading-relaxed text-foreground"
+              >
+                {t("referralNetwork.dualLedgerNote")}
+              </motion.p>
               <motion.div
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.4, ease: EASE }}
                 className="mt-1 flex flex-wrap items-center gap-3"
               >
-                <Link href="/dashboard/refer" className="btn-game hud-corner group inline-flex items-center gap-1.5 text-sm">
+                <GatedLink href="/dashboard/refer" className="btn-game hud-corner group inline-flex items-center gap-1.5 text-sm">
                   {t("referralNetwork.linkButton")}
                   <ArrowRight size={15} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
-                </Link>
+                </GatedLink>
                 <a href="#how" className="btn-game-outline hud-corner text-sm font-bold uppercase tracking-wide">
                   {t("referralNetwork.howButton")}
                 </a>
@@ -202,15 +253,106 @@ export function ReferralNetworkContent({ stats }: { stats: ReferralStats }) {
                     <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{t("referralNetwork.liveQualified")}</p>
                   </div>
                 </div>
-                <div className="mt-5 rounded-[12px] border border-line bg-panel-2 p-4">
-                  <p className="text-2xl">
-                    <StatCounter value={stats.distributedUsdt} decimals={2} suffix=" USDT" />
-                  </p>
-                  <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-mint">{t("referralNetwork.liveDistributed")}</p>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <div className="rounded-[12px] border border-line bg-panel-2 p-4">
+                    <p className="text-xl">
+                      <StatCounter value={stats.distributedUsdt} decimals={2} suffix=" USDT" />
+                    </p>
+                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-mint">{t("referralNetwork.liveDistributed")}</p>
+                  </div>
+                  <div className="rounded-[12px] border border-line bg-panel-2 p-4">
+                    <p className="text-xl">
+                      <StatCounter value={stats.distributedDoge} decimals={2} suffix=" DOGE" />
+                    </p>
+                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-gold">{t("referralNetwork.liveDistributedDoge")}</p>
+                  </div>
                 </div>
                 <div aria-hidden className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full" style={{ background: "radial-gradient(closest-side, rgba(167,139,250,0.28), transparent 75%)", animation: "float-coin 5s ease-in-out infinite" }} />
               </TiltCard>
             </motion.div>
+          </div>
+        </section>
+
+        {/* --------------------------------------------------- Two Systems */}
+        <section className="border-t border-line" id="systems">
+          <div className="ld-container py-9 sm:py-[72px]">
+            <Reveal className="text-center">
+              <span className="ld-eyebrow text-gold">{t("referralNetwork.systemsEyebrow")}</span>
+              <h2 className="ld-h2 mt-2">{t("referralNetwork.systemsHeading")}</h2>
+              <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-muted">{t("referralNetwork.systemsBody")}</p>
+            </Reveal>
+
+            <div className="mt-8 grid gap-5 lg:grid-cols-2">
+              <Reveal delay={0.05}>
+                <TiltCard glow="rgba(34,225,147,0.22)" className="h-full p-7" style={{ borderColor: "rgba(34,225,147,0.4)" }}>
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-mint text-mint" style={{ boxShadow: "0 0 24px rgba(34,225,147,0.4)" }}>
+                      <Coins size={22} />
+                    </span>
+                    <div>
+                      <h3 className="text-lg font-black">{t("referralNetwork.gameSystemTitle")}</h3>
+                      <p className="text-xs text-muted">{t("referralNetwork.gameSystemSub")}</p>
+                    </div>
+                  </div>
+                  <div className="mt-5 grid grid-cols-2 gap-2.5">
+                    <div className="rounded-[10px] border border-line bg-panel-2 p-3.5">
+                      <span className="block text-[10px] font-black uppercase tracking-wide text-muted">{t("referralNetwork.sharedLevel1Label")}</span>
+                      <span className="mt-1 block text-2xl font-black text-mint">{t("referralNetwork.level1Rate")}</span>
+                    </div>
+                    <div className="rounded-[10px] border border-line bg-panel-2 p-3.5">
+                      <span className="block text-[10px] font-black uppercase tracking-wide text-muted">{t("referralNetwork.sharedLevel2Label")}</span>
+                      <span className="mt-1 block text-2xl font-black text-mint">{t("referralNetwork.level2Rate")}</span>
+                    </div>
+                  </div>
+                  <ul className="mt-4 flex flex-col gap-2 text-sm text-muted">
+                    {(["referralNetwork.gameSystemBullet1", "referralNetwork.gameSystemBullet2", "referralNetwork.gameSystemBullet3", "referralNetwork.gameSystemBullet4"] as const).map((k) => (
+                      <li key={k} className="flex items-start gap-2">
+                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-mint" />
+                        {t(k)}
+                      </li>
+                    ))}
+                  </ul>
+                  <span className="mt-5 inline-flex rounded-full bg-mint px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-black">
+                    {t("referralNetwork.gameSystemPill")}
+                  </span>
+                </TiltCard>
+              </Reveal>
+
+              <Reveal delay={0.1}>
+                <TiltCard glow="rgba(255,181,22,0.22)" className="h-full p-7" style={{ borderColor: "rgba(255,181,22,0.4)" }}>
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-gold text-gold" style={{ boxShadow: "0 0 24px rgba(255,181,22,0.4)" }}>
+                      <Cpu size={22} />
+                    </span>
+                    <div>
+                      <h3 className="text-lg font-black">{t("referralNetwork.miningSystemTitle")}</h3>
+                      <p className="text-xs text-muted">{t("referralNetwork.miningSystemSub")}</p>
+                    </div>
+                  </div>
+                  <div className="mt-5 grid grid-cols-2 gap-2.5">
+                    <div className="rounded-[10px] border border-line bg-panel-2 p-3.5">
+                      <span className="block text-[10px] font-black uppercase tracking-wide text-muted">{t("referralNetwork.sharedLevel1Label")}</span>
+                      <span className="mt-1 block text-2xl font-black text-gold">{t("referralNetwork.level1Rate")}</span>
+                    </div>
+                    <div className="rounded-[10px] border border-line bg-panel-2 p-3.5">
+                      <span className="block text-[10px] font-black uppercase tracking-wide text-muted">{t("referralNetwork.sharedLevel2Label")}</span>
+                      <span className="mt-1 block text-2xl font-black text-gold">{t("referralNetwork.level2Rate")}</span>
+                    </div>
+                  </div>
+                  <ul className="mt-4 flex flex-col gap-2 text-sm text-muted">
+                    {(["referralNetwork.miningSystemBullet1", "referralNetwork.miningSystemBullet2", "referralNetwork.miningSystemBullet3", "referralNetwork.miningSystemBullet4"] as const).map((k) => (
+                      <li key={k} className="flex items-start gap-2">
+                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
+                        {t(k)}
+                      </li>
+                    ))}
+                  </ul>
+                  <span className="mt-5 inline-flex rounded-full bg-gold px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-black">
+                    {t("referralNetwork.miningSystemPill")}
+                  </span>
+                </TiltCard>
+              </Reveal>
+            </div>
           </div>
         </section>
 
@@ -279,7 +421,12 @@ export function ReferralNetworkContent({ stats }: { stats: ReferralStats }) {
               <h2 className="ld-h2 mt-2">{t("referralNetwork.howHeading")}</h2>
             </Reveal>
 
-            <div className="relative mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
+            <Reveal delay={0.04} className="mt-10 text-left">
+              <span className="rounded-full bg-mint px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-black">
+                {t("referralNetwork.flowGameLabel")}
+              </span>
+            </Reveal>
+            <div className="relative mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
               <motion.div
                 aria-hidden
                 className="absolute left-0 right-0 top-1/2 hidden origin-left border-t border-dashed border-line lg:block"
@@ -289,6 +436,37 @@ export function ReferralNetworkContent({ stats }: { stats: ReferralStats }) {
                 transition={{ duration: 1, ease: EASE }}
               />
               {HOW_IT_WORKS_STEPS.map((s, i) => (
+                <Reveal key={s.n} delay={i * 0.08} y={20}>
+                  <TiltCard glow={`${s.color}22`} className="relative h-full p-6 text-left" style={{ borderColor: `${s.color}55` }}>
+                    <div
+                      className="grid h-9 w-9 place-items-center rounded-full border text-xs font-black"
+                      style={{ borderColor: s.color, color: s.color }}
+                    >
+                      {s.n}
+                    </div>
+                    <s.Icon size={28} className="mt-4" style={{ color: s.color, filter: `drop-shadow(0 0 10px ${s.color}66)` }} />
+                    <h3 className="mt-3 text-base font-black">{t(s.titleKey)}</h3>
+                    <p className="mt-1.5 text-sm leading-relaxed text-muted">{t(s.bodyKey)}</p>
+                  </TiltCard>
+                </Reveal>
+              ))}
+            </div>
+
+            <Reveal delay={0.04} className="mt-10 text-left">
+              <span className="rounded-full bg-gold px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-black">
+                {t("referralNetwork.flowMiningLabel")}
+              </span>
+            </Reveal>
+            <div className="relative mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
+              <motion.div
+                aria-hidden
+                className="absolute left-0 right-0 top-1/2 hidden origin-left border-t border-dashed border-line lg:block"
+                initial={{ scaleX: 0 }}
+                whileInView={{ scaleX: 1 }}
+                viewport={{ once: true, margin: "-10% 0px" }}
+                transition={{ duration: 1, ease: EASE }}
+              />
+              {MINING_FLOW_STEPS.map((s, i) => (
                 <Reveal key={s.n} delay={i * 0.08} y={20}>
                   <TiltCard glow={`${s.color}22`} className="relative h-full p-6 text-left" style={{ borderColor: `${s.color}55` }}>
                     <div
@@ -323,10 +501,10 @@ export function ReferralNetworkContent({ stats }: { stats: ReferralStats }) {
                     </li>
                   ))}
                 </ul>
-                <Link href="/dashboard/refer" className="ld-btn-flat btn-game group mt-6 inline-flex items-center gap-1.5 text-xs">
+                <GatedLink href="/dashboard/refer" className="ld-btn-flat btn-game group mt-6 inline-flex items-center gap-1.5 text-xs">
                   {t("referralNetwork.dashboardCta")}
                   <ArrowRight size={14} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
-                </Link>
+                </GatedLink>
                 <div className="mt-4 rounded-[10px] border border-line bg-panel-2 px-3 py-2.5 text-xs">
                   <span className="font-bold text-muted">{t("referralNetwork.linkFormatLabel")}: </span>
                   <span className="font-mono text-gold">{t("referralNetwork.linkFormatExample")}</span>
@@ -397,39 +575,77 @@ export function ReferralNetworkContent({ stats }: { stats: ReferralStats }) {
               <h2 className="ld-h2 mt-2">{t("referralNetwork.mathHeading")}</h2>
             </Reveal>
 
-            <Reveal delay={0.06} className="mt-8">
-              <div className="ld-glass mx-auto max-w-2xl p-7">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-black uppercase tracking-wide text-gold">{t("referralNetwork.mathPanelLabel")}</h3>
-                  <span className="text-xs font-semibold text-muted">{t("referralNetwork.mathPanelSub")}</span>
+            <div className="mt-8 grid gap-6 lg:grid-cols-2">
+              <Reveal delay={0.06}>
+                <div className="ld-glass h-full p-7">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-black uppercase tracking-wide text-mint">{t("referralNetwork.mathPanelLabel")}</h3>
+                    <span className="text-xs font-semibold text-muted">{t("referralNetwork.mathPanelSub")}</span>
+                  </div>
+                  <div className="mt-4 flex flex-col gap-2.5 text-sm">
+                    <div className="flex items-center justify-between border-b border-line pb-2.5">
+                      <span className="text-muted">{t("referralNetwork.mathRoomVolume")}</span>
+                      <span className="font-bold text-foreground">{EXAMPLE_ROOM_VOLUME.toFixed(3)} USDT</span>
+                    </div>
+                    <div className="flex items-center justify-between border-b border-line pb-2.5">
+                      <span className="text-muted">{t("referralNetwork.mathPlayerPool")}</span>
+                      <span className="font-bold text-mint">{EXAMPLE_PLAYER_POOL.toFixed(3)} USDT</span>
+                    </div>
+                    <div className="flex items-center justify-between border-b border-line pb-2.5">
+                      <span className="text-muted">{t("referralNetwork.mathPlatformFee")}</span>
+                      <span className="font-bold text-gold">{EXAMPLE_PLATFORM_FEE.toFixed(3)} USDT</span>
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
+                      <span className="font-bold text-foreground">{t("referralNetwork.mathL1")}</span>
+                      <span className="font-black" style={{ color: "#a78bfa" }}>
+                        {EXAMPLE_L1.toFixed(4)} USDT
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
+                      <span className="font-bold text-foreground">{t("referralNetwork.mathL2")}</span>
+                      <span className="font-black text-mint">{EXAMPLE_L2.toFixed(4)} USDT</span>
+                    </div>
+                  </div>
+                  <p className="mt-4 text-[11px] leading-relaxed text-muted/80">{t("referralNetwork.mathNote")}</p>
                 </div>
-                <div className="mt-4 flex flex-col gap-2.5 text-sm">
-                  <div className="flex items-center justify-between border-b border-line pb-2.5">
-                    <span className="text-muted">{t("referralNetwork.mathRoomVolume")}</span>
-                    <span className="font-bold text-foreground">{EXAMPLE_ROOM_VOLUME.toFixed(3)} USDT</span>
+              </Reveal>
+
+              <Reveal delay={0.1}>
+                <div className="ld-glass h-full p-7">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-black uppercase tracking-wide text-gold">{t("referralNetwork.miningMathPanelLabel")}</h3>
+                    <span className="text-xs font-semibold text-muted">{t("referralNetwork.miningMathPanelSub")}</span>
                   </div>
-                  <div className="flex items-center justify-between border-b border-line pb-2.5">
-                    <span className="text-muted">{t("referralNetwork.mathPlayerPool")}</span>
-                    <span className="font-bold text-mint">{EXAMPLE_PLAYER_POOL.toFixed(3)} USDT</span>
+                  <div className="mt-4 flex flex-col gap-2.5 text-sm">
+                    <div className="flex items-center justify-between border-b border-line pb-2.5">
+                      <span className="text-muted">{t("referralNetwork.miningMathPackageLabel")}</span>
+                      <span className="font-bold text-foreground">
+                        {MINING_EXAMPLE_PACKAGE.name} — ${MINING_EXAMPLE_PACKAGE.priceUsdt}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between border-b border-line pb-2.5">
+                      <span className="text-muted">{t("referralNetwork.miningMathElectricityLabel")}</span>
+                      <span className="font-bold text-foreground">{miningExampleDailyElectricityUsdt.toFixed(4)} USDT / day</span>
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
+                      <span className="font-bold text-foreground">{t("referralNetwork.miningMathL1")}</span>
+                      <span className="font-black" style={{ color: "#a78bfa" }}>
+                        {miningExampleL1Doge.toFixed(4)} DOGE / day
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
+                      <span className="font-bold text-foreground">{t("referralNetwork.miningMathL2")}</span>
+                      <span className="font-black text-gold">{miningExampleL2Doge.toFixed(4)} DOGE / day</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5 text-xs">
+                      <span className="text-muted">DOGE/USDT rate used</span>
+                      <span className="font-bold text-foreground">{dogeUsdtRate.toFixed(5)}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between border-b border-line pb-2.5">
-                    <span className="text-muted">{t("referralNetwork.mathPlatformFee")}</span>
-                    <span className="font-bold text-gold">{EXAMPLE_PLATFORM_FEE.toFixed(3)} USDT</span>
-                  </div>
-                  <div className="mt-1.5 flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
-                    <span className="font-bold text-foreground">{t("referralNetwork.mathL1")}</span>
-                    <span className="font-black" style={{ color: "#a78bfa" }}>
-                      {EXAMPLE_L1.toFixed(4)} USDT
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
-                    <span className="font-bold text-foreground">{t("referralNetwork.mathL2")}</span>
-                    <span className="font-black text-mint">{EXAMPLE_L2.toFixed(4)} USDT</span>
-                  </div>
+                  <p className="mt-4 text-[11px] leading-relaxed text-muted/80">{t("referralNetwork.miningMathNote")}</p>
                 </div>
-                <p className="mt-4 text-[11px] leading-relaxed text-muted/80">{t("referralNetwork.mathNote")}</p>
-              </div>
-            </Reveal>
+              </Reveal>
+            </div>
           </div>
         </section>
 
@@ -510,9 +726,9 @@ export function ReferralNetworkContent({ stats }: { stats: ReferralStats }) {
                 <p className="max-w-xl text-sm text-muted">{t("referralNetwork.ctaBody")}</p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   <ConnectWalletButton />
-                  <Link href="/dashboard/refer" className="ld-btn-flat ld-btn-ghost rounded-full border bg-panel-2 px-4 text-xs font-bold uppercase tracking-wide">
+                  <GatedLink href="/dashboard/refer" className="ld-btn-flat ld-btn-ghost rounded-full border bg-panel-2 px-4 text-xs font-bold uppercase tracking-wide">
                     {t("referralNetwork.linkButton")}
-                  </Link>
+                  </GatedLink>
                 </div>
               </div>
             </Reveal>

@@ -12,7 +12,7 @@ export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const [referredBy, direct, ledgerSums] = await Promise.all([
+  const [referredBy, direct, ledgerSums, miningLedgerSums] = await Promise.all([
     db.referral.findUnique({
       where: { referredProfileId: session.walletProfileId },
       select: { status: true, referrer: { select: { address: true } } },
@@ -32,6 +32,16 @@ export async function GET() {
       where: { walletProfileId: session.walletProfileId, reason: { in: ["referral_l1", "referral_l2"] } },
       _sum: { amount: true },
     }),
+    // Mining referral commission — same two-level edges above, but a
+    // recurring daily carve-out of each referred wallet's own
+    // electricity-cost deduction (see creditMiningReferralDoge in
+    // src/lib/referrals.ts), settled in DOGE, so it's tracked as its
+    // own separate total rather than merged into the USDT sums above.
+    db.ledgerEntry.groupBy({
+      by: ["reason"],
+      where: { walletProfileId: session.walletProfileId, reason: { in: ["mining_referral_l1", "mining_referral_l2"] } },
+      _sum: { amount: true },
+    }),
   ]);
 
   // Indirect (L2) wallets — one hop past each direct referral: anyone
@@ -47,6 +57,9 @@ export async function GET() {
   const earnedByReason = Object.fromEntries(
     ledgerSums.map((r) => [r.reason, Number(r._sum.amount ?? 0)])
   ) as Record<string, number>;
+  const miningEarnedByReason = Object.fromEntries(
+    miningLedgerSums.map((r) => [r.reason, Number(r._sum.amount ?? 0)])
+  ) as Record<string, number>;
 
   return NextResponse.json({
     myAddress: session.address,
@@ -57,6 +70,10 @@ export async function GET() {
     l2PctOfPlatformFee: 2,
     totalEarnedL1Usdt: earnedByReason.referral_l1 ?? 0,
     totalEarnedL2Usdt: earnedByReason.referral_l2 ?? 0,
+    miningL1Pct: 5,
+    miningL2Pct: 2,
+    totalEarnedL1Doge: miningEarnedByReason.mining_referral_l1 ?? 0,
+    totalEarnedL2Doge: miningEarnedByReason.mining_referral_l2 ?? 0,
     direct: direct.map((r) => ({
       id: r.id,
       address: r.referred.address,

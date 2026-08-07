@@ -17,13 +17,18 @@ import {
   Users,
   ChevronDown,
   Server,
+  Share2,
+  Gift,
+  Calculator,
 } from "lucide-react";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
+import { GatedLink } from "@/components/GatedLink";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { Reveal, StatCounter, TiltCard, EASE, Starfield } from "@/components/motionPrimitives";
-import { MINING_PACKAGES, HASHRATE_TERM_DAYS, HASHRATE_PER_USDT } from "@/lib/mining-shared";
+import { MINING_PACKAGES, HASHRATE_TERM_DAYS, HASHRATE_PER_USDT, MIN_HASHRATE_PURCHASE_USDT } from "@/lib/mining-shared";
+import { REFERRAL_L1_PCT, REFERRAL_L2_PCT } from "@/lib/game-config";
 
 interface PlatformStats {
   walletCount: number;
@@ -76,21 +81,74 @@ const FAQ_KEYS = [
   { qKey: "dogeMining.faq6Q" as const, aKey: "dogeMining.faq6A" as const },
   { qKey: "dogeMining.faq7Q" as const, aKey: "dogeMining.faq7A" as const },
   { qKey: "dogeMining.faq8Q" as const, aKey: "dogeMining.faq8A" as const },
+  { qKey: "dogeMining.faq9Q" as const, aKey: "dogeMining.faq9A" as const },
+  { qKey: "dogeMining.faq10Q" as const, aKey: "dogeMining.faq10A" as const },
 ] as const;
+
+const REFERRAL_FLOW_STEPS = [
+  { n: "01", Icon: Wallet, color: "#5ea3ff", titleKey: "dogeMining.referralStep1Title" as const, bodyKey: "dogeMining.referralStep1Body" as const },
+  { n: "02", Icon: Share2, color: "#a78bfa", titleKey: "dogeMining.referralStep2Title" as const, bodyKey: "dogeMining.referralStep2Body" as const },
+  { n: "03", Icon: Server, color: "#22e193", titleKey: "dogeMining.referralStep3Title" as const, bodyKey: "dogeMining.referralStep3Body" as const },
+  { n: "04", Icon: Gift, color: "#ffb516", titleKey: "dogeMining.referralStep4Title" as const, bodyKey: "dogeMining.referralStep4Body" as const },
+  { n: "05", Icon: TrendingUp, color: "#22e193", titleKey: "dogeMining.referralStep5Title" as const, bodyKey: "dogeMining.referralStep5Body" as const },
+] as const;
+
+const REFERRAL_RULE_KEYS = [
+  "dogeMining.referralRule1" as const,
+  "dogeMining.referralRule2" as const,
+  "dogeMining.referralRule3" as const,
+  "dogeMining.referralRule4" as const,
+];
+
+// Worked example uses the real Galaxy package — a round mid-tier
+// figure, not an invented number (see MINING_PACKAGES).
+const REFERRAL_EXAMPLE_PACKAGE = MINING_PACKAGES.find((p) => p.name === "Galaxy")!;
 
 export function DogeMiningContent({
   platformStats,
   economics,
   reserveBalanceUsdt,
+  dogeUsdtRate,
 }: {
   platformStats: PlatformStats;
   economics: Economics;
   reserveBalanceUsdt: number;
+  dogeUsdtRate: number;
 }) {
   const { t } = useLocale();
   const reduceMotion = useReducedMotion();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const fleetCapacityGhs = economics.fleetCapacityMhs / 1000;
+
+  // Reward calculator — package picker plus an optional custom amount
+  // that overrides it. Formulas mirror the real settlement math in
+  // src/lib/mining.ts (settleEpochForDate) at full fleet utilization
+  // (variance = 1), the same "reference day" assumption the static
+  // Reward Math panel above already uses — not an invented formula.
+  const [calcPackageIndex, setCalcPackageIndex] = useState(2); // Lunar — a representative mid-tier default
+  const [calcCustomAmount, setCalcCustomAmount] = useState("");
+  const calcAmountUsdt = (() => {
+    const custom = Number(calcCustomAmount);
+    if (calcCustomAmount.trim() !== "" && Number.isFinite(custom) && custom >= MIN_HASHRATE_PURCHASE_USDT) return custom;
+    return MINING_PACKAGES[calcPackageIndex].priceUsdt;
+  })();
+  const calcHashrateMhs = calcAmountUsdt * HASHRATE_PER_USDT;
+  const calcShare = calcHashrateMhs / economics.fleetCapacityMhs;
+  const calcDailyGross = calcShare * (economics.referenceMonthlyGrossUsdt / 30);
+  const calcDailyElectricity = calcShare * economics.minerPowerKw * 24 * economics.electricityRateUsdtPerKwh;
+  const calcDailyPoolFee = calcDailyGross * economics.poolFeePct;
+  const calcDailyOrganicNet = calcDailyGross - calcDailyElectricity - calcDailyPoolFee;
+  const calcDailyTarget = (calcAmountUsdt * (1 + economics.targetRoiPct)) / HASHRATE_TERM_DAYS;
+  const calcTermTotalTarget = calcAmountUsdt * (1 + economics.targetRoiPct);
+
+  // Mining referral worked example — the Galaxy package's own daily
+  // electricity-cost deduction (same formula as calcDailyElectricity
+  // above), 5%/2% of which is what settleEpochForDate actually carves
+  // out to referrers every day this contract stays active.
+  const referralExampleShare = REFERRAL_EXAMPLE_PACKAGE.mhs / economics.fleetCapacityMhs;
+  const referralExampleDailyElectricityUsdt = referralExampleShare * economics.minerPowerKw * 24 * economics.electricityRateUsdtPerKwh;
+  const referralExampleL1Doge = (referralExampleDailyElectricityUsdt * REFERRAL_L1_PCT) / dogeUsdtRate;
+  const referralExampleL2Doge = (referralExampleDailyElectricityUsdt * REFERRAL_L2_PCT) / dogeUsdtRate;
 
   const heroTiltX = useMotionValue(0);
   const heroTiltY = useMotionValue(0);
@@ -161,9 +219,9 @@ export function DogeMiningContent({
                   {t("dogeMining.packagesButton")}
                   <ArrowRight size={15} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
                 </a>
-                <Link href="/dashboard/mining" className="btn-game-outline hud-corner text-sm font-bold uppercase tracking-wide">
+                <GatedLink href="/dashboard/mining" className="btn-game-outline hud-corner text-sm font-bold uppercase tracking-wide">
                   {t("dogeMining.dashboardButton")}
-                </Link>
+                </GatedLink>
               </motion.div>
 
               <motion.div
@@ -286,14 +344,14 @@ export function DogeMiningContent({
                         </span>
                         <span className="rounded-full border border-line bg-panel-2 px-2.5 py-1">{t("dogeMining.packageTermLabel")}</span>
                       </div>
-                      <Link
+                      <GatedLink
                         href="/dashboard/mining"
                         className="ld-btn-flat group mt-5 inline-flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wide text-black"
                         style={{ background: `linear-gradient(180deg, ${color}, ${color}cc)` }}
                       >
                         {t("dogeMining.packageCta")}
                         <ArrowRight size={13} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
-                      </Link>
+                      </GatedLink>
                     </TiltCard>
                   </Reveal>
                 );
@@ -385,6 +443,196 @@ export function DogeMiningContent({
           </div>
         </section>
 
+        {/* ------------------------------------------------ Reward calculator */}
+        <section className="border-t border-line bg-panel/40" id="calculator">
+          <div className="ld-container py-9 sm:py-[72px]">
+            <Reveal className="text-center">
+              <span className="ld-eyebrow text-mint">{t("dogeMining.calculatorEyebrow")}</span>
+              <h2 className="ld-h2 mt-2">{t("dogeMining.calculatorHeading")}</h2>
+              <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-muted">{t("dogeMining.calculatorBody")}</p>
+            </Reveal>
+
+            <Reveal delay={0.08} className="mt-8">
+              <div className="ld-glass grid gap-6 p-6 sm:p-8 lg:grid-cols-[0.85fr_1.15fr]">
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center gap-2">
+                    <Calculator size={18} className="text-mint" />
+                    <h3 className="text-sm font-black uppercase tracking-wide">{t("dogeMining.calculatorPackageLabel")}</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {MINING_PACKAGES.map((pkg, i) => {
+                      const active = calcCustomAmount.trim() === "" && i === calcPackageIndex;
+                      const color = PACKAGE_COLORS[pkg.name] ?? "#5ea3ff";
+                      return (
+                        <button
+                          key={pkg.level}
+                          type="button"
+                          onClick={() => {
+                            setCalcPackageIndex(i);
+                            setCalcCustomAmount("");
+                          }}
+                          className="rounded-[10px] border px-3 py-2 text-left text-xs font-bold transition"
+                          style={
+                            active
+                              ? { borderColor: color, background: `${color}22`, color }
+                              : { borderColor: "var(--line)", color: "var(--muted)" }
+                          }
+                        >
+                          <span className="block">{pkg.name}</span>
+                          <span className="block font-normal opacity-80">${pkg.priceUsdt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <label className="mt-2 flex flex-col gap-1.5 text-xs font-semibold text-muted">
+                    {t("dogeMining.calculatorCustomLabel")}
+                    <input
+                      type="number"
+                      min={MIN_HASHRATE_PURCHASE_USDT}
+                      step="any"
+                      value={calcCustomAmount}
+                      onChange={(e) => setCalcCustomAmount(e.target.value)}
+                      placeholder={`${MIN_HASHRATE_PURCHASE_USDT}+`}
+                      className="rounded-[10px] border border-line bg-panel-2 px-3 py-2.5 text-sm font-bold text-foreground outline-none focus:border-mint/60"
+                    />
+                  </label>
+
+                  <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5 text-xs">
+                    <span className="text-muted">{t("dogeMining.calculatorShareLabel")}</span>
+                    <span className="font-black text-foreground">{calcShare < 0.001 ? (calcShare * 100).toFixed(4) : (calcShare * 100).toFixed(2)}%</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2.5 text-xs">
+                  {[
+                    { label: t("dogeMining.calculatorGrossLabel"), value: calcDailyGross, color: "text-foreground" },
+                    { label: t("dogeMining.calculatorElectricityLabel"), value: -calcDailyElectricity, color: "text-[#ff8a5c]" },
+                    { label: t("dogeMining.calculatorPoolFeeLabel"), value: -calcDailyPoolFee, color: "text-[#ff8a5c]" },
+                    { label: t("dogeMining.calculatorOrganicNetLabel"), value: calcDailyOrganicNet, color: "text-foreground" },
+                  ].map((row) => (
+                    <div key={row.label} className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
+                      <span className="text-muted">{row.label}</span>
+                      <span className={`font-black ${row.color}`}>
+                        {row.value < 0 ? "-" : ""}
+                        {Math.abs(row.value).toFixed(4)} USDT
+                      </span>
+                    </div>
+                  ))}
+                  <div className="mt-1 flex items-center justify-between rounded-[10px] border border-mint/40 bg-mint/10 px-3 py-3">
+                    <span className="text-xs font-semibold text-muted">{t("dogeMining.calculatorTargetLabel")}</span>
+                    <span className="text-lg font-black text-mint">{calcDailyTarget.toFixed(4)} USDT</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-[10px] border border-gold/40 bg-gold-soft px-3 py-3">
+                    <span className="text-xs font-semibold text-muted">{t("dogeMining.calculatorTermTotalLabel")}</span>
+                    <span className="text-lg font-black text-gold">{calcTermTotalTarget.toFixed(2)} USDT</span>
+                  </div>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted/80">{t("dogeMining.calculatorNote")}</p>
+                </div>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+
+        {/* ------------------------------------------- Mining referral rewards */}
+        <section className="border-t border-line" id="mining-referrals">
+          <div className="ld-container py-9 sm:py-[72px]">
+            <Reveal className="text-center">
+              <span className="ld-eyebrow text-gold">{t("dogeMining.referralRewardsEyebrow")}</span>
+              <h2 className="ld-h2 mt-2">{t("dogeMining.referralRewardsHeading")}</h2>
+              <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-muted">{t("dogeMining.referralRewardsLead")}</p>
+            </Reveal>
+
+            {/* Summary card */}
+            <Reveal delay={0.06} className="mt-8">
+              <div className="ld-glass grid grid-cols-2 gap-3 p-5 sm:grid-cols-4 sm:p-6">
+                {[
+                  { label: t("dogeMining.referralSummaryDirectLabel"), value: t("dogeMining.referralSummaryDirectValue"), color: "text-mint" },
+                  { label: t("dogeMining.referralSummaryIndirectLabel"), value: t("dogeMining.referralSummaryIndirectValue"), color: "text-gold" },
+                  { label: t("dogeMining.referralSummaryTriggerLabel"), value: t("dogeMining.referralSummaryTriggerValue"), color: "text-foreground" },
+                  { label: t("dogeMining.referralSummaryCreditLabel"), value: t("dogeMining.referralSummaryCreditValue"), color: "text-foreground" },
+                ].map((s) => (
+                  <div key={s.label} className="text-center">
+                    <p className={`text-xl font-black ${s.color} sm:text-2xl`}>{s.value}</p>
+                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+
+            {/* 5-node flow */}
+            <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
+              {REFERRAL_FLOW_STEPS.map((s, i) => (
+                <Reveal key={s.n} delay={i * 0.06} y={20}>
+                  <TiltCard glow={`${s.color}22`} className="relative h-full p-5 text-left" style={{ borderColor: `${s.color}55` }}>
+                    <div
+                      className="grid h-8 w-8 place-items-center rounded-full border text-xs font-black"
+                      style={{ borderColor: s.color, color: s.color }}
+                    >
+                      {s.n}
+                    </div>
+                    <s.Icon size={22} className="mt-3" style={{ color: s.color, filter: `drop-shadow(0 0 10px ${s.color}66)` }} />
+                    <h3 className="mt-2.5 text-sm font-black">{t(s.titleKey)}</h3>
+                    <p className="mt-1 text-xs leading-relaxed text-muted">{t(s.bodyKey)}</p>
+                  </TiltCard>
+                </Reveal>
+              ))}
+            </div>
+
+            <div className="mt-8 grid gap-5 lg:grid-cols-2">
+              {/* Qualification rules */}
+              <Reveal delay={0.05}>
+                <div className="ld-glass flex h-full flex-col p-6">
+                  <h3 className="text-sm font-black uppercase tracking-wide">{t("dogeMining.referralRulesTitle")}</h3>
+                  <ul className="mt-4 flex flex-col gap-2.5 text-xs leading-relaxed text-muted">
+                    {REFERRAL_RULE_KEYS.map((key) => (
+                      <li key={key} className="flex items-start gap-2">
+                        <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-gold" />
+                        {t(key)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </Reveal>
+
+              {/* Worked example */}
+              <Reveal delay={0.1}>
+                <div className="ld-glass flex h-full flex-col p-6">
+                  <h3 className="text-sm font-black uppercase tracking-wide">{t("dogeMining.referralExampleTitle")}</h3>
+                  <div className="mt-4 flex flex-col gap-2.5 text-xs">
+                    <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
+                      <span className="text-muted">{t("dogeMining.referralExamplePackageLabel")}</span>
+                      <span className="font-black text-foreground">
+                        {REFERRAL_EXAMPLE_PACKAGE.name} — ${REFERRAL_EXAMPLE_PACKAGE.priceUsdt}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
+                      <span className="text-muted">{t("dogeMining.referralExampleElectricityLabel")}</span>
+                      <span className="font-black text-foreground">{referralExampleDailyElectricityUsdt.toFixed(4)} USDT</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-[10px] border border-mint/40 bg-mint/10 px-3 py-2.5">
+                      <span className="text-muted">{t("dogeMining.referralExampleL1Label")}</span>
+                      <span className="font-black text-mint">{referralExampleL1Doge.toFixed(4)} DOGE / day</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-[10px] border border-gold/40 bg-gold-soft px-3 py-2.5">
+                      <span className="text-muted">{t("dogeMining.referralExampleL2Label")}</span>
+                      <span className="font-black text-gold">{referralExampleL2Doge.toFixed(4)} DOGE / day</span>
+                    </div>
+                  </div>
+                  <p className="mt-4 flex-1 text-[11px] leading-relaxed text-muted/80">{t("dogeMining.referralExampleNote")}</p>
+                </div>
+              </Reveal>
+            </div>
+
+            <Reveal delay={0.1} className="mt-8 flex justify-center">
+              <Link href="/referral-network" className="ld-btn-flat btn-game group inline-flex items-center gap-1.5 text-xs">
+                {t("dogeMining.referralCta")}
+                <ArrowRight size={14} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
+              </Link>
+            </Reveal>
+          </div>
+        </section>
+
         {/* ------------------------------------------------- Pool explorer */}
         <section className="relative overflow-hidden border-t border-line bg-panel/40" id="pool">
           <div className="ld-container py-9 sm:py-[72px]">
@@ -472,9 +720,9 @@ export function DogeMiningContent({
                 <p className="max-w-xl text-sm text-muted">{t("dogeMining.ctaBody")}</p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   <ConnectWalletButton />
-                  <Link href="/dashboard/mining" className="ld-btn-flat ld-btn-ghost rounded-full border bg-panel-2 px-4 text-xs font-bold uppercase tracking-wide">
+                  <GatedLink href="/dashboard/mining" className="ld-btn-flat ld-btn-ghost rounded-full border bg-panel-2 px-4 text-xs font-bold uppercase tracking-wide">
                     {t("dogeMining.dashboardButton")}
-                  </Link>
+                  </GatedLink>
                 </div>
               </div>
             </Reveal>
