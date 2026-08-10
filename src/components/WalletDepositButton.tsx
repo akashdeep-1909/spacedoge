@@ -5,7 +5,7 @@ import { useAccount, useConnect, useSwitchChain, useWriteContract, useWaitForTra
 import { parseUnits } from "viem";
 import { waitForInjectedProvider, type wagmiConfig } from "@/lib/wagmi";
 import { isUserRejectionError, useAuth } from "@/lib/auth-context";
-import { useVerifyDeposit } from "@/lib/hooks";
+import { useVerifyDeposit, type VerifyDepositResult } from "@/lib/hooks";
 import { OpenInWalletAppLink } from "@/components/OpenInWalletAppLink";
 
 // Wraps a wallet-prompting promise (network switch, transaction confirm)
@@ -69,7 +69,6 @@ export function WalletDepositButton({
   treasuryAddress,
   tokenContract,
   tokenDecimals,
-  minConfirmations,
 }: {
   chainId: number;
   chainKey: string;
@@ -77,7 +76,6 @@ export function WalletDepositButton({
   treasuryAddress: string;
   tokenContract: string;
   tokenDecimals: number;
-  minConfirmations: number;
 }) {
   const { chainId: connectedChainId, isConnected } = useAccount();
   const { connectAsync, connectors } = useConnect();
@@ -111,13 +109,58 @@ export function WalletDepositButton({
   // passive watcher eventually notices. Idempotent either way
   // (creditIfReady keys on txHash, "already settled — never re-credit"),
   // so this can safely run alongside the cron with no double-credit risk.
+  //
+  // Retried on "not_found"/"rpc_error" specifically (confirmed live root
+  // cause of deposits silently requiring the manual "paste tx hash" box
+  // even after using this button): the server verifies via ITS OWN
+  // configured RPC node (DepositChainConfig.rpcUrl / a free public
+  // fallback — see resolveRpcUrl in deposits.ts), a completely different
+  // node from whatever the user's own wallet/dapp provider used to
+  // report the receipt here. That server-side node routinely lags a few
+  // seconds behind — a single verify attempt fired the instant `receipt`
+  // resolves can easily race ahead of it and come back "not found" even
+  // though the transaction is real and already mined. Every other status
+  // (credited, pending, or a genuine terminal failure like failed_tx /
+  // sent_from_different_wallet) is definitive and NOT retried.
   const verifyDeposit = useVerifyDeposit();
   const verifiedTxHash = useRef<string | null>(null);
+  const retryCountRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const MAX_AUTO_VERIFY_RETRIES = 6; // ~2 minutes total across the backoff below — generous for a slow free RPC node to catch up
+  const [autoVerifyGaveUp, setAutoVerifyGaveUp] = useState(false);
+
   useEffect(() => {
-    if (!receipt || !txHash || verifiedTxHash.current === txHash) return;
-    verifiedTxHash.current = txHash;
-    verifyDeposit.mutate({ txHash, chainKey });
-  }, [receipt, txHash, chainKey, verifyDeposit]);
+    if (!receipt || !txHash) return;
+    if (verifiedTxHash.current !== txHash) {
+      verifiedTxHash.current = txHash;
+      retryCountRef.current = 0;
+      setAutoVerifyGaveUp(false);
+      verifyDeposit.mutate({ txHash, chainKey });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately excludes verifyDeposit (a new mutation object identity every render would otherwise re-fire this)
+  }, [receipt, txHash, chainKey]);
+
+  useEffect(() => {
+    if (!txHash || verifiedTxHash.current !== txHash) return;
+    const result = verifyDeposit.data;
+    if (!result || !("error" in result)) return; // no result yet, or a definitive credited/pending — nothing to retry
+    if (result.status !== "not_found" && result.status !== "rpc_error") return; // a real terminal failure — retrying won't help
+    if (retryCountRef.current >= MAX_AUTO_VERIFY_RETRIES) {
+      setAutoVerifyGaveUp(true);
+      return;
+    }
+    retryCountRef.current += 1;
+    // 5s, 8s, 12s, 18s, 27s, 40s — gives a slow public RPC node
+    // increasing room to catch up without hammering it every tick.
+    const delayMs = 5000 * Math.pow(1.5, retryCountRef.current - 1);
+    retryTimerRef.current = setTimeout(() => {
+      verifyDeposit.mutate({ txHash, chainKey });
+    }, delayMs);
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- verifyDeposit.data is the real trigger; verifyDeposit itself is a stable-enough mutate ref for this purpose
+  }, [verifyDeposit.data, txHash, chainKey]);
 
   const [amount, setAmount] = useState("10");
   const [error, setError] = useState<string | null>(null);
@@ -339,12 +382,68 @@ export function WalletDepositButton({
         </div>
       )}
       {error && <p className="mt-2 text-xs text-risk">{error}</p>}
-      {receipt && (
-        <p className="mt-2 text-xs text-mint">
-          Sent — tx {txHash?.slice(0, 10)}…. Credited automatically after {minConfirmations}{" "}
-          confirmations, tracked below.
-        </p>
-      )}
+      {receipt && <AutoVerifyStatus result={verifyDeposit.data} isPending={verifyDeposit.isPending} gaveUp={autoVerifyGaveUp} txHash={txHash} />}
     </div>
+  );
+}
+
+// Surfaces what the auto-verify-on-receipt effect above is actually
+// doing — previously nothing here rendered verifyDeposit's result or
+// error at all, so a failed/retrying attempt (see that effect's own
+// doc-comment on the "not_found"/"rpc_error" race with the server's own,
+// often-laggier RPC node) was completely invisible: the user just saw a
+// generic "Sent" message forever, with no way to tell a slow-but-fine
+// confirmation apart from a silently-abandoned one.
+function AutoVerifyStatus({
+  result,
+  isPending,
+  gaveUp,
+  txHash,
+}: {
+  result: VerifyDepositResult | undefined;
+  isPending: boolean;
+  gaveUp: boolean;
+  txHash: `0x${string}` | undefined;
+}) {
+  const short = txHash ? `${txHash.slice(0, 10)}…` : "";
+
+  if (!result || isPending) {
+    return (
+      <p className="mt-2 text-xs text-mint">
+        Sent — tx {short}. Confirming with our server…
+      </p>
+    );
+  }
+  if (!("error" in result)) {
+    return result.status === "credited" ? (
+      <p className="mt-2 text-xs text-mint">✅ Credited — ${result.amount.toFixed(2)} added to your balance.</p>
+    ) : (
+      <p className="mt-2 text-xs text-gold">
+        ⏳ Found on-chain — {result.confirmations}/{result.minConfirmations} confirmations, tracked below.
+      </p>
+    );
+  }
+  if (result.status === "not_found" || result.status === "rpc_error") {
+    if (gaveUp) {
+      return (
+        <p className="mt-2 text-xs text-risk">
+          Still not confirmed after several tries (a slow RPC node, most likely — your transaction is
+          real, this is just our server catching up). Paste tx {short} into the box below to check
+          again.
+        </p>
+      );
+    }
+    return (
+      <p className="mt-2 text-xs text-mint">
+        Sent — tx {short}. Confirming with our server… (this can take up to ~2 minutes on a busy network)
+      </p>
+    );
+  }
+  // Any other status is a genuine terminal outcome — retrying won't
+  // change it, so show it plainly instead of a generic "confirming".
+  return (
+    <p className="mt-2 text-xs text-risk">
+      {result.error}
+    </p>
   );
 }

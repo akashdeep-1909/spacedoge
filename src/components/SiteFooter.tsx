@@ -26,22 +26,13 @@ const FOOTER_COLUMNS: { headingKey: TranslationKey; links: { labelKey: Translati
   },
   {
     headingKey: "landing.footerResourcesHeading",
-    links: [
-      { labelKey: "landing.navHowItWorks", href: "/how-it-works" },
-      { labelKey: "landing.footerMissionControl", href: null },
-      { labelKey: "landing.footerDailyRewards", href: null },
-      { labelKey: "landing.footerDocumentation", href: null },
-      { labelKey: "landing.footerBlog", href: null },
-    ],
+    links: [{ labelKey: "landing.navHowItWorks", href: "/how-it-works" }],
   },
   {
     headingKey: "landing.footerCompanyHeading",
     links: [
       { labelKey: "landing.footerAboutUs", href: "/about-us" },
-      { labelKey: "landing.footerCareers", href: null },
       { labelKey: "landing.footerPartners", href: "/partners" },
-      { labelKey: "landing.footerMediaKit", href: null },
-      { labelKey: "landing.footerContactUs", href: null },
     ],
   },
   {
@@ -49,8 +40,6 @@ const FOOTER_COLUMNS: { headingKey: TranslationKey; links: { labelKey: Translati
     links: [
       { labelKey: "landing.footerTerms", href: "/terms-of-service" },
       { labelKey: "landing.footerPrivacy", href: "/privacy-policy" },
-      { labelKey: "landing.footerRisk", href: null },
-      { labelKey: "landing.footerRefund", href: null },
       { labelKey: "landing.footerCookie", href: "/cookie-policy" },
     ],
   },

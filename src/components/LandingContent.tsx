@@ -18,12 +18,11 @@ import {
 } from "lucide-react";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { EnterDashboard } from "@/components/EnterDashboard";
-import { InfoTooltip } from "@/components/InfoTooltip";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { WaitlistModal } from "@/components/WaitlistModal";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
-import { Reveal, StatCounter, TiltCard, EASE, Starfield } from "@/components/motionPrimitives";
+import { Reveal, TiltCard, EASE, Starfield } from "@/components/motionPrimitives";
 
 interface MiningStats {
   epochDateLabel: string;
@@ -177,14 +176,6 @@ export function LandingContent({ mining, platformStats }: { mining: MiningStats;
                 >
                   {t("landing.exploreEcosystemButton")}
                 </a>
-                <button
-                  type="button"
-                  onClick={() => setWaitlistSource("landing_hero")}
-                  className="ld-btn-flat ld-btn-ghost group inline-flex items-center gap-1.5 border bg-panel-2 text-xs font-bold uppercase tracking-wide"
-                >
-                  {t("landing.joinWaitlistButton")}
-                  <ArrowRight size={13} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
-                </button>
               </motion.div>
               <EnterDashboard />
               <motion.div
@@ -409,57 +400,6 @@ export function LandingContent({ mining, platformStats }: { mining: MiningStats;
                 </Reveal>
               ))}
             </div>
-          </div>
-        </section>
-
-        {/* ------------------------------------------ Proof of Hash (real data) */}
-        <section className="border-t border-line bg-panel/40" id="proof-of-hash">
-          <div className="ld-container py-9 sm:py-[72px]">
-            <Reveal>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.2em] text-gold">
-                  ⚡ {t("landing.outputHeading")} — {mining.epochDateLabel}
-                  <InfoTooltip text={t("landing.miningProofTooltip")} />
-                </h3>
-              </div>
-            </Reveal>
-            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Reveal delay={0}>
-                <div className="ld-glass h-full p-5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("landing.contractedHashrate")}</p>
-                  <p className="mt-1.5 text-xl">
-                    <StatCounter value={mining.contractedHashrate} decimals={2} /> <span className="text-sm text-muted">GH/s</span>
-                  </p>
-                </div>
-              </Reveal>
-              <Reveal delay={0.06}>
-                <div className="ld-glass h-full p-5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("landing.observed")}</p>
-                  <p className="mt-1.5 text-xl">
-                    <StatCounter value={mining.observedHashrate} decimals={2} /> <span className="text-sm text-muted">GH/s</span>
-                  </p>
-                </div>
-              </Reveal>
-              <Reveal delay={0.12}>
-                <div className="ld-glass h-full p-5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("landing.effectiveMhHours")}</p>
-                  <p className="mt-1.5 text-xl">
-                    <StatCounter value={mining.totalEffectiveMp} />
-                  </p>
-                </div>
-              </Reveal>
-              <Reveal delay={0.18}>
-                <div className="ld-glass glow-mint h-full border-mint/25 p-5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-mint">{t("landing.netOutputSettled")}</p>
-                  <p className="text-glow-mint mt-1.5 text-xl text-mint">
-                    <StatCounter value={mining.netDistributableDoge} decimals={4} /> <span className="text-sm">DOGE</span>
-                  </p>
-                </div>
-              </Reveal>
-            </div>
-            <Link href="/pool" className="mt-4 inline-block text-xs font-bold uppercase tracking-wide text-gold hover:underline">
-              {t("landing.poolLinkLabel")}
-            </Link>
           </div>
         </section>
 

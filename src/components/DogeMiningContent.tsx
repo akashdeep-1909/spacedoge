@@ -106,9 +106,11 @@ const REFERRAL_RULE_KEYS = [
   "dogeMining.referralRule4" as const,
 ];
 
-// Worked example uses the real Galaxy package — a round mid-tier
-// figure, not an invented number (see MINING_PACKAGES).
-const REFERRAL_EXAMPLE_PACKAGE = MINING_PACKAGES.find((p) => p.name === "Galaxy")!;
+// Worked example defaults to the real Galaxy package — a round mid-tier
+// figure, not an invented number (see MINING_PACKAGES) — but the picker
+// below lets it reflect any package/custom amount a referred wallet
+// might actually fund, same as the Reward Calculator's own picker.
+const REFERRAL_EXAMPLE_DEFAULT_INDEX = MINING_PACKAGES.findIndex((p) => p.name === "Galaxy");
 
 export function DogeMiningContent({
   platformStats,
@@ -142,15 +144,24 @@ export function DogeMiningContent({
   const calcDailyGross = calcShare * (economics.referenceMonthlyGrossUsdt / 30);
   const calcDailyElectricity = calcShare * economics.minerPowerKw * 24 * economics.electricityRateUsdtPerKwh;
   const calcDailyPoolFee = calcDailyGross * economics.poolFeePct;
-  const calcDailyOrganicNet = calcDailyGross - calcDailyElectricity - calcDailyPoolFee;
   const calcDailyTarget = (calcAmountUsdt * (1 + economics.targetRoiPct)) / HASHRATE_TERM_DAYS;
   const calcTermTotalTarget = calcAmountUsdt * (1 + economics.targetRoiPct);
 
-  // Mining referral worked example — the Galaxy package's own daily
-  // electricity-cost deduction (same formula as calcDailyElectricity
-  // above), 5%/2% of which is what settleEpochForDate actually carves
-  // out to referrers every day this contract stays active.
-  const referralExampleShare = REFERRAL_EXAMPLE_PACKAGE.mhs / economics.fleetCapacityMhs;
+  // Mining referral worked example — package picker plus an optional
+  // custom amount, same pattern as the Reward Calculator above. Shows
+  // that PACKAGE's own daily electricity-cost deduction (same formula as
+  // calcDailyElectricity above), 5%/2% of which is what
+  // settleEpochForDate actually carves out to referrers every day this
+  // contract stays active.
+  const [referralExamplePackageIndex, setReferralExamplePackageIndex] = useState(REFERRAL_EXAMPLE_DEFAULT_INDEX);
+  const [referralExampleCustomAmount, setReferralExampleCustomAmount] = useState("");
+  const referralExampleAmountUsdt = (() => {
+    const custom = Number(referralExampleCustomAmount);
+    if (referralExampleCustomAmount.trim() !== "" && Number.isFinite(custom) && custom >= MIN_HASHRATE_PURCHASE_USDT) return custom;
+    return MINING_PACKAGES[referralExamplePackageIndex].priceUsdt;
+  })();
+  const referralExampleMhs = referralExampleAmountUsdt * HASHRATE_PER_USDT;
+  const referralExampleShare = referralExampleMhs / economics.fleetCapacityMhs;
   const referralExampleDailyElectricityUsdt = referralExampleShare * economics.minerPowerKw * 24 * economics.electricityRateUsdtPerKwh;
   const referralExampleL1Doge = (referralExampleDailyElectricityUsdt * REFERRAL_L1_PCT) / dogeUsdtRate;
   const referralExampleL2Doge = (referralExampleDailyElectricityUsdt * REFERRAL_L2_PCT) / dogeUsdtRate;
@@ -487,7 +498,6 @@ export function DogeMiningContent({
                     { label: t("dogeMining.calculatorGrossLabel"), value: calcDailyGross, color: "text-foreground" },
                     { label: t("dogeMining.calculatorElectricityLabel"), value: -calcDailyElectricity, color: "text-[#ff8a5c]" },
                     { label: t("dogeMining.calculatorPoolFeeLabel"), value: -calcDailyPoolFee, color: "text-[#ff8a5c]" },
-                    { label: t("dogeMining.calculatorOrganicNetLabel"), value: calcDailyOrganicNet, color: "text-foreground" },
                   ].map((row) => (
                     <div key={row.label} className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
                       <span className="text-muted">{row.label}</span>
@@ -534,12 +544,10 @@ export function DogeMiningContent({
 
             {/* Summary card */}
             <Reveal delay={0.06} className="mt-8">
-              <div className="ld-glass grid grid-cols-2 gap-3 p-5 sm:grid-cols-4 sm:p-6">
+              <div className="ld-glass grid grid-cols-2 gap-3 p-5 sm:p-6">
                 {[
                   { label: t("dogeMining.referralSummaryDirectLabel"), value: t("dogeMining.referralSummaryDirectValue"), color: "text-mint" },
                   { label: t("dogeMining.referralSummaryIndirectLabel"), value: t("dogeMining.referralSummaryIndirectValue"), color: "text-gold" },
-                  { label: t("dogeMining.referralSummaryTriggerLabel"), value: t("dogeMining.referralSummaryTriggerValue"), color: "text-foreground" },
-                  { label: t("dogeMining.referralSummaryCreditLabel"), value: t("dogeMining.referralSummaryCreditValue"), color: "text-foreground" },
                 ].map((s) => (
                   <div key={s.label} className="text-center">
                     <p className={`text-xl font-black ${s.color} sm:text-2xl`}>{s.value}</p>
@@ -588,17 +596,46 @@ export function DogeMiningContent({
               <Reveal delay={0.1}>
                 <div className="ld-glass flex h-full flex-col p-6">
                   <h3 className="text-sm font-black uppercase tracking-wide">{t("dogeMining.referralExampleTitle")}</h3>
+                  <p className="mt-1 text-[11px] text-muted">{t("dogeMining.referralExamplePackageLabel")}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {MINING_PACKAGES.map((pkg, i) => {
+                      const active = referralExampleCustomAmount.trim() === "" && i === referralExamplePackageIndex;
+                      const color = PACKAGE_COLORS[pkg.name] ?? "#5ea3ff";
+                      return (
+                        <button
+                          key={pkg.level}
+                          type="button"
+                          onClick={() => {
+                            setReferralExamplePackageIndex(i);
+                            setReferralExampleCustomAmount("");
+                          }}
+                          className="rounded-[10px] border px-3 py-2 text-left text-xs font-bold transition"
+                          style={
+                            active
+                              ? { borderColor: color, background: `${color}22`, color }
+                              : { borderColor: "var(--line)", color: "var(--muted)" }
+                          }
+                        >
+                          <span className="block">{pkg.name}</span>
+                          <span className="block font-normal opacity-80">${pkg.priceUsdt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <label className="mt-2 flex flex-col gap-1.5 text-xs font-semibold text-muted">
+                    {t("dogeMining.calculatorCustomLabel")}
+                    <input
+                      type="number"
+                      min={MIN_HASHRATE_PURCHASE_USDT}
+                      step="any"
+                      value={referralExampleCustomAmount}
+                      onChange={(e) => setReferralExampleCustomAmount(e.target.value)}
+                      placeholder={`${MIN_HASHRATE_PURCHASE_USDT}+`}
+                      className="rounded-[10px] border border-line bg-panel-2 px-3 py-2.5 text-sm font-bold text-foreground outline-none focus:border-mint/60"
+                    />
+                  </label>
+
                   <div className="mt-4 flex flex-col gap-2.5 text-xs">
-                    <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
-                      <span className="text-muted">{t("dogeMining.referralExamplePackageLabel")}</span>
-                      <span className="font-black text-foreground">
-                        {REFERRAL_EXAMPLE_PACKAGE.name} — ${REFERRAL_EXAMPLE_PACKAGE.priceUsdt}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
-                      <span className="text-muted">{t("dogeMining.referralExampleElectricityLabel")}</span>
-                      <span className="font-black text-foreground">{referralExampleDailyElectricityUsdt.toFixed(4)} USDT</span>
-                    </div>
                     <div className="flex items-center justify-between rounded-[10px] border border-mint/40 bg-mint/10 px-3 py-2.5">
                       <span className="text-muted">{t("dogeMining.referralExampleL1Label")}</span>
                       <span className="font-black text-mint">{referralExampleL1Doge.toFixed(4)} DOGE / day</span>
@@ -608,7 +645,6 @@ export function DogeMiningContent({
                       <span className="font-black text-gold">{referralExampleL2Doge.toFixed(4)} DOGE / day</span>
                     </div>
                   </div>
-                  <p className="mt-4 flex-1 text-[11px] leading-relaxed text-muted/80">{t("dogeMining.referralExampleNote")}</p>
                 </div>
               </Reveal>
             </div>

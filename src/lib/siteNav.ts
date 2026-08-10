@@ -8,7 +8,6 @@ export const NAV_LINKS = [
   { href: "/how-it-works", key: "landing.navHowItWorks" as const },
   { href: "/coin-rush", key: "landing.navCoinRush" as const },
   { href: "/doge-mining", key: "landing.navDogeMining" as const },
-  { href: "/#proof-of-hash", key: "landing.navProofOfHash" as const },
   { href: "/pool", key: "nav.pool" as const },
   { href: "/referral-network", key: "landing.navReferralNetwork" as const },
   { href: "/#faq", key: "landing.navFaq" as const },

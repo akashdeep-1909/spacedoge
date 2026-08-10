@@ -420,7 +420,7 @@ export function CoinRushContent({ platformStats }: { platformStats: PlatformStat
                         <span className="rounded-full border border-line bg-panel-2 px-2.5 py-1">{difficulty}</span>
                       </div>
                       <p className="mt-3 text-xs text-muted">
-                        {t("coinRush.tierFirstPlaceLabel")}: <span className="font-bold text-gold">{firstPlaceMaxUsdt} USDT</span>
+                        {t("coinRush.tierFirstPlaceLabel")} <span className="font-bold text-gold">{firstPlaceMaxUsdt} USDT</span>
                       </p>
                       <GatedLink
                         href="/dashboard/play"
@@ -482,26 +482,6 @@ export function CoinRushContent({ platformStats }: { platformStats: PlatformStat
                       <span className="whitespace-nowrap font-bold text-foreground">{t("coinRush.poolPlatform")}</span>
                       <span className="text-muted">{t("coinRush.poolPlatformBody")}</span>
                     </div>
-                  </div>
-                  <p className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-muted">{t("coinRush.maxPtsPerGameLabel")}</p>
-                  <div className="mt-2 flex flex-col gap-1.5">
-                    {PAID_TIER_MODES.map((mode) => {
-                      const cfg = GAME_MODE_CONFIG[mode];
-                      const color = TIER_COLORS[mode];
-                      const poolUsdt = cfg.entryFeeUsdt * cfg.players * 0.7;
-                      const poolPts = Math.round(poolUsdt * 1000);
-                      return (
-                        <div key={mode} className="flex items-center justify-between rounded-[8px] border border-line bg-panel-2 px-3 py-2 text-[11px]">
-                          <span className="flex items-center gap-1.5 font-semibold text-muted">
-                            <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: color }} />
-                            {cfg.label}
-                          </span>
-                          <span className="font-bold text-foreground">
-                            {poolPts.toLocaleString()} PTS <span className="text-muted">=</span> <span className="text-gold">${poolUsdt.toFixed(2)}</span>
-                          </span>
-                        </div>
-                      );
-                    })}
                   </div>
                 </div>
               </Reveal>

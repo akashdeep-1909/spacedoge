@@ -215,7 +215,6 @@ function ChainDepositPanel({ chain, sendFromAddress }: { chain: DepositChainInfo
           treasuryAddress={chain.address}
           tokenContract={chain.tokenContract}
           tokenDecimals={chain.tokenDecimals}
-          minConfirmations={chain.minConfirmations}
         />
       )}
 

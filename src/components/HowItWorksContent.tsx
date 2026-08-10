@@ -17,12 +17,15 @@ import {
   Scale,
   Users,
   ArrowRight,
+  Check,
 } from "lucide-react";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { GatedLink } from "@/components/GatedLink";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { WaitlistModal } from "@/components/WaitlistModal";
+import { useAuth } from "@/lib/auth-context";
+import { useConnectAndSignIn } from "@/lib/useConnectAndSignIn";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { Reveal, TiltCard, EASE, Starfield } from "@/components/motionPrimitives";
 
@@ -131,6 +134,14 @@ export function HowItWorksContent({ platformStats }: { platformStats: PlatformSt
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const reduceMotion = useReducedMotion();
   const flow = FLOW_STEPS[activeFlow];
+  // Step 1's own CTA button (below) — previously a plain `<Link href="#top">`,
+  // which only scrolled back up the page instead of doing anything wallet-
+  // related (confirmed live: clicking "Connect Wallet" here just jumped to
+  // the top of the page). Wired to the same connect+SIWE flow the header's
+  // own ConnectWalletButton and every GatedLink use, via the shared hook
+  // they're both built on.
+  const { session } = useAuth();
+  const { connectAndSignIn, attempting: connectingFromFlow } = useConnectAndSignIn();
 
   const heroTiltX = useMotionValue(0);
   const heroTiltY = useMotionValue(0);
@@ -395,10 +406,22 @@ export function HowItWorksContent({ platformStats }: { platformStats: PlatformSt
                       </div>
 
                       {flow.href.startsWith("#") ? (
-                        <Link href={flow.href} className="ld-btn-flat btn-game group mt-6 inline-flex items-center gap-1.5 text-xs">
-                          {t(flow.actionKey)}
-                          <ArrowRight size={14} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
-                        </Link>
+                        session?.authenticated ? (
+                          <span className="ld-btn-flat mt-6 inline-flex items-center gap-1.5 border border-mint/25 bg-mint-soft text-xs text-mint">
+                            <Check size={14} className="shrink-0" />
+                            {t("howItWorks.flow1Connected")}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={connectAndSignIn}
+                            disabled={connectingFromFlow}
+                            className="ld-btn-flat btn-game group mt-6 inline-flex items-center gap-1.5 text-xs disabled:opacity-60"
+                          >
+                            {connectingFromFlow ? t("common.connecting") : t(flow.actionKey)}
+                            <ArrowRight size={14} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
+                          </button>
+                        )
                       ) : (
                         <GatedLink href={flow.href} className="ld-btn-flat btn-game group mt-6 inline-flex items-center gap-1.5 text-xs">
                           {t(flow.actionKey)}
