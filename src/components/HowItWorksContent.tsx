@@ -19,11 +19,12 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
+import { GatedLink } from "@/components/GatedLink";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { WaitlistModal } from "@/components/WaitlistModal";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
-import { Reveal, StatCounter, TiltCard, EASE, Starfield } from "@/components/motionPrimitives";
+import { Reveal, TiltCard, EASE, Starfield } from "@/components/motionPrimitives";
 
 interface PlatformStats {
   walletCount: number;
@@ -149,7 +150,7 @@ export function HowItWorksContent({ platformStats }: { platformStats: PlatformSt
   }
 
   return (
-    <div className="ld-root flex min-h-full flex-1 flex-col overflow-x-hidden bg-background text-foreground">
+    <div className="ld-root flex min-h-full flex-1 flex-col bg-background text-foreground">
       <SiteHeader />
 
       <main className="flex-1">
@@ -170,7 +171,7 @@ export function HowItWorksContent({ platformStats }: { platformStats: PlatformSt
                 transition={{ duration: 0.5, ease: EASE }}
                 className="ld-eyebrow text-mint"
               >
-                {t("howItWorks.eyebrow")}
+                How
               </motion.span>
               <motion.h1
                 initial={{ clipPath: "inset(0 100% 0 0)", opacity: 0 }}
@@ -178,6 +179,8 @@ export function HowItWorksContent({ platformStats }: { platformStats: PlatformSt
                 transition={{ duration: reduceMotion ? 0.2 : 0.9, delay: 0.1, ease: EASE }}
                 className="text-glow-gold text-balance text-[clamp(2.25rem,6vw,4.25rem)] font-extrabold leading-[0.98] tracking-[-0.03em] text-gold"
               >
+                {t("landing.brandName")}
+                <br />
                 {t("howItWorks.title")}
               </motion.h1>
               <motion.p
@@ -391,10 +394,17 @@ export function HowItWorksContent({ platformStats }: { platformStats: PlatformSt
                         ))}
                       </div>
 
-                      <Link href={flow.href} className="ld-btn-flat btn-game group mt-6 inline-flex items-center gap-1.5 text-xs">
-                        {t(flow.actionKey)}
-                        <ArrowRight size={14} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
-                      </Link>
+                      {flow.href.startsWith("#") ? (
+                        <Link href={flow.href} className="ld-btn-flat btn-game group mt-6 inline-flex items-center gap-1.5 text-xs">
+                          {t(flow.actionKey)}
+                          <ArrowRight size={14} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
+                        </Link>
+                      ) : (
+                        <GatedLink href={flow.href} className="ld-btn-flat btn-game group mt-6 inline-flex items-center gap-1.5 text-xs">
+                          {t(flow.actionKey)}
+                          <ArrowRight size={14} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" />
+                        </GatedLink>
+                      )}
                     </motion.div>
                   </AnimatePresence>
                 </div>
@@ -423,35 +433,6 @@ export function HowItWorksContent({ platformStats }: { platformStats: PlatformSt
                       <p className="mt-1 text-xs leading-relaxed text-muted">{t(w.bodyKey)}</p>
                     </div>
                   </motion.div>
-                </Reveal>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ------------------------------------------------------ Metrics */}
-        <section className="border-t border-line" id="metrics">
-          <div className="ld-container py-9 text-center sm:py-[72px]">
-            <Reveal>
-              <span className="ld-eyebrow text-gold">{t("howItWorks.metricsEyebrow")}</span>
-              <h2 className="ld-h2 mt-2">{t("howItWorks.metricsHeading")}</h2>
-            </Reveal>
-
-            <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {[
-                { Icon: Users, value: platformStats.walletCount, label: t("landing.statsWallets"), color: "#5ea3ff" },
-                { Icon: Gamepad2, value: platformStats.matchCount, label: t("landing.statsMatches"), color: "#a78bfa" },
-                { Icon: Pickaxe, value: platformStats.activeMinerCount, label: t("landing.statsMiners"), color: "#22e193" },
-                { Icon: Coins, value: platformStats.lifetimeDogeDistributed, label: t("landing.statsLifetimeDoge"), color: "#ffb516", decimals: 2, suffix: " DOGE" },
-              ].map((m) => (
-                <Reveal key={m.label}>
-                  <div className="ld-glass h-full p-6">
-                    <m.Icon size={20} className="mx-auto" style={{ color: m.color }} />
-                    <p className="mt-2 text-2xl">
-                      <StatCounter value={m.value} decimals={m.decimals} suffix={m.suffix} />
-                    </p>
-                    <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{m.label}</p>
-                  </div>
                 </Reveal>
               ))}
             </div>

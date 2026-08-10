@@ -183,7 +183,14 @@ function MiningContent() {
     return {
       date: fmtDate(d.toISOString()),
       dogeAllocated: a?.dogeAllocated ?? 0,
-      effectiveMp: a?.effectiveMp ?? 0,
+      // effectiveMp is hashrate-HOURS (miningPower × activeHours that
+      // day, see settleEpochForDate's own doc-comment) — dividing by 24
+      // recovers the day's average MH/s, directly comparable to the
+      // "Hashrate" stat shown elsewhere on this page in plain MH/s. A
+      // full-height bar means mining at the full contracted rate all
+      // day; a shorter bar means the contract only covered part of
+      // that day (just activated, or expired partway through).
+      avgHashrateMhs: (a?.effectiveMp ?? 0) / 24,
     };
   });
 
@@ -644,7 +651,10 @@ function MiningContent() {
             </div>
 
             <div className="game-panel hud-corner rounded-2xl p-5">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gold">{t("mining.effectiveMhsHoursPerEpochLabel")}</p>
+              <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gold">
+                {t("mining.avgHashratePerEpochLabel")}
+                <InfoTooltip text={t("mining.avgHashratePerEpochTooltip")} />
+              </p>
               <div className="mt-3 h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={allocationSeries} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
@@ -652,9 +662,9 @@ function MiningContent() {
                     <XAxis dataKey="date" stroke={CHART.muted} fontSize={11} tickLine={false} axisLine={{ stroke: CHART.grid }} />
                     <Tooltip
                       cursor={{ fill: CHART.panel2 }}
-                      content={<ChartTooltip unit="MH/s-h" color={CHART.gold} formatValue={(n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })} />}
+                      content={<ChartTooltip unit="MH/s" color={CHART.gold} formatValue={(n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })} />}
                     />
-                    <Bar dataKey="effectiveMp" fill={CHART.gold} radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />
+                    <Bar dataKey="avgHashrateMhs" fill={CHART.gold} radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type MouseEvent as ReactMouseEvent } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { motion, useMotionValue, useReducedMotion, useSpring } from "framer-motion";
 import {
@@ -11,10 +12,8 @@ import {
   Clock3,
   Coins,
   TrendingUp,
-  Plug,
   Database,
   ArrowRight,
-  Users,
   ChevronDown,
   Server,
   Share2,
@@ -61,6 +60,13 @@ const HOW_IT_WORKS_STEPS = [
   { n: "04", Icon: Cpu, color: "#ffb516", titleKey: "dogeMining.step4Title" as const, bodyKey: "dogeMining.step4Body" as const },
   { n: "05", Icon: ShieldCheck, color: "#22e193", titleKey: "dogeMining.step5Title" as const, bodyKey: "dogeMining.step5Body" as const },
   { n: "06", Icon: Coins, color: "#ffb516", titleKey: "dogeMining.step6Title" as const, bodyKey: "dogeMining.step6Body" as const },
+] as const;
+
+const HERO_QUICK_STEPS = [
+  { Icon: Zap, color: "#5ea3ff", titleKey: "dogeMining.step1Title" as const },
+  { Icon: Wallet, color: "#a78bfa", titleKey: "dogeMining.step2Title" as const },
+  { Icon: Cpu, color: "#ffb516", titleKey: "dogeMining.step4Title" as const },
+  { Icon: Coins, color: "#22e193", titleKey: "dogeMining.step6Title" as const },
 ] as const;
 
 const PACKAGE_COLORS: Record<string, string> = {
@@ -118,7 +124,6 @@ export function DogeMiningContent({
   const { t } = useLocale();
   const reduceMotion = useReducedMotion();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const fleetCapacityGhs = economics.fleetCapacityMhs / 1000;
 
   // Reward calculator — package picker plus an optional custom amount
   // that overrides it. Formulas mirror the real settlement math in
@@ -168,7 +173,7 @@ export function DogeMiningContent({
   }
 
   return (
-    <div className="ld-root flex min-h-full flex-1 flex-col overflow-x-hidden bg-background text-foreground">
+    <div className="ld-root flex min-h-full flex-1 flex-col bg-background text-foreground">
       <SiteHeader />
 
       <main className="flex-1">
@@ -255,33 +260,31 @@ export function DogeMiningContent({
               transition={{ duration: 0.6, delay: 0.3, ease: EASE }}
             >
               <TiltCard glow="rgba(34,225,147,0.24)" className="p-6" style={{ borderColor: "rgba(34,225,147,0.4)" }}>
-                <div className="flex items-center gap-2">
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute right-4 top-4 h-14 w-14 overflow-hidden rounded-full border-2 border-gold/60 shadow-[0_0_20px_rgba(255,181,22,0.35)]"
+                  style={{ animation: "float-coin 5s ease-in-out infinite" }}
+                >
+                  <Image src="/dogemine-badge.png" alt="" width={112} height={112} className="h-full w-full object-cover" />
+                </div>
+                <div className="flex items-center gap-2 pr-16">
                   <Cpu size={18} className="text-mint" />
-                  <h3 className="text-sm font-black uppercase tracking-wide">{t("dogeMining.overviewCardTitle")}</h3>
+                  <h3 className="text-sm font-black uppercase tracking-wide">{t("dogeMining.stepsEyebrow")}</h3>
                 </div>
                 <div className="mt-4 flex flex-col gap-2.5 text-xs">
-                  <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
-                    <span className="text-muted">{t("dogeMining.overviewFleet")}</span>
-                    <span className="font-black text-foreground">{fleetCapacityGhs.toFixed(0)} GH/s</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
-                    <span className="text-muted">{t("dogeMining.overviewPower")}</span>
-                    <span className="font-black text-foreground">{economics.minerPowerKw.toFixed(2)} kW</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
-                    <span className="text-muted">{t("dogeMining.overviewTerm")}</span>
-                    <span className="font-black text-foreground">{HASHRATE_TERM_DAYS} days</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
-                    <span className="text-muted">{t("dogeMining.overviewRate")}</span>
-                    <span className="font-black text-foreground">{HASHRATE_PER_USDT} MH/s / USDT</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
-                    <span className="text-muted">{t("dogeMining.overviewSettlement")}</span>
-                    <span className="font-black text-gold">{t("dogeMining.overviewSettlementValue")}</span>
-                  </div>
+                  {HERO_QUICK_STEPS.map((s, i) => (
+                    <div key={s.titleKey} className="flex items-center gap-3 rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
+                      <span
+                        className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] font-black"
+                        style={{ background: `${s.color}22`, color: s.color }}
+                      >
+                        {i + 1}
+                      </span>
+                      <s.Icon size={14} className="shrink-0 text-muted" />
+                      <span className="font-bold text-foreground">{t(s.titleKey)}</span>
+                    </div>
+                  ))}
                 </div>
-                <div aria-hidden className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full" style={{ background: "radial-gradient(closest-side, rgba(34,225,147,0.28), transparent 75%)", animation: "float-coin 5s ease-in-out infinite" }} />
               </TiltCard>
             </motion.div>
           </div>
@@ -372,44 +375,17 @@ export function DogeMiningContent({
               <h2 className="ld-h2 mt-2">{t("dogeMining.rewardsHeading")}</h2>
             </Reveal>
 
-            <div className="mt-8 grid gap-5 lg:grid-cols-3">
-              {/* Panel 1: today's model inputs */}
+            <div className="mx-auto mt-8 grid max-w-3xl gap-6 sm:grid-cols-2">
+              {/* Panel 1: guaranteed target ROI */}
               <Reveal delay={0.05}>
-                <div className="ld-glass flex h-full flex-col p-6">
-                  <div className="flex items-center gap-2">
-                    <Plug size={18} className="text-gold" />
-                    <h3 className="text-sm font-black uppercase tracking-wide">{t("dogeMining.inputsPanelLabel")}</h3>
-                  </div>
-                  <div className="mt-4 flex flex-1 flex-col gap-2.5 text-xs">
-                    <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
-                      <span className="text-muted">{t("dogeMining.inputsGross")}</span>
-                      <span className="font-black text-foreground">{economics.referenceMonthlyGrossUsdt.toFixed(2)} USDT</span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
-                      <span className="text-muted">{t("dogeMining.inputsPower")}</span>
-                      <span className="font-black text-foreground">{economics.minerPowerKw.toFixed(2)} kW</span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
-                      <span className="text-muted">{t("dogeMining.inputsElectricity")}</span>
-                      <span className="font-black text-foreground">{economics.electricityRateUsdtPerKwh.toFixed(4)} USDT/kWh</span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
-                      <span className="text-muted">{t("dogeMining.inputsPoolFee")}</span>
-                      <span className="font-black text-foreground">{(economics.poolFeePct * 100).toFixed(1)}%</span>
-                    </div>
-                  </div>
-                  <p className="mt-4 text-[11px] leading-relaxed text-muted/80">{t("dogeMining.inputsNote")}</p>
-                </div>
-              </Reveal>
-
-              {/* Panel 2: guaranteed target ROI */}
-              <Reveal delay={0.1}>
-                <div className="ld-glass flex h-full flex-col p-6">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp size={18} className="text-mint" />
+                <TiltCard glow="rgba(34,225,147,0.24)" className="flex h-full flex-col p-7" style={{ borderColor: "rgba(34,225,147,0.4)" }}>
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-mint-soft text-mint">
+                      <TrendingUp size={18} />
+                    </span>
                     <h3 className="text-sm font-black uppercase tracking-wide">{t("dogeMining.targetPanelLabel")}</h3>
                   </div>
-                  <p className="mt-3 text-3xl font-black text-mint">+{(economics.targetRoiPct * 100).toFixed(0)}%</p>
+                  <p className="text-glow-gold mt-4 text-4xl font-black text-mint">+{(economics.targetRoiPct * 100).toFixed(0)}%</p>
                   <div className="mt-3 h-2 overflow-hidden rounded-full bg-panel">
                     <motion.div
                       className="h-full rounded-full bg-gradient-to-r from-mint to-gold"
@@ -422,22 +398,24 @@ export function DogeMiningContent({
                   <p className="mt-4 flex-1 text-xs leading-relaxed text-muted">
                     {t("dogeMining.targetRoiBody", { pct: (economics.targetRoiPct * 100).toFixed(0) })}
                   </p>
-                </div>
+                </TiltCard>
               </Reveal>
 
-              {/* Panel 3: protection reserve */}
-              <Reveal delay={0.15}>
-                <div className="ld-glass flex h-full flex-col p-6">
-                  <div className="flex items-center gap-2">
-                    <Database size={18} className="text-gold" />
+              {/* Panel 2: protection reserve */}
+              <Reveal delay={0.1}>
+                <TiltCard glow="rgba(255,181,22,0.24)" className="flex h-full flex-col p-7" style={{ borderColor: "rgba(255,181,22,0.4)" }}>
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-gold-soft text-gold">
+                      <Database size={18} />
+                    </span>
                     <h3 className="text-sm font-black uppercase tracking-wide">{t("dogeMining.reservePanelLabel")}</h3>
                   </div>
-                  <p className="mt-3 text-2xl font-black text-gold">
+                  <p className="text-glow-gold mt-4 text-3xl font-black text-gold">
                     <StatCounter value={reserveBalanceUsdt} decimals={2} suffix=" USDT" />
                   </p>
                   <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{t("dogeMining.reserveBalanceLabel")}</p>
                   <p className="mt-4 flex-1 text-xs leading-relaxed text-muted">{t("dogeMining.reserveBody")}</p>
-                </div>
+                </TiltCard>
               </Reveal>
             </div>
           </div>
@@ -513,19 +491,30 @@ export function DogeMiningContent({
                   ].map((row) => (
                     <div key={row.label} className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
                       <span className="text-muted">{row.label}</span>
-                      <span className={`font-black ${row.color}`}>
-                        {row.value < 0 ? "-" : ""}
-                        {Math.abs(row.value).toFixed(4)} USDT
+                      <span className="flex flex-col items-end">
+                        <span className={`font-black ${row.color}`}>
+                          {row.value < 0 ? "-" : ""}
+                          {Math.abs(row.value / dogeUsdtRate).toFixed(2)} DOGE
+                        </span>
+                        <span className="text-[10px] text-muted">
+                          ≈ {row.value < 0 ? "-" : ""}${Math.abs(row.value).toFixed(4)} USDT
+                        </span>
                       </span>
                     </div>
                   ))}
                   <div className="mt-1 flex items-center justify-between rounded-[10px] border border-mint/40 bg-mint/10 px-3 py-3">
                     <span className="text-xs font-semibold text-muted">{t("dogeMining.calculatorTargetLabel")}</span>
-                    <span className="text-lg font-black text-mint">{calcDailyTarget.toFixed(4)} USDT</span>
+                    <span className="flex flex-col items-end">
+                      <span className="text-lg font-black text-mint">{(calcDailyTarget / dogeUsdtRate).toFixed(2)} DOGE</span>
+                      <span className="text-[10px] text-muted">≈ ${calcDailyTarget.toFixed(4)} USDT</span>
+                    </span>
                   </div>
                   <div className="flex items-center justify-between rounded-[10px] border border-gold/40 bg-gold-soft px-3 py-3">
                     <span className="text-xs font-semibold text-muted">{t("dogeMining.calculatorTermTotalLabel")}</span>
-                    <span className="text-lg font-black text-gold">{calcTermTotalTarget.toFixed(2)} USDT</span>
+                    <span className="flex flex-col items-end">
+                      <span className="text-lg font-black text-gold">{(calcTermTotalTarget / dogeUsdtRate).toFixed(2)} DOGE</span>
+                      <span className="text-[10px] text-muted">≈ ${calcTermTotalTarget.toFixed(2)} USDT</span>
+                    </span>
                   </div>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted/80">{t("dogeMining.calculatorNote")}</p>
                 </div>
@@ -648,21 +637,46 @@ export function DogeMiningContent({
               </Reveal>
 
               <Reveal delay={0.1}>
-                <div className="grid grid-cols-2 gap-4">
-                  {[
-                    { Icon: Cpu, value: platformStats.totalHashrateGhs, decimals: 2, suffix: " GH/s", label: t("dogeMining.poolActiveHashrate"), color: "#5ea3ff" },
-                    { Icon: Users, value: platformStats.activeMinerCount, decimals: 0, suffix: "", label: t("dogeMining.poolActiveMiners"), color: "#a78bfa" },
-                    { Icon: Coins, value: platformStats.lifetimeDogeDistributed, decimals: 2, suffix: " DOGE", label: t("dogeMining.poolLifetimeDoge"), color: "#ffb516" },
-                    { Icon: TrendingUp, value: economics.poolFeePct * 100, decimals: 1, suffix: "%", label: t("dogeMining.poolFeeStat"), color: "#22e193" },
-                  ].map((m) => (
-                    <div key={m.label} className="ld-glass p-5 text-center">
-                      <m.Icon size={18} className="mx-auto" style={{ color: m.color }} />
-                      <p className="mt-2 text-xl">
-                        <StatCounter value={m.value} decimals={m.decimals} suffix={m.suffix} />
-                      </p>
-                      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{m.label}</p>
-                    </div>
-                  ))}
+                <div className="relative mx-auto aspect-square w-full max-w-[340px]">
+                  <div
+                    aria-hidden
+                    className="absolute inset-0 rounded-full"
+                    style={{ background: "radial-gradient(closest-side, rgba(255,181,22,0.22), transparent 75%)" }}
+                  />
+                  <div
+                    aria-hidden
+                    className="absolute inset-[8%] rounded-full border border-dashed"
+                    style={{ borderColor: "rgba(255,181,22,0.28)", animation: "ld-orbit-spin 36s linear infinite" }}
+                  />
+                  <div
+                    aria-hidden
+                    className="absolute inset-[18%] rounded-full border border-dashed"
+                    style={{ borderColor: "rgba(34,225,147,0.22)", animation: "ld-orbit-spin-rev 48s linear infinite" }}
+                  />
+                  <div className="absolute inset-0 grid place-items-center">
+                    <Image
+                      src="/dogemine-badge.png"
+                      alt="Space DOGE mining pool"
+                      width={220}
+                      height={220}
+                      className="relative shrink-0 rounded-full drop-shadow-2xl"
+                      style={{ animation: "float-coin 6s ease-in-out infinite" }}
+                    />
+                  </div>
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                    whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.5, delay: 0.3, ease: EASE }}
+                    className="ld-glass absolute -bottom-2 inset-x-4 mx-auto flex w-fit max-w-[92%] items-center justify-center gap-2 px-4 py-2.5 text-center text-xs font-bold"
+                    style={{ animation: "float-coin-alt 5s ease-in-out infinite" }}
+                  >
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-mint" style={{ animation: "led-pulse 1.6s ease-in-out infinite" }} />
+                    <span className="text-mint">
+                      <StatCounter value={platformStats.totalHashrateGhs} decimals={2} suffix=" GH/s" />
+                    </span>
+                    <span className="text-muted">{t("dogeMining.poolActiveHashrate")}</span>
+                  </motion.div>
                 </div>
               </Reveal>
             </div>
@@ -677,31 +691,36 @@ export function DogeMiningContent({
               <h2 className="ld-h2 mt-2">{t("dogeMining.faqHeading")}</h2>
             </Reveal>
 
-            <div className="mt-6 grid gap-2 lg:grid-cols-2">
-              {FAQ_KEYS.map((f, i) => {
-                const open = openFaq === i;
-                return (
-                  <Reveal key={f.qKey} delay={i * 0.04} y={16}>
-                    <div className="ld-glass overflow-hidden">
-                      <button
-                        onClick={() => setOpenFaq(open ? null : i)}
-                        className="flex w-full items-center justify-between gap-3 px-[18px] py-[15px] text-left text-sm font-semibold"
-                        aria-expanded={open}
-                      >
-                        {t(f.qKey)}
-                        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.25, ease: EASE }} className="shrink-0 text-muted">
-                          <ChevronDown size={16} />
-                        </motion.span>
-                      </button>
-                      <div className={`ld-faq-panel ${open ? "open" : ""}`} aria-hidden={!open}>
-                        <div>
-                          <p className="px-[18px] pb-4 text-sm leading-relaxed text-muted">{t(f.aKey)}</p>
+            <div className="mt-6 flex flex-col gap-2 lg:flex-row lg:items-start lg:gap-4">
+              {[0, 1].map((col) => (
+                <div key={col} className="flex flex-1 flex-col gap-2">
+                  {FAQ_KEYS.filter((_, i) => i % 2 === col).map((f) => {
+                    const i = FAQ_KEYS.indexOf(f);
+                    const open = openFaq === i;
+                    return (
+                      <Reveal key={f.qKey} delay={i * 0.04} y={16}>
+                        <div className="ld-glass overflow-hidden">
+                          <button
+                            onClick={() => setOpenFaq(open ? null : i)}
+                            className="flex w-full items-center justify-between gap-3 px-[18px] py-[15px] text-left text-sm font-semibold"
+                            aria-expanded={open}
+                          >
+                            {t(f.qKey)}
+                            <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.25, ease: EASE }} className="shrink-0 text-muted">
+                              <ChevronDown size={16} />
+                            </motion.span>
+                          </button>
+                          <div className={`ld-faq-panel ${open ? "open" : ""}`} aria-hidden={!open}>
+                            <div>
+                              <p className="px-[18px] pb-4 text-sm leading-relaxed text-muted">{t(f.aKey)}</p>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  </Reveal>
-                );
-              })}
+                      </Reveal>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           </div>
         </section>

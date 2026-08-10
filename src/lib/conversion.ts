@@ -21,6 +21,21 @@ const RATE_CACHE_MS = 30_000; // matches the client's own quote-refresh cadence 
 const BASE_DOGE_USDT_RATE = 0.09;
 
 let cachedRate: { rate: number; fetchedAt: number } | null = null;
+// Single-flight guard: whenever the cache is stale, EVERY caller that
+// arrives before the refresh finishes awaits this same promise instead
+// of each starting its own CoinGecko request. Without this, a burst of
+// concurrent callers right when the 30s cache expires — this app's own
+// dashboard/mining page alone fires two independent polling queries
+// every 30s (todayQuote + liveRateQuote), multiplied across every open
+// tab, plus the pool page, plus the daily settlement job — each fired
+// their own parallel fetch to the same free, unauthenticated CoinGecko
+// endpoint. That thundering herd was enough to trip CoinGecko's rate
+// limit, which surfaced as everyone falling back to the hardcoded
+// BASE_DOGE_USDT_RATE ($0.09) at once — confirmed live: the mining
+// dashboard showing ~$0.09 while /pool (fetched at a different moment,
+// not part of the same stampede) showed the real rate, even though
+// both call this exact same function.
+let inFlight: Promise<number> | null = null;
 
 async function fetchDogeUsdtRateOnce(): Promise<number> {
   const res = await fetch(COINGECKO_URL, { signal: AbortSignal.timeout(5000) });
@@ -31,15 +46,7 @@ async function fetchDogeUsdtRateOnce(): Promise<number> {
   return rate;
 }
 
-// Exported for src/lib/mining.ts — mining v2 settlement computes
-// everything in USDT (real fleet economics) and only converts to DOGE
-// at the moment of crediting AVAILABLE_DOGE, using this same real,
-// cached spot rate a user-initiated conversion would see.
-export async function fetchDogeUsdtRate(): Promise<number> {
-  const now = Date.now();
-  if (cachedRate && now - cachedRate.fetchedAt < RATE_CACHE_MS) {
-    return cachedRate.rate;
-  }
+async function refreshDogeUsdtRate(now: number): Promise<number> {
   try {
     const rate = await fetchDogeUsdtRateOnce();
     cachedRate = { rate, fetchedAt: now };
@@ -69,6 +76,22 @@ export async function fetchDogeUsdtRate(): Promise<number> {
       return BASE_DOGE_USDT_RATE;
     }
   }
+}
+
+// Exported for src/lib/mining.ts — mining v2 settlement computes
+// everything in USDT (real fleet economics) and only converts to DOGE
+// at the moment of crediting AVAILABLE_DOGE, using this same real,
+// cached spot rate a user-initiated conversion would see.
+export async function fetchDogeUsdtRate(): Promise<number> {
+  const now = Date.now();
+  if (cachedRate && now - cachedRate.fetchedAt < RATE_CACHE_MS) {
+    return cachedRate.rate;
+  }
+  if (inFlight) return inFlight;
+  inFlight = refreshDogeUsdtRate(now).finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
 }
 
 export async function getDogeUsdtQuote(dogeAmount: number) {

@@ -39,6 +39,15 @@
 }
 
 body {
+  /* Clips the decorative absolutely-positioned aurora/orbit-ring
+     elements each public page uses so they can't create a horizontal
+     scrollbar. Deliberately here, not on .ld-root (which every public
+     page also carries): overflow-x on .ld-root forces overflow-y to
+     auto too (per the CSS overflow spec), which makes .ld-root itself
+     a scroll container and steals the sticky header's positioning
+     context away from the real document scroller — breaking it
+     specifically on a fresh/hash-anchored page load. */
+  overflow-x: hidden;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;

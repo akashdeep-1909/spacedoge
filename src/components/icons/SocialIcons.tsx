@@ -93,7 +93,7 @@ export function FacebookIcon({ size = 24 }: { size?: number }) {
 // white so it matches the footer's hover behavior.
 export function LinkedInIcon({ size = 24 }: { size?: number }) {
   return (
-    <span style={{ fontSize: size * 0.5, lineHeight: 1 }} className="font-black">
+    <span style={{ fontSize: size * 0.64, lineHeight: 1 }} className="font-black">
       in
     </span>
   );

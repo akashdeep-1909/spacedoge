@@ -13,7 +13,6 @@ import {
   Magnet,
   ShieldCheck,
   Zap,
-  Gamepad2,
   Coins,
   ArrowRight,
   Wallet,
@@ -24,7 +23,7 @@ import { GatedLink } from "@/components/GatedLink";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
-import { Reveal, StatCounter, TiltCard, EASE, Starfield } from "@/components/motionPrimitives";
+import { Reveal, TiltCard, EASE, Starfield } from "@/components/motionPrimitives";
 import { GAME_MODE_CONFIG, DIFFICULTY_BY_MODE } from "@/lib/game-config";
 
 interface PlatformStats {
@@ -100,7 +99,7 @@ export function CoinRushContent({ platformStats }: { platformStats: PlatformStat
   }
 
   return (
-    <div className="ld-root flex min-h-full flex-1 flex-col overflow-x-hidden bg-background text-foreground">
+    <div className="ld-root flex min-h-full flex-1 flex-col bg-background text-foreground">
       <SiteHeader />
 
       <main className="flex-1">
@@ -186,42 +185,79 @@ export function CoinRushContent({ platformStats }: { platformStats: PlatformStat
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3, ease: EASE }}
             >
-              <TiltCard glow="rgba(167,139,250,0.24)" className="p-6" style={{ borderColor: "rgba(167,139,250,0.4)" }}>
-                <div className="flex items-center gap-2">
-                  <Gamepad2 size={18} className="text-mint" />
-                  <h3 className="text-sm font-black uppercase tracking-wide">{t("coinRush.liveCardTitle")}</h3>
+              <div className="relative mx-auto aspect-square w-full max-w-[380px]">
+                <div
+                  aria-hidden
+                  className="absolute inset-0 rounded-full"
+                  style={{ background: "radial-gradient(closest-side, rgba(167,139,250,0.26), transparent 75%)" }}
+                />
+                <div
+                  aria-hidden
+                  className="absolute inset-[10%] rounded-full border border-dashed"
+                  style={{ borderColor: "rgba(167,139,250,0.3)", animation: "ld-orbit-spin 38s linear infinite" }}
+                />
+                <div
+                  aria-hidden
+                  className="absolute inset-[22%] rounded-full border border-dashed"
+                  style={{ borderColor: "rgba(255,181,22,0.24)", animation: "ld-orbit-spin-rev 50s linear infinite" }}
+                />
+
+                {/* Orbiting power-up badges — the same four power-ups and
+                    colors listed in POWER_UPS below, not invented icons,
+                    so this illustration reads as "this game" specifically. */}
+                {POWER_UPS.map((p, i) => {
+                  const angle = (i / POWER_UPS.length) * 2 * Math.PI - Math.PI / 2;
+                  const radius = 44;
+                  const x = 50 + radius * Math.cos(angle);
+                  const y = 50 + radius * Math.sin(angle);
+                  return (
+                    <motion.span
+                      key={p.nameKey}
+                      className="absolute grid h-11 w-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border"
+                      style={{
+                        left: `${x}%`,
+                        top: `${y}%`,
+                        background: "rgba(5,17,29,.92)",
+                        borderColor: `${p.color}66`,
+                        color: p.color,
+                        boxShadow: `0 0 18px ${p.color}44`,
+                      }}
+                      animate={{ y: [0, -6, 0] }}
+                      transition={{ duration: 3.5 + i * 0.3, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      <p.Icon size={18} />
+                    </motion.span>
+                  );
+                })}
+
+                {/* Floating USDT orbs — what the rocket actually collects
+                    in-match, scattered for texture. */}
+                {[
+                  { left: "20%", top: "18%", delay: 0 },
+                  { left: "82%", top: "30%", delay: 0.6 },
+                  { left: "16%", top: "78%", delay: 1.1 },
+                ].map((o, i) => (
+                  <motion.span
+                    key={i}
+                    aria-hidden
+                    className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gold"
+                    style={{ left: o.left, top: o.top, boxShadow: "0 0 10px rgba(255,181,22,0.8)" }}
+                    animate={{ opacity: [0.4, 1, 0.4], scale: [0.9, 1.15, 0.9] }}
+                    transition={{ duration: 2.2, delay: o.delay, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                ))}
+
+                <div className="absolute inset-0 grid place-items-center">
+                  <motion.span
+                    className="relative grid h-24 w-24 place-items-center rounded-full border border-mint text-mint"
+                    style={{ background: "rgba(5,17,29,.96)", boxShadow: "0 0 32px rgba(34,225,147,0.4)" }}
+                    animate={{ rotate: [-6, 6, -6] }}
+                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <Rocket size={40} style={{ filter: "drop-shadow(0 0 10px rgba(34,225,147,0.6))" }} />
+                  </motion.span>
                 </div>
-                <div className="mt-5 grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-2xl">
-                      <StatCounter value={platformStats.matchCount} />
-                    </p>
-                    <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{t("coinRush.liveMatches")}</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl">
-                      <StatCounter value={platformStats.walletCount} />
-                    </p>
-                    <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{t("coinRush.liveWallets")}</p>
-                  </div>
-                </div>
-                <div className="mt-5 rounded-[12px] border border-line bg-panel-2 p-4">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-mint">{t("coinRush.livePoolSplit")}</span>
-                    <span className="font-black text-gold">70%</span>
-                  </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-panel">
-                    <motion.div
-                      className="h-full rounded-full bg-gradient-to-r from-mint to-gold"
-                      initial={{ width: 0 }}
-                      whileInView={{ width: "70%" }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 1, ease: EASE, delay: 0.2 }}
-                    />
-                  </div>
-                </div>
-                <div aria-hidden className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full" style={{ background: "radial-gradient(closest-side, rgba(255,181,22,0.28), transparent 75%)", animation: "float-coin 5s ease-in-out infinite" }} />
-              </TiltCard>
+              </div>
             </motion.div>
           </div>
         </section>
@@ -356,7 +392,15 @@ export function CoinRushContent({ platformStats }: { platformStats: PlatformStat
                 const cfg = GAME_MODE_CONFIG[mode];
                 const color = TIER_COLORS[mode];
                 const difficulty = DIFFICULTY_BY_MODE[mode].difficultyLabel;
-                const playerPoolUsdt = (cfg.entryFeeUsdt * cfg.players * 0.7).toFixed(2);
+                // 1st place's own share of a match's reward pool is
+                // randomized per match (computeRankTierTargetsPts in
+                // game-config.ts draws rank 1 from [1250,1500]/2800 of
+                // the pool while rank 2/3 draw from their own ranges,
+                // then all three are normalized to sum to the pool
+                // exactly) — 60% is that draw's real ceiling: rank 1 at
+                // its own max (1500) while rank 2/3 land at their own
+                // mins (600, 400), i.e. 1500/(1500+600+400).
+                const firstPlaceMaxUsdt = (cfg.entryFeeUsdt * cfg.players * 0.7 * 0.6).toFixed(2);
                 return (
                   <Reveal key={mode} delay={i * 0.06} y={20}>
                     <TiltCard glow={`${color}22`} className="flex h-full flex-col p-6" style={{ borderColor: `${color}55` }}>
@@ -376,7 +420,7 @@ export function CoinRushContent({ platformStats }: { platformStats: PlatformStat
                         <span className="rounded-full border border-line bg-panel-2 px-2.5 py-1">{difficulty}</span>
                       </div>
                       <p className="mt-3 text-xs text-muted">
-                        {t("coinRush.poolPanelLabel")}: <span className="font-bold text-gold">{playerPoolUsdt} USDT</span>
+                        {t("coinRush.tierFirstPlaceLabel")}: <span className="font-bold text-gold">{firstPlaceMaxUsdt} USDT</span>
                       </p>
                       <GatedLink
                         href="/dashboard/play"
@@ -426,20 +470,39 @@ export function CoinRushContent({ platformStats }: { platformStats: PlatformStat
                     />
                   </div>
                   <div className="mt-4 flex flex-col gap-2.5 text-xs">
-                    <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2">
-                      <span className="font-bold text-foreground">{t("coinRush.poolTop3")}</span>
+                    <div className="grid grid-cols-[92px_1fr] items-start gap-3 rounded-[10px] border border-line bg-panel-2 px-3 py-2">
+                      <span className="whitespace-nowrap font-bold text-foreground">{t("coinRush.poolTop3")}</span>
                       <span className="text-muted">{t("coinRush.poolTop3Body")}</span>
                     </div>
-                    <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2">
-                      <span className="font-bold text-foreground">{t("coinRush.pool4th")}</span>
+                    <div className="grid grid-cols-[92px_1fr] items-start gap-3 rounded-[10px] border border-line bg-panel-2 px-3 py-2">
+                      <span className="whitespace-nowrap font-bold text-foreground">{t("coinRush.pool4th")}</span>
                       <span className="text-muted">{t("coinRush.pool4thBody")}</span>
                     </div>
-                    <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2">
-                      <span className="font-bold text-foreground">{t("coinRush.poolPlatform")}</span>
+                    <div className="grid grid-cols-[92px_1fr] items-start gap-3 rounded-[10px] border border-line bg-panel-2 px-3 py-2">
+                      <span className="whitespace-nowrap font-bold text-foreground">{t("coinRush.poolPlatform")}</span>
                       <span className="text-muted">{t("coinRush.poolPlatformBody")}</span>
                     </div>
                   </div>
-                  <p className="mt-4 text-[11px] leading-relaxed text-muted/80">{t("coinRush.poolNote")}</p>
+                  <p className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-muted">{t("coinRush.maxPtsPerGameLabel")}</p>
+                  <div className="mt-2 flex flex-col gap-1.5">
+                    {PAID_TIER_MODES.map((mode) => {
+                      const cfg = GAME_MODE_CONFIG[mode];
+                      const color = TIER_COLORS[mode];
+                      const poolUsdt = cfg.entryFeeUsdt * cfg.players * 0.7;
+                      const poolPts = Math.round(poolUsdt * 1000);
+                      return (
+                        <div key={mode} className="flex items-center justify-between rounded-[8px] border border-line bg-panel-2 px-3 py-2 text-[11px]">
+                          <span className="flex items-center gap-1.5 font-semibold text-muted">
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: color }} />
+                            {cfg.label}
+                          </span>
+                          <span className="font-bold text-foreground">
+                            {poolPts.toLocaleString()} PTS <span className="text-muted">=</span> <span className="text-gold">${poolUsdt.toFixed(2)}</span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </Reveal>
 

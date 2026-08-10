@@ -15,7 +15,6 @@ import {
   ChevronDown,
   Rocket,
   ArrowRight,
-  Pickaxe,
 } from "lucide-react";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { EnterDashboard } from "@/components/EnterDashboard";
@@ -104,7 +103,7 @@ export function LandingContent({ mining, platformStats }: { mining: MiningStats;
   }
 
   return (
-    <div className="ld-root flex min-h-full flex-1 flex-col overflow-x-hidden bg-background text-foreground">
+    <div className="ld-root flex min-h-full flex-1 flex-col bg-background text-foreground">
       <SiteHeader />
 
       <main className="flex-1">
@@ -250,35 +249,6 @@ export function LandingContent({ mining, platformStats }: { mining: MiningStats;
                 <span className="text-muted">{t("landing.netOutputSettled")}</span>
               </motion.div>
             </div>
-          </div>
-        </section>
-
-        {/* ------------------------------------------- Platform At A Glance */}
-        <section className="border-t border-line bg-panel/40">
-          <div className="ld-container py-6 sm:py-9">
-            <Reveal>
-              <span className="ld-eyebrow mb-4 block text-center text-gold sm:text-left">{t("landing.statsEyebrow")}</span>
-              <div className="ld-glass grid grid-cols-2 divide-y divide-line sm:grid-cols-4 sm:divide-x sm:divide-y-0">
-                {[
-                  { Icon: Users, value: platformStats.walletCount, label: t("landing.statsWallets"), decimals: 0, suffix: "" },
-                  { Icon: Gamepad2, value: platformStats.matchCount, label: t("landing.statsMatches"), decimals: 0, suffix: "" },
-                  { Icon: Pickaxe, value: platformStats.activeMinerCount, label: t("landing.statsMiners"), decimals: 0, suffix: "" },
-                  { Icon: Coins, value: platformStats.lifetimeDogeDistributed, label: t("landing.statsLifetimeDoge"), decimals: 2, suffix: " DOGE" },
-                ].map((s) => (
-                  <div key={s.label} className="flex items-center gap-3 p-5">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-gold-soft text-gold">
-                      <s.Icon size={18} />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-lg leading-tight">
-                        <StatCounter value={s.value} decimals={s.decimals} suffix={s.suffix} />
-                      </p>
-                      <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted">{s.label}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Reveal>
           </div>
         </section>
 

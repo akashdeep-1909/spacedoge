@@ -118,7 +118,7 @@ export function AboutUsContent() {
   }
 
   return (
-    <div className="ld-root flex min-h-full flex-1 flex-col overflow-x-hidden bg-background text-foreground">
+    <div className="ld-root flex min-h-full flex-1 flex-col bg-background text-foreground">
       <SiteHeader />
 
       <main className="flex-1">
