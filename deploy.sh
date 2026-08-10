@@ -6,9 +6,23 @@
 #   bash deploy.sh
 #
 # What it does, in order:
-#   1. npm install         - installs dependencies for THIS server (Linux
-#                             binaries — see DEPLOY.md for why a Windows-
-#                             built node_modules can't be shipped instead).
+#   1. npm install --include=dev - installs dependencies for THIS server
+#                             (Linux binaries — see DEPLOY.md for why a
+#                             Windows-built node_modules can't be shipped
+#                             instead). --include=dev is required here:
+#                             cPanel's Node.js app runs in Production mode,
+#                             which sets NODE_ENV=production, and npm skips
+#                             devDependencies whenever that's set unless
+#                             told otherwise. next build itself needs several
+#                             devDependencies (@tailwindcss/postcss, the
+#                             typescript toolchain, etc.) since this project
+#                             builds ON the server rather than shipping a
+#                             pre-built bundle — confirmed live: a plain
+#                             `npm install` under this app's NODE_ENV=production
+#                             silently skipped @tailwindcss/postcss and
+#                             failed the build with "Cannot find module
+#                             '@tailwindcss/postcss'" despite it being listed
+#                             in package.json.
 #   2. npx prisma generate - regenerates the Prisma client explicitly, run
 #                             here rather than trusting package.json's own
 #                             "postinstall" hook to have done it: on hosts
@@ -40,7 +54,7 @@
 # After this finishes, restart the app from cPanel's Setup Node.js App
 # page (Restart button) to pick up the new build.
 set -e
-npm install
+npm install --include=dev
 npx prisma generate --schema=./prisma/schema.prisma
 npm run build
 npx prisma migrate deploy

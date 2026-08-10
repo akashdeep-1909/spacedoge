@@ -81,10 +81,18 @@ If you'd rather run the three steps individually (e.g. to see each
 one's output separately):
 
 ```bash
-npm install
+npm install --include=dev
 npm run build
 npx prisma migrate deploy
 ```
+
+`--include=dev` matters here: cPanel's Node.js app runs with
+`NODE_ENV=production` set, which makes npm skip `devDependencies` by
+default — but `next build` needs several of them (`@tailwindcss/postcss`,
+the TypeScript toolchain, etc.) since this project builds on the server
+rather than shipping a pre-built bundle. Without this flag, `npm install`
+succeeds but a later `next build` fails with `Cannot find module
+'@tailwindcss/postcss'` even though it's right there in package.json.
 
 ## 5. Configure environment variables
 
