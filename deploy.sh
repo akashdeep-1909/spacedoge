@@ -56,7 +56,16 @@
 set -e
 npm install --include=dev
 npx prisma generate --schema=./prisma/schema.prisma
-npm run build
+# NODE_OPTIONS caps V8's heap explicitly rather than trusting Next's own
+# memoryBasedWorkersCount (next.config.ts) to size itself correctly —
+# confirmed live: that heuristic reads the HOST's total memory (`free -h`
+# showed 82GB) even though this cPanel account runs under a much smaller
+# LVE/cgroup memory cap, so it still picked too generous a budget and
+# got silently SIGKILL'd by the host mid-build with no error message.
+# 1024 is a confirmed-working value on this host, not a guess — raise it
+# only after checking the account's real "Physical Memory Usage" limit
+# in cPanel first.
+NODE_OPTIONS="--max-old-space-size=1024" npm run build
 npx prisma migrate deploy
 echo ""
 echo "Done. Now go to cPanel -> Setup Node.js App -> Restart."

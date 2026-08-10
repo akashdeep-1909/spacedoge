@@ -82,7 +82,7 @@ one's output separately):
 
 ```bash
 npm install --include=dev
-npm run build
+NODE_OPTIONS="--max-old-space-size=1024" npm run build
 npx prisma migrate deploy
 ```
 
@@ -93,6 +93,19 @@ the TypeScript toolchain, etc.) since this project builds on the server
 rather than shipping a pre-built bundle. Without this flag, `npm install`
 succeeds but a later `next build` fails with `Cannot find module
 '@tailwindcss/postcss'` even though it's right there in package.json.
+
+`NODE_OPTIONS="--max-old-space-size=1024"` matters too — confirmed live:
+without it, `next build` gets silently `SIGKILL`'d partway through
+"Creating an optimized production build" with no error message. This
+project's `next.config.ts` already tunes `memoryBasedWorkersCount` /
+`webpackBuildWorker` for low-memory builds, but that heuristic reads the
+HOST's total memory (`free -h` can show 80+ GB on shared hosting) rather
+than this specific cPanel account's actual, much smaller LVE/cgroup
+memory cap — so it still budgets too generously. Capping V8's heap
+directly sidesteps that. 1024 is a confirmed-working value on this
+host, not a generic default — if you're setting this up on a different
+host, check that account's actual "Physical Memory Usage" limit in
+cPanel first rather than assuming 1024 fits.
 
 ## 5. Configure environment variables
 
