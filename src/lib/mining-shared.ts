@@ -20,11 +20,14 @@ export const HASHRATE_TERM_DAYS = 180;
 
 // Fallback/display default only — the real, admin-editable value is
 // MiningEconomicsConfig.fleetCapacityMhs (src/lib/mining-settings.ts).
-// Mining v2 sells the FULL reference fleet (one 16,000 MH/s L9), no
-// 10%-held-back reserve at the capacity-cap level anymore (that's what
-// the old SELLABLE_CAPACITY_MHS=14,400 constant modeled) — grow this as
-// more fleet capacity is notionally added, no redeploy needed.
-export const DEFAULT_FLEET_CAPACITY_MHS = 16_000;
+// Mining v2 sells the FULL reference fleet, no 10%-held-back reserve at
+// the capacity-cap level anymore (that's what the old
+// SELLABLE_CAPACITY_MHS=14,400 constant modeled) — grow this as more
+// fleet capacity is notionally added, no redeploy needed. Kept in sync
+// with the DB column's own @default in schema.prisma (see that field's
+// doc-comment for why MiningEconomicsConfig.referenceMonthlyGrossUsdt
+// and .minerPowerKw must scale proportionally whenever this does).
+export const DEFAULT_FLEET_CAPACITY_MHS = 800_000;
 
 // One physical ASIC rig's hashrate (Bitmain Antminer L9 class, Scrypt) —
 // 16 GH/s. The admin-configurable fleet size (MiningEconomicsConfig.

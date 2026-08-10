@@ -70,8 +70,8 @@ export async function POST(request: NextRequest) {
   // Doc "Development acceptance criteria": "Hashrate may not be sold
   // when available verified capacity is insufficient." Fleet capacity
   // is now admin-configurable (MiningEconomicsConfig.fleetCapacityMhs,
-  // default 16,000 — "one L9," fully sellable) instead of the old
-  // static SELLABLE_CAPACITY_MHS=14,400 constant.
+  // default 800,000, fully sellable) instead of the old static
+  // SELLABLE_CAPACITY_MHS=14,400 constant.
   const [alreadySold, fleetCapacityMhs] = await Promise.all([totalActiveSoldMhs(), getFleetCapacityMhs()]);
   if (alreadySold + hashrateMhs > fleetCapacityMhs) {
     return NextResponse.json(
