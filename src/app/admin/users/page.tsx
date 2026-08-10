@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { PaginationControls } from "@/components/PaginationControls";
 import { usePagination } from "@/lib/usePagination";
-import { useAdminUsers, useSetRiskFlag, useSetKol, useCreditUserBalance, type AdminUserRow } from "@/lib/hooks";
+import { useAdminUsers, useSetRiskFlag, useSetKol, useSetReferrer, useCreditUserBalance, type AdminUserRow } from "@/lib/hooks";
 
 const CREDITABLE_BALANCE_TYPES = [
   "PLAY_USDT",
@@ -108,6 +108,7 @@ function UserCard({ row }: { row: AdminUserRow }) {
   const setRiskFlag = useSetRiskFlag();
   const setKol = useSetKol();
   const [showCredit, setShowCredit] = useState(false);
+  const [showReferrer, setShowReferrer] = useState(false);
 
   return (
     <div className={`game-panel hud-corner relative rounded-2xl p-4 ${row.isBot ? "opacity-70" : ""}`}>
@@ -138,6 +139,14 @@ function UserCard({ row }: { row: AdminUserRow }) {
             )}
           </p>
           <p className="mt-0.5 text-xs text-muted">Joined {new Date(row.createdAt).toLocaleDateString()}</p>
+          <p className="mt-0.5 text-xs text-muted">
+            Referred by:{" "}
+            {row.referredByAddress ? (
+              <span className="break-all font-semibold text-foreground">{row.referredByAddress}</span>
+            ) : (
+              <span className="italic opacity-70">none</span>
+            )}
+          </p>
         </div>
         {/* Bots have no real balance to credit and no risk to flag —
             those actions only make sense for real user wallets. */}
@@ -179,6 +188,12 @@ function UserCard({ row }: { row: AdminUserRow }) {
             >
               {row.isKol ? "Unmark KOL" : "Mark KOL"}
             </button>
+            <button
+              onClick={() => setShowReferrer((v) => !v)}
+              className="rounded-full border border-line bg-panel px-2.5 py-1 text-[11px] font-semibold text-muted transition hover:border-mint/50 hover:text-foreground"
+            >
+              {showReferrer ? "Cancel" : row.referredByAddress ? "Change Referrer" : "Set Referrer"}
+            </button>
           </div>
         )}
       </div>
@@ -193,6 +208,9 @@ function UserCard({ row }: { row: AdminUserRow }) {
       </div>
 
       {showCredit && <CreditForm userId={row.id} onDone={() => setShowCredit(false)} />}
+      {showReferrer && (
+        <ReferrerForm userId={row.id} currentReferrerAddress={row.referredByAddress} onDone={() => setShowReferrer(false)} />
+      )}
     </div>
   );
 }
@@ -260,6 +278,88 @@ function CreditForm({ userId, onDone }: { userId: string; onDone: () => void }) 
         >
           {credit.isPending ? "Submitting…" : "Apply"}
         </button>
+        <button onClick={onDone} className="rounded-full border border-line px-4 py-1.5 text-xs text-muted hover:text-foreground">
+          Done
+        </button>
+        {error && <span className="text-xs text-risk">{error}</span>}
+        {success && <span className="text-xs text-mint">{success}</span>}
+      </div>
+    </div>
+  );
+}
+
+// Manual override for src/lib/referrals.ts's applyReferralCode — the
+// normal path only ever fires once, automatically, the moment a wallet
+// FIRST connects via a ?ref= link. This covers everything that can't:
+// a user who connected before getting a referral link, fixing a
+// mistyped one, or an admin deliberately attributing an already-active
+// wallet after the fact. Address input, not a picker — matches how a
+// real referral link works (the referrer is identified by their wallet
+// address, same as the ?ref= param itself).
+function ReferrerForm({
+  userId,
+  currentReferrerAddress,
+  onDone,
+}: {
+  userId: string;
+  currentReferrerAddress: string | null;
+  onDone: () => void;
+}) {
+  const setReferrer = useSetReferrer();
+  const [address, setAddress] = useState(currentReferrerAddress ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  async function submit() {
+    setError(null);
+    setSuccess(null);
+    try {
+      await setReferrer.mutateAsync({ id: userId, referrerAddress: address.trim() || null });
+      setSuccess("Referrer updated.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update referrer");
+    }
+  }
+
+  async function clear() {
+    setError(null);
+    setSuccess(null);
+    try {
+      await setReferrer.mutateAsync({ id: userId, referrerAddress: null });
+      setAddress("");
+      setSuccess("Referrer cleared.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to clear referrer");
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-mint/25 bg-mint-soft/10 p-3">
+      <div className="grid gap-2 sm:grid-cols-4">
+        <input
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="Referrer wallet address (0x…)"
+          className="rounded-lg border border-line bg-panel-2 px-3 py-2 font-mono text-sm sm:col-span-3"
+        />
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <button
+          onClick={submit}
+          disabled={setReferrer.isPending || !address.trim()}
+          className="btn-game rounded-full px-4 py-1.5 text-xs disabled:opacity-50"
+        >
+          {setReferrer.isPending ? "Submitting…" : "Set Referrer"}
+        </button>
+        {currentReferrerAddress && (
+          <button
+            onClick={clear}
+            disabled={setReferrer.isPending}
+            className="rounded-full border border-risk/40 px-4 py-1.5 text-xs text-risk hover:bg-risk-soft disabled:opacity-50"
+          >
+            Clear Referrer
+          </button>
+        )}
         <button onClick={onDone} className="rounded-full border border-line px-4 py-1.5 text-xs text-muted hover:text-foreground">
           Done
         </button>

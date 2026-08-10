@@ -95,6 +95,9 @@ export function ReserveProofCard() {
                   ${proof.balanceUsdt.toLocaleString(undefined, { maximumFractionDigits: 2 })}{" "}
                   <span className="text-sm text-muted">USDT</span>
                 </p>
+                <p className="mt-1 text-[11px] text-muted">
+                  {t("wallet.reserveProofAsOf")} {new Date(proof.snapshotDateIso).toLocaleDateString()}
+                </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <button
@@ -106,6 +109,7 @@ export function ReserveProofCard() {
                 </button>
               </div>
             </div>
+            <p className="mt-2 text-[11px] leading-relaxed text-muted/80">{t("wallet.reserveProofLagNote")}</p>
             {verifyState === "verified" && (
               <p className="mt-3 flex items-center gap-1.5 text-sm font-bold text-mint">
                 <CheckCircle2 size={16} /> {t("wallet.reserveProofVerified")}

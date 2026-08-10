@@ -17,6 +17,7 @@ import {
   ArrowRight,
   Wallet,
   TrendingUp,
+  UserPlus,
 } from "lucide-react";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { GatedLink } from "@/components/GatedLink";
@@ -39,6 +40,7 @@ const HERO_BADGES = [
   { Icon: Coins, key: "coinRush.heroBadge2" as const, sub: "coinRush.heroBadge2Sub" as const },
   { Icon: Users, key: "coinRush.heroBadge3" as const, sub: "coinRush.heroBadge3Sub" as const },
   { Icon: Trophy, key: "coinRush.heroBadge4" as const, sub: "coinRush.heroBadge4Sub" as const },
+  { Icon: UserPlus, key: "coinRush.heroBadge5" as const, sub: "coinRush.heroBadge5Sub" as const },
 ] as const;
 
 const HOW_TO_PLAY_STEPS = [

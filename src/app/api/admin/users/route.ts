@@ -43,6 +43,16 @@ export async function GET(request: NextRequest) {
     db.walletProfile.count({ where }),
   ]);
 
+  // One extra query, not one per row — batch-looked-up the same way
+  // batchLookupMiningReferrals (src/lib/referrals.ts) avoids an N+1 for
+  // the settlement loop, same reasoning here since this list can be up
+  // to 500 rows.
+  const referralRows = await db.referral.findMany({
+    where: { referredProfileId: { in: profiles.map((p) => p.id) } },
+    include: { referrer: { select: { address: true } } },
+  });
+  const referrerByReferredId = new Map(referralRows.map((r) => [r.referredProfileId, r.referrer.address]));
+
   const rows = await Promise.all(
     profiles.map(async (p) => ({
       id: p.id,
@@ -51,6 +61,7 @@ export async function GET(request: NextRequest) {
       riskFlag: p.riskFlag,
       isKol: p.isKol,
       createdAt: p.createdAt,
+      referredByAddress: referrerByReferredId.get(p.id) ?? null,
       balances: await getWalletBalances(p.id),
     }))
   );

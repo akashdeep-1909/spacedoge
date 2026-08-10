@@ -24,16 +24,9 @@ import { GatedLink } from "@/components/GatedLink";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
-import { Reveal, StatCounter, TiltCard, EASE, Starfield } from "@/components/motionPrimitives";
-import { REFERRAL_L1_PCT, REFERRAL_L2_PCT } from "@/lib/game-config";
-import { MINING_PACKAGES } from "@/lib/mining-shared";
-
-interface ReferralStats {
-  totalRelationships: number;
-  qualifiedRelationships: number;
-  distributedUsdt: number;
-  distributedDoge: number;
-}
+import { Reveal, TiltCard, EASE, Starfield } from "@/components/motionPrimitives";
+import { REFERRAL_L1_PCT, REFERRAL_L2_PCT, GAME_MODE_CONFIG } from "@/lib/game-config";
+import { MINING_PACKAGES, HASHRATE_PER_USDT, MIN_HASHRATE_PURCHASE_USDT } from "@/lib/mining-shared";
 
 const HERO_BADGES = [
   { Icon: TrendingUp, key: "referralNetwork.heroBadge1" as const, sub: "referralNetwork.heroBadge1Sub" as const },
@@ -78,21 +71,30 @@ const FAQ_KEYS = [
   { qKey: "referralNetwork.faq10Q" as const, aKey: "referralNetwork.faq10A" as const },
 ] as const;
 
-// Real Rookie Rush ($1 entry, 4-player room) math — same constants the
-// settlement code itself uses, not invented figures.
-const EXAMPLE_ENTRY_USDT = 1;
-const EXAMPLE_PLAYERS = 4;
-const EXAMPLE_ROOM_VOLUME = EXAMPLE_ENTRY_USDT * EXAMPLE_PLAYERS;
-const EXAMPLE_PLAYER_POOL = EXAMPLE_ROOM_VOLUME * 0.7;
-const EXAMPLE_PLATFORM_FEE = EXAMPLE_ROOM_VOLUME * 0.3;
-const EXAMPLE_L1 = EXAMPLE_PLATFORM_FEE * REFERRAL_L1_PCT;
-const EXAMPLE_L2 = EXAMPLE_PLATFORM_FEE * REFERRAL_L2_PCT;
+// Every paid Coin Rush tier — picker below lets the Room Funding
+// Example reflect any of them, not just a fixed Rookie Rush illustration.
+const GAME_TIER_MODES = ["QUICK_RUSH", "EXPLORER_RUSH", "PRO_RUSH", "ELITE_RUSH", "CHAMPION_RUSH"] as const;
+const GAME_TIER_COLORS: Record<(typeof GAME_TIER_MODES)[number], string> = {
+  QUICK_RUSH: "#5ea3ff",
+  EXPLORER_RUSH: "#22e193",
+  PRO_RUSH: "#ffb516",
+  ELITE_RUSH: "#ff8a5c",
+  CHAMPION_RUSH: "#a78bfa",
+};
 
-// Real Galaxy mining package — same worked example used on the DOGE
-// Mining page's own referral section (see DogeMiningContent.tsx). Its
-// daily electricity cost (the actual carve-out base) depends on the
-// live fleet economics, computed in the component body below.
-const MINING_EXAMPLE_PACKAGE = MINING_PACKAGES.find((p) => p.name === "Galaxy")!;
+// Default mining package for the picker below — Galaxy, a round mid-tier
+// figure, not an invented number (see MINING_PACKAGES). Its daily
+// electricity cost (the actual carve-out base) depends on the live
+// fleet economics, computed in the component body.
+const MINING_EXAMPLE_DEFAULT_INDEX = MINING_PACKAGES.findIndex((p) => p.name === "Galaxy");
+const MINING_PACKAGE_COLORS: Record<string, string> = {
+  Launch: "#22e193",
+  Orbit: "#5ea3ff",
+  Lunar: "#a78bfa",
+  Mars: "#ff8a5c",
+  Galaxy: "#ffb516",
+  Nova: "#ff6b5c",
+};
 
 interface MiningEconomics {
   fleetCapacityMhs: number;
@@ -101,11 +103,9 @@ interface MiningEconomics {
 }
 
 export function ReferralNetworkContent({
-  stats,
   dogeUsdtRate,
   miningEconomics,
 }: {
-  stats: ReferralStats;
   dogeUsdtRate: number;
   miningEconomics: MiningEconomics;
 }) {
@@ -113,11 +113,30 @@ export function ReferralNetworkContent({
   const reduceMotion = useReducedMotion();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
-  // Mining referral worked example — same formula as DogeMiningContent's
-  // own calculator/worked example: this package's share of the fleet
-  // times the modeled daily electricity cost, 5%/2% of which is what
+  // Room Funding Example — picker across every real paid Coin Rush tier,
+  // same 70/30 split and referral-cut formula settleEpochForDate itself
+  // uses, not invented figures.
+  const [gameTier, setGameTier] = useState<(typeof GAME_TIER_MODES)[number]>("QUICK_RUSH");
+  const gameCfg = GAME_MODE_CONFIG[gameTier];
+  const gameRoomVolume = gameCfg.entryFeeUsdt * gameCfg.players;
+  const gamePlatformFee = gameRoomVolume * 0.3;
+  const gameL1 = gamePlatformFee * REFERRAL_L1_PCT;
+  const gameL2 = gamePlatformFee * REFERRAL_L2_PCT;
+
+  // Mining Referral Example — package picker plus an optional custom
+  // amount, same pattern (and same formula) as DogeMiningContent's own
+  // Worked Example: this funded amount's share of the fleet times the
+  // modeled daily electricity cost, 5%/2% of which is what
   // settleEpochForDate actually carves out to referrers every day.
-  const miningExampleShare = MINING_EXAMPLE_PACKAGE.mhs / miningEconomics.fleetCapacityMhs;
+  const [miningPackageIndex, setMiningPackageIndex] = useState(MINING_EXAMPLE_DEFAULT_INDEX);
+  const [miningCustomAmount, setMiningCustomAmount] = useState("");
+  const miningAmountUsdt = (() => {
+    const custom = Number(miningCustomAmount);
+    if (miningCustomAmount.trim() !== "" && Number.isFinite(custom) && custom >= MIN_HASHRATE_PURCHASE_USDT) return custom;
+    return MINING_PACKAGES[miningPackageIndex].priceUsdt;
+  })();
+  const miningExampleMhs = miningAmountUsdt * HASHRATE_PER_USDT;
+  const miningExampleShare = miningExampleMhs / miningEconomics.fleetCapacityMhs;
   const miningExampleDailyElectricityUsdt = miningExampleShare * miningEconomics.minerPowerKw * 24 * miningEconomics.electricityRateUsdtPerKwh;
   const miningExampleL1Doge = (miningExampleDailyElectricityUsdt * REFERRAL_L1_PCT) / dogeUsdtRate;
   const miningExampleL2Doge = (miningExampleDailyElectricityUsdt * REFERRAL_L2_PCT) / dogeUsdtRate;
@@ -234,41 +253,111 @@ export function ReferralNetworkContent({
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3, ease: EASE }}
             >
-              <TiltCard glow="rgba(167,139,250,0.24)" className="p-6" style={{ borderColor: "rgba(167,139,250,0.4)" }}>
-                <div className="flex items-center gap-2">
-                  <GitBranch size={18} className="text-mint" />
-                  <h3 className="text-sm font-black uppercase tracking-wide">{t("referralNetwork.liveCardTitle")}</h3>
+              {/* Network illustration — frameless, transparent background
+                  (no TiltCard/title wrapper), same skeleton as Coin
+                  Rush's own hero illustration (rounded-full glow + two
+                  dashed counter-rotating rings + percentage-positioned
+                  orbiting badges + floating texture orbs + a pulsing
+                  center) — proven not to hit the calc()-string hydration
+                  mismatch an earlier version of this exact illustration
+                  did, since every position here is a plain percentage
+                  string (no arithmetic inside it to get normalized) with
+                  centering handled by the static -translate-x/y-1/2
+                  utility classes instead of a computed inline transform.
+                  L1=purple (direct referrals, outer ring) / L2=mint
+                  (extended network, inner ring) matches the convention
+                  the Referral Dashboard section further down this page
+                  already established. Every node is decorative — no
+                  per-node data exists to show — but the one live count
+                  chip keeps it grounded in a real number instead of
+                  going fully abstract. */}
+              <div className="relative mx-auto aspect-square w-full max-w-[380px]">
+                <div
+                  aria-hidden
+                  className="absolute inset-0 rounded-full"
+                  style={{ background: "radial-gradient(closest-side, rgba(167,139,250,0.26), transparent 75%)" }}
+                />
+                <div
+                  aria-hidden
+                  className="absolute inset-[8%] rounded-full border border-dashed"
+                  style={{ borderColor: "rgba(167,139,250,0.3)", animation: "ld-orbit-spin 34s linear infinite" }}
+                />
+                <div
+                  aria-hidden
+                  className="absolute inset-[26%] rounded-full border border-dashed"
+                  style={{ borderColor: "rgba(34,225,147,0.26)", animation: "ld-orbit-spin-rev 26s linear infinite" }}
+                />
+
+                {/* L1 — direct referrals, purple, outer ring */}
+                {[0, 1, 2, 3].map((i) => {
+                  const angle = (i / 4) * 2 * Math.PI - Math.PI / 2;
+                  const radius = 39;
+                  const x = 50 + radius * Math.cos(angle);
+                  const y = 50 + radius * Math.sin(angle);
+                  return (
+                    <motion.span
+                      key={`hero-l1-${i}`}
+                      aria-hidden
+                      className="absolute grid h-11 w-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border"
+                      style={{ left: `${x}%`, top: `${y}%`, background: "rgba(5,17,29,.92)", borderColor: "#a78bfa66", color: "#a78bfa", boxShadow: "0 0 18px rgba(167,139,250,0.28)" }}
+                      animate={reduceMotion ? undefined : { y: [0, -6, 0] }}
+                      transition={{ duration: 3.4 + i * 0.3, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      <Users size={18} />
+                    </motion.span>
+                  );
+                })}
+
+                {/* L2 — extended network, mint, inner ring, offset so
+                    they interleave visually between the L1 nodes */}
+                {[0, 1, 2].map((i) => {
+                  const angle = (i / 3) * 2 * Math.PI - Math.PI / 2 + Math.PI / 3;
+                  const radius = 20;
+                  const x = 50 + radius * Math.cos(angle);
+                  const y = 50 + radius * Math.sin(angle);
+                  return (
+                    <motion.span
+                      key={`hero-l2-${i}`}
+                      aria-hidden
+                      className="absolute grid h-8 w-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border"
+                      style={{ left: `${x}%`, top: `${y}%`, background: "rgba(5,17,29,.92)", borderColor: "#22e19366", color: "#22e193", boxShadow: "0 0 14px rgba(34,225,147,0.26)" }}
+                      animate={reduceMotion ? undefined : { y: [0, -5, 0] }}
+                      transition={{ duration: 3 + i * 0.3, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+                    >
+                      <Users size={14} />
+                    </motion.span>
+                  );
+                })}
+
+                {/* Floating gold orbs — pure texture, same flourish Coin
+                    Rush's own hero uses. */}
+                {[
+                  { left: "16%", top: "22%", delay: 0 },
+                  { left: "86%", top: "30%", delay: 0.6 },
+                  { left: "12%", top: "76%", delay: 1.1 },
+                  { left: "82%", top: "80%", delay: 1.6 },
+                ].map((o, i) => (
+                  <motion.span
+                    key={i}
+                    aria-hidden
+                    className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gold"
+                    style={{ left: o.left, top: o.top, boxShadow: "0 0 10px rgba(255,181,22,0.8)" }}
+                    animate={reduceMotion ? undefined : { opacity: [0.4, 1, 0.4], scale: [0.9, 1.15, 0.9] }}
+                    transition={{ duration: 2.2, delay: o.delay, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                ))}
+
+                <div className="absolute inset-0 grid place-items-center">
+                  <motion.span
+                    className="relative grid h-20 w-20 place-items-center rounded-full border border-gold text-gold"
+                    style={{ background: "rgba(5,17,29,.96)", boxShadow: "0 0 32px rgba(255,181,22,0.4)" }}
+                    animate={reduceMotion ? undefined : { scale: [1, 1.06, 1] }}
+                    transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <Wallet size={30} style={{ filter: "drop-shadow(0 0 10px rgba(255,181,22,0.6))" }} />
+                  </motion.span>
                 </div>
-                <div className="mt-5 grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-2xl">
-                      <StatCounter value={stats.totalRelationships} />
-                    </p>
-                    <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{t("referralNetwork.liveRelationships")}</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl">
-                      <StatCounter value={stats.qualifiedRelationships} />
-                    </p>
-                    <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{t("referralNetwork.liveQualified")}</p>
-                  </div>
-                </div>
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <div className="rounded-[12px] border border-line bg-panel-2 p-4">
-                    <p className="text-xl">
-                      <StatCounter value={stats.distributedUsdt} decimals={2} suffix=" USDT" />
-                    </p>
-                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-mint">{t("referralNetwork.liveDistributed")}</p>
-                  </div>
-                  <div className="rounded-[12px] border border-line bg-panel-2 p-4">
-                    <p className="text-xl">
-                      <StatCounter value={stats.distributedDoge} decimals={2} suffix=" DOGE" />
-                    </p>
-                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-gold">{t("referralNetwork.liveDistributedDoge")}</p>
-                  </div>
-                </div>
-                <div aria-hidden className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full" style={{ background: "radial-gradient(closest-side, rgba(167,139,250,0.28), transparent 75%)", animation: "float-coin 5s ease-in-out infinite" }} />
-              </TiltCard>
+              </div>
             </motion.div>
           </div>
         </section>
@@ -477,7 +566,19 @@ export function ReferralNetworkContent({
                     </div>
                     <s.Icon size={28} className="mt-4" style={{ color: s.color, filter: `drop-shadow(0 0 10px ${s.color}66)` }} />
                     <h3 className="mt-3 text-base font-black">{t(s.titleKey)}</h3>
-                    <p className="mt-1.5 text-sm leading-relaxed text-muted">{t(s.bodyKey)}</p>
+                    <p className="mt-1.5 text-sm leading-relaxed text-muted">
+                      {s.n === "04" ? (
+                        <>
+                          {t("dogeMining.referralCommissionPrefix")}
+                          <strong className="font-black text-foreground">{t("dogeMining.referralCommissionBoldPhrase")}</strong>
+                          {t("dogeMining.referralCommissionMiddle")}
+                          <strong className="font-black text-gold">DOGE</strong>
+                          {t("dogeMining.referralCommissionSuffix")}
+                        </>
+                      ) : (
+                        t(s.bodyKey)
+                      )}
+                    </p>
                   </TiltCard>
                 </Reveal>
               ))}
@@ -578,55 +679,87 @@ export function ReferralNetworkContent({
             <div className="mt-8 grid gap-6 lg:grid-cols-2">
               <Reveal delay={0.06}>
                 <div className="ld-glass h-full p-7">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-black uppercase tracking-wide text-mint">{t("referralNetwork.mathPanelLabel")}</h3>
-                    <span className="text-xs font-semibold text-muted">{t("referralNetwork.mathPanelSub")}</span>
+                  <h3 className="text-sm font-black uppercase tracking-wide text-mint">{t("referralNetwork.mathPanelLabel")}</h3>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {GAME_TIER_MODES.map((mode) => {
+                      const cfg = GAME_MODE_CONFIG[mode];
+                      const color = GAME_TIER_COLORS[mode];
+                      const active = gameTier === mode;
+                      return (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setGameTier(mode)}
+                          className="rounded-[10px] border px-3 py-2 text-left text-xs font-bold transition"
+                          style={
+                            active
+                              ? { borderColor: color, background: `${color}22`, color }
+                              : { borderColor: "var(--line)", color: "var(--muted)" }
+                          }
+                        >
+                          <span className="block">{cfg.label}</span>
+                          <span className="block font-normal opacity-80">${cfg.entryFeeUsdt}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                   <div className="mt-4 flex flex-col gap-2.5 text-sm">
-                    <div className="flex items-center justify-between border-b border-line pb-2.5">
-                      <span className="text-muted">{t("referralNetwork.mathRoomVolume")}</span>
-                      <span className="font-bold text-foreground">{EXAMPLE_ROOM_VOLUME.toFixed(3)} USDT</span>
-                    </div>
-                    <div className="flex items-center justify-between border-b border-line pb-2.5">
-                      <span className="text-muted">{t("referralNetwork.mathPlayerPool")}</span>
-                      <span className="font-bold text-mint">{EXAMPLE_PLAYER_POOL.toFixed(3)} USDT</span>
-                    </div>
-                    <div className="flex items-center justify-between border-b border-line pb-2.5">
-                      <span className="text-muted">{t("referralNetwork.mathPlatformFee")}</span>
-                      <span className="font-bold text-gold">{EXAMPLE_PLATFORM_FEE.toFixed(3)} USDT</span>
-                    </div>
-                    <div className="mt-1.5 flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
+                    <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
                       <span className="font-bold text-foreground">{t("referralNetwork.mathL1")}</span>
                       <span className="font-black" style={{ color: "#a78bfa" }}>
-                        {EXAMPLE_L1.toFixed(4)} USDT
+                        {gameL1.toFixed(4)} USDT
                       </span>
                     </div>
                     <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
                       <span className="font-bold text-foreground">{t("referralNetwork.mathL2")}</span>
-                      <span className="font-black text-mint">{EXAMPLE_L2.toFixed(4)} USDT</span>
+                      <span className="font-black text-mint">{gameL2.toFixed(4)} USDT</span>
                     </div>
                   </div>
-                  <p className="mt-4 text-[11px] leading-relaxed text-muted/80">{t("referralNetwork.mathNote")}</p>
                 </div>
               </Reveal>
 
               <Reveal delay={0.1}>
                 <div className="ld-glass h-full p-7">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-black uppercase tracking-wide text-gold">{t("referralNetwork.miningMathPanelLabel")}</h3>
-                    <span className="text-xs font-semibold text-muted">{t("referralNetwork.miningMathPanelSub")}</span>
+                  <h3 className="text-sm font-black uppercase tracking-wide text-gold">{t("referralNetwork.miningMathPanelLabel")}</h3>
+                  <p className="mt-1 text-xs text-muted">{t("referralNetwork.miningMathPackageLabel")}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {MINING_PACKAGES.map((pkg, i) => {
+                      const active = miningCustomAmount.trim() === "" && i === miningPackageIndex;
+                      const color = MINING_PACKAGE_COLORS[pkg.name] ?? "#5ea3ff";
+                      return (
+                        <button
+                          key={pkg.level}
+                          type="button"
+                          onClick={() => {
+                            setMiningPackageIndex(i);
+                            setMiningCustomAmount("");
+                          }}
+                          className="rounded-[10px] border px-3 py-2 text-left text-xs font-bold transition"
+                          style={
+                            active
+                              ? { borderColor: color, background: `${color}22`, color }
+                              : { borderColor: "var(--line)", color: "var(--muted)" }
+                          }
+                        >
+                          <span className="block">{pkg.name}</span>
+                          <span className="block font-normal opacity-80">${pkg.priceUsdt}</span>
+                        </button>
+                      );
+                    })}
                   </div>
+                  <label className="mt-2 flex flex-col gap-1.5 text-xs font-semibold text-muted">
+                    {t("dogeMining.calculatorCustomLabel")}
+                    <input
+                      type="number"
+                      min={MIN_HASHRATE_PURCHASE_USDT}
+                      step="any"
+                      value={miningCustomAmount}
+                      onChange={(e) => setMiningCustomAmount(e.target.value)}
+                      placeholder={`${MIN_HASHRATE_PURCHASE_USDT}+`}
+                      className="rounded-[10px] border border-line bg-panel-2 px-3 py-2.5 text-sm font-bold text-foreground outline-none focus:border-mint/60"
+                    />
+                  </label>
                   <div className="mt-4 flex flex-col gap-2.5 text-sm">
-                    <div className="flex items-center justify-between border-b border-line pb-2.5">
-                      <span className="text-muted">{t("referralNetwork.miningMathPackageLabel")}</span>
-                      <span className="font-bold text-foreground">
-                        {MINING_EXAMPLE_PACKAGE.name} — ${MINING_EXAMPLE_PACKAGE.priceUsdt}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between border-b border-line pb-2.5">
-                      <span className="text-muted">{t("referralNetwork.miningMathElectricityLabel")}</span>
-                      <span className="font-bold text-foreground">{miningExampleDailyElectricityUsdt.toFixed(4)} USDT / day</span>
-                    </div>
                     <div className="mt-1.5 flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5">
                       <span className="font-bold text-foreground">{t("referralNetwork.miningMathL1")}</span>
                       <span className="font-black" style={{ color: "#a78bfa" }}>
@@ -642,7 +775,6 @@ export function ReferralNetworkContent({
                       <span className="font-bold text-foreground">{dogeUsdtRate.toFixed(5)}</span>
                     </div>
                   </div>
-                  <p className="mt-4 text-[11px] leading-relaxed text-muted/80">{t("referralNetwork.miningMathNote")}</p>
                 </div>
               </Reveal>
             </div>
@@ -683,31 +815,36 @@ export function ReferralNetworkContent({
               <h2 className="ld-h2 mt-2">{t("referralNetwork.faqHeading")}</h2>
             </Reveal>
 
-            <div className="mt-6 grid gap-2 lg:grid-cols-2">
-              {FAQ_KEYS.map((f, i) => {
-                const open = openFaq === i;
-                return (
-                  <Reveal key={f.qKey} delay={i * 0.04} y={16}>
-                    <div className="ld-glass overflow-hidden">
-                      <button
-                        onClick={() => setOpenFaq(open ? null : i)}
-                        className="flex w-full items-center justify-between gap-3 px-[18px] py-[15px] text-left text-sm font-semibold"
-                        aria-expanded={open}
-                      >
-                        {t(f.qKey)}
-                        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.25, ease: EASE }} className="shrink-0 text-muted">
-                          <ChevronDown size={16} />
-                        </motion.span>
-                      </button>
-                      <div className={`ld-faq-panel ${open ? "open" : ""}`} aria-hidden={!open}>
-                        <div>
-                          <p className="px-[18px] pb-4 text-sm leading-relaxed text-muted">{t(f.aKey)}</p>
+            <div className="mt-6 flex flex-col gap-2 lg:flex-row lg:items-start lg:gap-4">
+              {[0, 1].map((col) => (
+                <div key={col} className="flex flex-1 flex-col gap-2">
+                  {FAQ_KEYS.filter((_, i) => i % 2 === col).map((f) => {
+                    const i = FAQ_KEYS.indexOf(f);
+                    const open = openFaq === i;
+                    return (
+                      <Reveal key={f.qKey} delay={i * 0.04} y={16}>
+                        <div className="ld-glass overflow-hidden">
+                          <button
+                            onClick={() => setOpenFaq(open ? null : i)}
+                            className="flex w-full items-center justify-between gap-3 px-[18px] py-[15px] text-left text-sm font-semibold"
+                            aria-expanded={open}
+                          >
+                            {t(f.qKey)}
+                            <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.25, ease: EASE }} className="shrink-0 text-muted">
+                              <ChevronDown size={16} />
+                            </motion.span>
+                          </button>
+                          <div className={`ld-faq-panel ${open ? "open" : ""}`} aria-hidden={!open}>
+                            <div>
+                              <p className="px-[18px] pb-4 text-sm leading-relaxed text-muted">{t(f.aKey)}</p>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  </Reveal>
-                );
-              })}
+                      </Reveal>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           </div>
         </section>

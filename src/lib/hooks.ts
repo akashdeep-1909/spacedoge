@@ -819,6 +819,7 @@ export interface AdminUserRow {
   riskFlag: string | null;
   isKol: boolean;
   createdAt: string;
+  referredByAddress: string | null;
   balances: WalletBalances;
 }
 
@@ -913,6 +914,27 @@ export function useSetKol() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Failed to update KOL flag");
+      return body;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "users"] }),
+  });
+}
+
+// Admin override for who a wallet's referrer is — see
+// src/app/api/admin/users/[id]/referrer/route.ts's own doc-comment for
+// why this exists alongside the normal ?ref=-link flow. Pass
+// referrerAddress: null to clear an existing referral outright.
+export function useSetReferrer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, referrerAddress }: { id: string; referrerAddress: string | null }) => {
+      const res = await fetch(`/api/admin/users/${id}/referrer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ referrerAddress }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to update referrer");
       return body;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "users"] }),
