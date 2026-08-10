@@ -26,7 +26,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { Reveal, StatCounter, TiltCard, EASE, Starfield } from "@/components/motionPrimitives";
-import { MINING_PACKAGES, HASHRATE_TERM_DAYS, HASHRATE_PER_USDT, MIN_HASHRATE_PURCHASE_USDT } from "@/lib/mining-shared";
+import { MINING_PACKAGES, HASHRATE_TERM_DAYS, HASHRATE_PER_USDT, MIN_HASHRATE_PURCHASE_USDT, MHS_PER_RIG } from "@/lib/mining-shared";
 import { REFERRAL_L1_PCT, REFERRAL_L2_PCT } from "@/lib/game-config";
 
 interface PlatformStats {
@@ -140,7 +140,18 @@ export function DogeMiningContent({
     return MINING_PACKAGES[calcPackageIndex].priceUsdt;
   })();
   const calcHashrateMhs = calcAmountUsdt * HASHRATE_PER_USDT;
+  // calcShare (share of the WHOLE platform's sold capacity) is what the
+  // dollar-figure formulas below must keep using — it's the correct
+  // basis for "what fraction of the fleet's total reference income is
+  // mine." calcShareOfRig (share of a single 16,000 MH/s rig) is
+  // display-only, for the "Share of fleet" stat specifically — kept
+  // deliberately separate so that stat can express "relative to one
+  // rig" without also inflating Modeled Gross/Electricity/Pool Fee by
+  // however many rigs' worth fleetCapacityMhs has grown to (the same
+  // kind of understated/overstated-income bug already found and fixed
+  // once in this file — see MiningEconomicsConfig's schema comments).
   const calcShare = calcHashrateMhs / economics.fleetCapacityMhs;
+  const calcShareOfRig = calcHashrateMhs / MHS_PER_RIG;
   const calcDailyGross = calcShare * (economics.referenceMonthlyGrossUsdt / 30);
   const calcDailyElectricity = calcShare * economics.minerPowerKw * 24 * economics.electricityRateUsdtPerKwh;
   const calcDailyPoolFee = calcDailyGross * economics.poolFeePct;
@@ -341,7 +352,12 @@ export function DogeMiningContent({
             <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {MINING_PACKAGES.map((pkg, i) => {
                 const color = PACKAGE_COLORS[pkg.name] ?? "#5ea3ff";
-                const sharePct = (pkg.mhs / economics.fleetCapacityMhs) * 100;
+                // Share of ONE rig (16,000 MH/s), matching the Reward
+                // Calculator's own calcShareOfRig below — display-only,
+                // deliberately not economics.fleetCapacityMhs (the
+                // platform-wide total), same reasoning as calcShareOfRig's
+                // own doc-comment.
+                const sharePct = (pkg.mhs / MHS_PER_RIG) * 100;
                 return (
                   <Reveal key={pkg.level} delay={i * 0.06} y={20}>
                     <TiltCard glow={`${color}22`} className="flex h-full flex-col p-6" style={{ borderColor: `${color}55` }}>
@@ -489,7 +505,7 @@ export function DogeMiningContent({
 
                   <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5 text-xs">
                     <span className="text-muted">{t("dogeMining.calculatorShareLabel")}</span>
-                    <span className="font-black text-foreground">{calcShare < 0.001 ? (calcShare * 100).toFixed(4) : (calcShare * 100).toFixed(2)}%</span>
+                    <span className="font-black text-foreground">{calcShareOfRig < 0.001 ? (calcShareOfRig * 100).toFixed(4) : (calcShareOfRig * 100).toFixed(2)}%</span>
                   </div>
                 </div>
 
@@ -526,7 +542,6 @@ export function DogeMiningContent({
                       <span className="text-[10px] text-muted">≈ ${calcTermTotalTarget.toFixed(2)} USDT</span>
                     </span>
                   </div>
-                  <p className="mt-1 text-[11px] leading-relaxed text-muted/80">{t("dogeMining.calculatorNote")}</p>
                 </div>
               </div>
             </Reveal>
@@ -539,7 +554,13 @@ export function DogeMiningContent({
             <Reveal className="text-center">
               <span className="ld-eyebrow text-gold">{t("dogeMining.referralRewardsEyebrow")}</span>
               <h2 className="ld-h2 mt-2">{t("dogeMining.referralRewardsHeading")}</h2>
-              <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-muted">{t("dogeMining.referralRewardsLead")}</p>
+              <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-muted">
+                {t("dogeMining.referralCommissionPrefix")}
+                <strong className="font-black text-foreground">{t("dogeMining.referralCommissionBoldPhrase")}</strong>
+                {t("dogeMining.referralCommissionMiddle")}
+                <strong className="font-black text-gold">DOGE</strong>
+                {t("dogeMining.referralCommissionSuffix")}
+              </p>
             </Reveal>
 
             {/* Summary card */}
@@ -570,7 +591,19 @@ export function DogeMiningContent({
                     </div>
                     <s.Icon size={22} className="mt-3" style={{ color: s.color, filter: `drop-shadow(0 0 10px ${s.color}66)` }} />
                     <h3 className="mt-2.5 text-sm font-black">{t(s.titleKey)}</h3>
-                    <p className="mt-1 text-xs leading-relaxed text-muted">{t(s.bodyKey)}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted">
+                      {s.n === "04" ? (
+                        <>
+                          {t("dogeMining.referralCommissionPrefix")}
+                          <strong className="font-black text-foreground">{t("dogeMining.referralCommissionBoldPhrase")}</strong>
+                          {t("dogeMining.referralCommissionMiddle")}
+                          <strong className="font-black text-gold">DOGE</strong>
+                          {t("dogeMining.referralCommissionSuffix")}
+                        </>
+                      ) : (
+                        t(s.bodyKey)
+                      )}
+                    </p>
                   </TiltCard>
                 </Reveal>
               ))}

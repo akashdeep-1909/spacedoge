@@ -20,7 +20,6 @@ const FOOTER_COLUMNS: { headingKey: TranslationKey; links: { labelKey: Translati
     links: [
       { labelKey: "landing.navCoinRush", href: "/coin-rush" },
       { labelKey: "landing.navDogeMining", href: "/doge-mining" },
-      { labelKey: "landing.navProofOfHash", href: "/pool" },
       { labelKey: "landing.navReferralNetwork", href: "/referral-network" },
     ],
   },
