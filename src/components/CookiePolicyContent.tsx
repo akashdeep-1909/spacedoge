@@ -172,7 +172,6 @@ export function CookiePolicyContent() {
         { title: "Third-party tools", body: "Analytics or campaign providers may place or support certain cookies." },
         { title: "Template status", body: "This policy should be aligned with your real cookie banner and stack." },
       ]}
-      notice="This page is a website-ready Cookie Policy template and should be reviewed alongside your actual consent and analytics setup before public launch."
       sections={SECTIONS}
       ctaHeading="Need help with cookie preferences or consent setup?"
       ctaBody="Use this page as the legal and design foundation, then connect it to your live consent manager, analytics setup and compliance workflow before launch."

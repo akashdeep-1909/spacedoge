@@ -59,7 +59,9 @@ export function LegalPageLayout({
   lead: string;
   summaryBody: string;
   highlights: LegalHighlight[];
-  notice: string;
+  // Optional — omit to hide the "template status" notice box entirely
+  // for a page that doesn't want it shown.
+  notice?: string;
   // Optional — omit both to hide the "Effective date / Contact" bar
   // entirely for a page that doesn't want it shown.
   effectiveDate?: string;
@@ -120,9 +122,11 @@ export function LegalPageLayout({
                     </div>
                   ))}
                 </div>
-                <div className="rounded-[10px] border border-gold/25 bg-gold-soft px-3.5 py-3 text-xs leading-relaxed text-foreground">
-                  {notice}
-                </div>
+                {notice && (
+                  <div className="rounded-[10px] border border-gold/25 bg-gold-soft px-3.5 py-3 text-xs leading-relaxed text-foreground">
+                    {notice}
+                  </div>
+                )}
               </div>
             </Reveal>
           </div>
