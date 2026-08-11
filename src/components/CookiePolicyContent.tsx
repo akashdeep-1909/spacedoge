@@ -9,7 +9,7 @@ const SECTIONS: LegalSection[] = [
     navLabel: "Overview",
     title: "Overview",
     blocks: [
-      { type: "p", text: "This Cookie Policy explains how Space DOGE Technologies uses cookies and similar technologies on the Space DOGE website and related web interfaces." },
+      { type: "p", text: "This Cookie Policy explains how Space DOGE uses cookies and similar technologies on the Space DOGE website and related web interfaces." },
       { type: "p", text: "It should be read together with the Privacy Policy and any cookie-consent or preference tools that may be displayed on the website." },
     ],
   },
