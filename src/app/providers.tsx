@@ -7,6 +7,7 @@ import { createWagmiConfig } from "@/lib/wagmi";
 import { AuthProvider } from "@/lib/auth-context";
 import { LocaleProvider } from "@/lib/i18n/LocaleProvider";
 import { DepositReturnRedirector } from "@/components/DepositReturnRedirector";
+import { WalletReturnPathRedirector } from "@/components/WalletReturnPathRedirector";
 import type { Locale } from "@/lib/i18n/locales";
 
 export function Providers({
@@ -49,6 +50,7 @@ export function Providers({
       <WagmiProvider config={wagmiConfig} initialState={initialWagmiState}>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
+            <WalletReturnPathRedirector />
             <DepositReturnRedirector />
             {children}
           </AuthProvider>

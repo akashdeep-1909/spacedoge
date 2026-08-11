@@ -17,7 +17,6 @@ import {
   useSignMessage,
   useDisconnect,
 } from "wagmi";
-import { useRouter } from "next/navigation";
 import { SiweMessage } from "siwe";
 import { walletLog, errorDetails } from "@/lib/walletLog";
 import {
@@ -25,6 +24,7 @@ import {
   consumeWalletConnectAutoRecoveredFlag,
   recoverFromStaleWalletConnectSession,
 } from "@/lib/walletConnectReset";
+import { markWalletReturnPath } from "@/lib/walletReturnPath";
 import { revokeInjectedPermissions } from "@/lib/wagmi";
 
 // iOS Safari kills in-flight fetch() connections when a tab backgrounds
@@ -66,26 +66,6 @@ export function isUserRejectionError(err: unknown): boolean {
 // signIn() starting) a following app-resume is still treated as
 // "probably related to that" — see lastWalletActionAtRef in AuthProvider.
 const RESUME_RELEVANCE_WINDOW_MS = 5 * 60_000;
-
-// Where to send the user back to once a connect/sign-in attempt that
-// started on THIS path finally completes — see markWalletActionRef's
-// own doc-comment for why this exists (WalletConnect's redirect target
-// can point at a stale path) and restoreWalletReturnPath below for how
-// it's consumed. Deliberately localStorage, not sessionStorage: a
-// real-device log confirmed that when MetaMask's return redirect
-// doesn't exactly match the tab Safari still has open, Safari opens a
-// BRAND NEW tab instead of reusing/reloading the old one — and a new
-// tab gets its own empty sessionStorage (that only survives reloads of
-// the SAME tab, never a genuinely new one), so anything this needs to
-// survive into that new tab has to live in localStorage, which is
-// shared across every tab of the same origin.
-const WALLET_RETURN_PATH_KEY = "SpaceDOGE_wallet_return_path";
-// Guards against ever acting on a leftover value from a long-abandoned
-// attempt (user tapped Connect, never finished, came back a week later
-// from a totally different link) — same spirit as
-// RESUME_RELEVANCE_WINDOW_MS but tighter, since this is specifically
-// "was this THE flow that's completing right now."
-const WALLET_RETURN_PATH_RELEVANCE_WINDOW_MS = 10 * 60_000;
 
 async function fetchResilient(input: string, init: RequestInit, maxRetries = 2): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
@@ -149,7 +129,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { disconnect } = useDisconnect();
   const config = useConfig();
   const { reconnectAsync } = useReconnect();
-  const router = useRouter();
 
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [status, setStatus] = useState<AuthContextValue["status"]>("idle");
@@ -205,29 +184,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // non-fatal — see above
     }
-    // Records WHERE this attempt started, not just when — see
-    // WALLET_RETURN_PATH_KEY's doc-comment. src/lib/wagmi.ts's
-    // WalletConnect `redirect.universal` is captured once (the first
-    // time the connector's provider is ever constructed, which wagmi's
-    // own reconnect-on-mount triggers automatically on the very first
-    // page load of this tab) and never updates again for the rest of
-    // the browser session — so a user who loads the app on one page,
-    // then taps around client-side (no reload) to a different page
-    // before tapping Connect, has MetaMask redirecting back to that
-    // FIRST page, not the one they were actually using. This can't be
-    // fixed from here (the WalletConnect SDK simply doesn't re-read
-    // metadata after its first construction), so instead: remember the
-    // real starting point now, and restoreWalletReturnPath() below
-    // routes the user back to it once sign-in actually completes,
-    // wherever they land.
-    try {
-      window.localStorage.setItem(
-        WALLET_RETURN_PATH_KEY,
-        JSON.stringify({ path: `${window.location.pathname}${window.location.search}`, at: now })
-      );
-    } catch {
-      // non-fatal — worst case the user just stays on whatever page they land on
-    }
+    // See src/lib/walletReturnPath.ts's own doc-comment for the full
+    // "why" — records WHERE this connect/sign-in attempt started, so
+    // WalletReturnPathRedirector (rendered app-wide in providers.tsx)
+    // can route the user back to it once any page mounts, regardless of
+    // whether this attempt actually finishes reconnecting successfully.
+    markWalletReturnPath();
   }
 
   const refresh = useCallback(async () => {
@@ -523,30 +485,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // fighting with whatever the user does next.
   const signInGenerationRef = useRef(0);
 
-  // Consumes the marker markWalletActionRef() left behind, routing the
-  // user back to the page they were actually on when they tapped
-  // Connect/Sign In — see WALLET_RETURN_PATH_KEY's doc-comment for why
-  // this can differ from wherever they ended up. Safe to call after
-  // every signIn() success unconditionally: it's a no-op whenever the
-  // stored path matches the current one (the common case), is already
-  // gone (already consumed), or is stale.
-  const restoreWalletReturnPath = useCallback(() => {
-    try {
-      const raw = window.localStorage.getItem(WALLET_RETURN_PATH_KEY);
-      if (!raw) return;
-      window.localStorage.removeItem(WALLET_RETURN_PATH_KEY);
-      const parsed = JSON.parse(raw) as { path?: unknown; at?: unknown };
-      if (typeof parsed.path !== "string" || typeof parsed.at !== "number") return;
-      if (Date.now() - parsed.at > WALLET_RETURN_PATH_RELEVANCE_WINDOW_MS) return;
-      const current = `${window.location.pathname}${window.location.search}`;
-      if (current !== parsed.path) {
-        walletLog("restoring pre-connect path", { from: current, to: parsed.path });
-        router.replace(parsed.path);
-      }
-    } catch {
-      // non-fatal — worst case the user just stays on whatever page they landed on
-    }
-  }, [router]);
 
   const signIn = useCallback(async (overrideAddress?: string, overrideChainId?: number) => {
     const signInAddress = overrideAddress ?? address;
@@ -656,7 +594,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!isCurrent()) return;
       setStatus("idle");
       walletLog("signIn complete", { address: signInAddress });
-      restoreWalletReturnPath();
+      // No explicit "restore the pre-connect path" call here anymore —
+      // WalletReturnPathRedirector (mounted app-wide) now handles that
+      // unconditionally on every page mount, not gated behind signIn()
+      // reaching this exact success point. See
+      // src/lib/walletReturnPath.ts's own doc-comment for why: a new
+      // tab's auto-reconnect routinely never gets this far at all.
     } catch (err) {
       // A failed signature/verification is an AUTH failure, not a wallet
       // CONNECTION failure — deliberately no disconnect() call here.
@@ -680,7 +623,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       signInInFlightRef.current = false;
     }
-  }, [address, chainId, signMessageAsync, refresh, config, restoreWalletReturnPath]);
+  }, [address, chainId, signMessageAsync, refresh, config]);
 
   // Auto-continues to sign-in whenever the wallet shows as connected
   // but there's no authenticated session for that address yet. Exists
