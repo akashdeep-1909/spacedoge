@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createWagmiConfig } from "@/lib/wagmi";
 import { AuthProvider } from "@/lib/auth-context";
 import { LocaleProvider } from "@/lib/i18n/LocaleProvider";
+import { DepositReturnRedirector } from "@/components/DepositReturnRedirector";
 import type { Locale } from "@/lib/i18n/locales";
 
 export function Providers({
@@ -47,7 +48,10 @@ export function Providers({
     <LocaleProvider initialLocale={initialLocale}>
       <WagmiProvider config={wagmiConfig} initialState={initialWagmiState}>
         <QueryClientProvider client={queryClient}>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <DepositReturnRedirector />
+            {children}
+          </AuthProvider>
         </QueryClientProvider>
       </WagmiProvider>
     </LocaleProvider>

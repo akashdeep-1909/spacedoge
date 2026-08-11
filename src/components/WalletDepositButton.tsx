@@ -7,6 +7,7 @@ import { waitForInjectedProvider, type wagmiConfig } from "@/lib/wagmi";
 import { isUserRejectionError, useAuth } from "@/lib/auth-context";
 import { useVerifyDeposit, type VerifyDepositResult } from "@/lib/hooks";
 import { OpenInWalletAppLink } from "@/components/OpenInWalletAppLink";
+import { markPendingDepositReturn, clearPendingDepositReturn } from "@/lib/depositReturn";
 
 // Wraps a wallet-prompting promise (network switch, transaction confirm)
 // with a hard ceiling — without this, a wallet that never shows/responds
@@ -306,6 +307,14 @@ export function WalletDepositButton({
       setError("Enter a valid amount.");
       return;
     }
+    // See src/lib/depositReturn.ts's own doc-comment for the full "why"
+    // — set BEFORE either wallet-prompting step below (network switch
+    // or the transfer itself), since either one can be what triggers a
+    // mobile app-switch that redirects back to the bare homepage
+    // instead of this page. Cleared in the finally block below only —
+    // if we reach that normally (no page reload happened in between),
+    // we're demonstrably still on this same page and don't need it.
+    markPendingDepositReturn();
     try {
       if (connectedChainId !== chainId) {
         setStep("switching");
@@ -348,6 +357,7 @@ export function WalletDepositButton({
       setError(explainError(err));
     } finally {
       setStep("idle");
+      clearPendingDepositReturn();
     }
   }
 
