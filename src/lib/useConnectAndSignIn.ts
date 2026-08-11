@@ -5,6 +5,7 @@ import { useAccount, useConnect } from "wagmi";
 import { useAuth, isUserRejectionError } from "@/lib/auth-context";
 import { walletLog, errorDetails } from "@/lib/walletLog";
 import { waitForInjectedProvider } from "@/lib/wagmi";
+import { isStaleWalletConnectError, recoverFromStaleWalletConnectSession } from "@/lib/walletConnectReset";
 
 // Extracted out of ConnectWalletButton so any other CTA that links to a
 // gated /dashboard/* route (marketing page "Play"/"Dashboard" buttons,
@@ -128,6 +129,23 @@ export function useConnectAndSignIn() {
       await signIn(result.accounts[0], result.chainId);
     } catch (err) {
       walletLog("connect attempt failed", { attemptId: myAttemptId, ...errorDetails(err) });
+      // A NEW tab reusing a WalletConnect session that only ever
+      // PARTIALLY established in a different, now-abandoned tab (see
+      // walletConnectReset.ts's own doc-comment — confirmed live: this
+      // is exactly what a mobile wallet redirect landing in a fresh tab
+      // instead of the original one produces). This arrives here as a
+      // normal rejected connectAsync() promise, not a global uncaught
+      // error, so auth-context.tsx's own window-error listener never
+      // sees it — self-heal right here instead of leaving the user
+      // stuck retrying against the same corrupted storage forever
+      // (every retry would hit the identical error, since nothing else
+      // ever clears it). Reloads on success, so nothing past this point
+      // in the current attempt matters — return immediately rather than
+      // falling into the generic connectFailure branch below.
+      if (err instanceof Error && isStaleWalletConnectError(err.message)) {
+        recoverFromStaleWalletConnectSession("connectAsync");
+        return;
+      }
       if (isAlreadyConnectedError(err) && address && chainId != null) {
         walletLog("connector already connected, signing in directly", { attemptId: myAttemptId, address, chainId });
         if (attemptIdRef.current === myAttemptId) await signIn(address, chainId);

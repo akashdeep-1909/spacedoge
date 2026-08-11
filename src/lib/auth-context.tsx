@@ -20,7 +20,11 @@ import {
 import { useRouter } from "next/navigation";
 import { SiweMessage } from "siwe";
 import { walletLog, errorDetails } from "@/lib/walletLog";
-import { resetWalletConnectStorage, isStaleWalletConnectError } from "@/lib/walletConnectReset";
+import {
+  isStaleWalletConnectError,
+  consumeWalletConnectAutoRecoveredFlag,
+  recoverFromStaleWalletConnectSession,
+} from "@/lib/walletConnectReset";
 import { revokeInjectedPermissions } from "@/lib/wagmi";
 
 // iOS Safari kills in-flight fetch() connections when a tab backgrounds
@@ -62,10 +66,6 @@ export function isUserRejectionError(err: unknown): boolean {
 // signIn() starting) a following app-resume is still treated as
 // "probably related to that" — see lastWalletActionAtRef in AuthProvider.
 const RESUME_RELEVANCE_WINDOW_MS = 5 * 60_000;
-
-// Set right before resetWalletConnectStorage()'s reload, read once on
-// the next mount — see the auto-recovery effect's doc-comment below.
-const AUTO_RECOVERED_FLAG_KEY = "SpaceDOGE_wc_autorecovered";
 
 // Where to send the user back to once a connect/sign-in attempt that
 // started on THIS path finally completes — see markWalletActionRef's
@@ -160,14 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // reload that caused it, never lingers across later navigation.
   const [justAutoRecovered, setJustAutoRecovered] = useState(false);
   useEffect(() => {
-    try {
-      if (window.sessionStorage.getItem(AUTO_RECOVERED_FLAG_KEY) === "1") {
-        window.sessionStorage.removeItem(AUTO_RECOVERED_FLAG_KEY);
-        setJustAutoRecovered(true);
-      }
-    } catch {
-      // sessionStorage unavailable — fine, just skip the message
-    }
+    if (consumeWalletConnectAutoRecoveredFlag()) setJustAutoRecovered(true);
   }, []);
   // True while the mobile-resume handler below is retrying
   // reconnectAsync() after coming back from a wallet app — surfaced so
@@ -447,48 +440,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // this is a global uncaught error/rejection, not something raised
   // through any promise our own code awaits, the only place to catch it
   // is here. Detecting it and clearing just that storage (see
-  // resetWalletConnectStorage's own doc-comment) turns a dead crash
-  // screen into an automatic reload onto a clean state. The 10s guard
-  // prevents a reload loop if the same error somehow recurs immediately
-  // after reload (e.g. a genuinely broken relay) instead of clearing it.
+  // recoverFromStaleWalletConnectSession's own doc-comment — shared with
+  // useConnectAndSignIn.ts's own catch block, which hits this same class
+  // of corruption a different way) turns a dead crash screen into an
+  // automatic reload onto a clean state. That shared function's own 10s
+  // guard prevents a reload loop if the same error somehow recurs
+  // immediately after reload (e.g. a genuinely broken relay) instead of
+  // clearing it.
   useEffect(() => {
-    const AUTO_RESET_GUARD_KEY = "SpaceDOGE_wc_autoreset_at";
-    function shouldAutoReset(): boolean {
-      try {
-        const last = Number(window.sessionStorage.getItem(AUTO_RESET_GUARD_KEY) ?? "0");
-        return Date.now() - last > 10_000;
-      } catch {
-        return true;
-      }
-    }
-    function markAutoReset() {
-      try {
-        window.sessionStorage.setItem(AUTO_RESET_GUARD_KEY, String(Date.now()));
-      } catch {
-        // sessionStorage unavailable (private mode etc.) — fine to skip the guard
-      }
-    }
     function maybeRecover(message: string | null | undefined, source: string) {
       if (!isStaleWalletConnectError(message)) return;
-      if (!shouldAutoReset()) {
-        walletLog("stale WalletConnect error seen again within 10s — not auto-resetting again", { source, message });
-        return;
-      }
-      markAutoReset();
-      walletLog("stale WalletConnect session detected — clearing storage and reloading", { source, message });
-      // Survives the reload resetWalletConnectStorage() triggers (same
-      // tab, sessionStorage) so the fresh page load can tell the user
-      // what just happened — without this, the recovery is invisible:
-      // confirmed on a real device that this correctly detects and
-      // clears a corrupted session, but the user just sees a plain
-      // "Connect Wallet" button afterward with zero indication anything
-      // was fixed, indistinguishable from a silent failure.
-      try {
-        window.sessionStorage.setItem(AUTO_RECOVERED_FLAG_KEY, "1");
-      } catch {
-        // non-fatal — worst case the post-reload message just doesn't show
-      }
-      resetWalletConnectStorage();
+      walletLog("stale WalletConnect session detected", { source, message });
+      recoverFromStaleWalletConnectSession(source);
     }
     function onError(event: ErrorEvent) {
       maybeRecover(event.message, "error");
