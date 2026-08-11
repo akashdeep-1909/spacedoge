@@ -60,8 +60,10 @@ export function LegalPageLayout({
   summaryBody: string;
   highlights: LegalHighlight[];
   notice: string;
-  effectiveDate: string;
-  contactEmail: string;
+  // Optional — omit both to hide the "Effective date / Contact" bar
+  // entirely for a page that doesn't want it shown.
+  effectiveDate?: string;
+  contactEmail?: string;
   sections: LegalSection[];
   ctaHeading: string;
   ctaBody: string;
@@ -149,10 +151,12 @@ export function LegalPageLayout({
             </aside>
 
             <article className="ld-glass p-5 sm:p-7">
-              <div className="border-b border-line px-1 pb-5 text-xs text-muted">
-                Effective date: <strong className="text-foreground">{effectiveDate}</strong> · Contact:{" "}
-                <strong className="text-foreground">{contactEmail}</strong>
-              </div>
+              {effectiveDate && contactEmail && (
+                <div className="border-b border-line px-1 pb-5 text-xs text-muted">
+                  Effective date: <strong className="text-foreground">{effectiveDate}</strong> · Contact:{" "}
+                  <strong className="text-foreground">{contactEmail}</strong>
+                </div>
+              )}
 
               {sections.map((s) => (
                 <section key={s.id} id={s.id} className="scroll-mt-24 border-b border-line px-1 py-6 last:border-b-0">

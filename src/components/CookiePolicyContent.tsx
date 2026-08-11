@@ -173,8 +173,6 @@ export function CookiePolicyContent() {
         { title: "Template status", body: "This policy should be aligned with your real cookie banner and stack." },
       ]}
       notice="This page is a website-ready Cookie Policy template and should be reviewed alongside your actual consent and analytics setup before public launch."
-      effectiveDate="August 5, 2026"
-      contactEmail="privacy@spacedoge.games"
       sections={SECTIONS}
       ctaHeading="Need help with cookie preferences or consent setup?"
       ctaBody="Use this page as the legal and design foundation, then connect it to your live consent manager, analytics setup and compliance workflow before launch."
