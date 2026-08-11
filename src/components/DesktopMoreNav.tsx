@@ -13,7 +13,6 @@ import { useLocale } from "@/lib/i18n/LocaleProvider";
 // had no room left for all of them on a real laptop-width window and
 // silently clipped the trailing items).
 const MORE_LINKS = [
-  { href: "/dashboard/deposit", key: "nav.deposit" as const },
   { href: "/dashboard/convert", key: "nav.convert" as const },
   { href: "/dashboard/transfer", key: "nav.transfer" as const },
   { href: "/dashboard/withdraw", key: "nav.withdraw" as const },

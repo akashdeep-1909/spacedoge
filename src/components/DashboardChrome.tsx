@@ -26,6 +26,7 @@ const PRIMARY_NAV_LINKS = [
   { href: "/dashboard/play", key: "nav.play" as const },
   { href: "/dashboard/mining", key: "nav.miningRig" as const },
   { href: "/dashboard/wallet", key: "nav.wallet" as const },
+  { href: "/dashboard/deposit", key: "nav.deposit" as const },
 ];
 
 export function DashboardChrome({ children }: { children: ReactNode }) {
@@ -48,7 +49,7 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
             <p className="text-[11px] text-muted">{t("landing.tagline")}</p>
           </div>
         </Link>
-        <nav className="hidden min-w-0 flex-1 items-center gap-1 rounded-full border border-line bg-panel p-1 text-xs font-semibold lg:flex">
+        <nav className="hidden min-w-0 flex-1 items-center justify-center gap-1 rounded-full border border-line bg-panel p-1 text-xs font-semibold lg:flex">
           {PRIMARY_NAV_LINKS.map((l) => (
             <Link
               key={l.href}
