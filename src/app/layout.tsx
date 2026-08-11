@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { headers, cookies } from "next/headers";
 import { cookieToInitialState } from "wagmi";
@@ -18,6 +18,24 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+// Explicit even though Next.js already sets a sensible default
+// (width=device-width, initial-scale=1) — that default still allows
+// PINCH-ZOOM, which is what actually produced the squished-tiny-content-
+// in-a-sea-of-black-margin layout reported live from MetaMask's own
+// in-app browser: its chrome doesn't reset a user's pinch-zoom level
+// between page loads/navigations within the same browser tab, so a
+// zoom applied once (even by accident) silently persists onto every
+// later page. maximumScale/userScalable pin the page at 1:1 and disable
+// pinching entirely, so that zoomed-out state can't happen in the first
+// place — standard practice for a wallet-first dapp where the whole UI
+// is already designed to be legible at native scale.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export const metadata: Metadata = {
   // Without this, Next.js can't resolve the relative openGraph/twitter

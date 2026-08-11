@@ -78,7 +78,7 @@ export function WalletDepositButton({
   tokenContract: string;
   tokenDecimals: number;
 }) {
-  const { chainId: connectedChainId, isConnected } = useAccount();
+  const { address, chainId: connectedChainId, isConnected, connector: activeConnector } = useAccount();
   const { connectAsync, connectors } = useConnect();
   const { markWalletAction } = useAuth();
   // Own bounded busy state, deliberately NOT useConnect()'s own
@@ -321,6 +321,33 @@ export function WalletDepositButton({
         await switchToChainWithRetry();
       }
       setStep("sending");
+      // Re-confirm the account directly against the LIVE connector right
+      // before sending — not just trusting `address` from useAccount()'s
+      // own (possibly stale) cached state. Confirmed live: a real deposit
+      // attempt failed with viem's raw "Details: unknown account" error
+      // even though the header showed the exact right address — the
+      // wallet's own provider no longer recognized it as authorized for
+      // a write call by the time this ran. connector.getAccounts() forces
+      // a fresh eth_accounts round-trip to whichever provider is actually
+      // live right now (works the same for injected() and walletConnect()
+      // — both implement this per wagmi's own Connector contract), which
+      // both re-syncs anything stale in wagmi's cache AND catches a
+      // genuinely different active account before spending real gas on a
+      // transaction that would fail server-side anyway (deposits.ts only
+      // auto-credits a transfer sent from the SIGNED-IN session's own
+      // address — "sent_from_different_wallet" otherwise). No extra
+      // wallet prompt: eth_accounts is a silent read, not a permission
+      // request.
+      const freshAccounts = await activeConnector?.getAccounts?.().catch(() => []);
+      const freshAddress = freshAccounts?.[0];
+      if (!freshAddress) {
+        throw new Error("Your wallet isn't connected to this site right now — tap Reconnect Wallet above and try again.");
+      }
+      if (address && freshAddress.toLowerCase() !== address.toLowerCase()) {
+        throw new Error(
+          "Your wallet's active account has changed since you signed in — switch back to the original account, or disconnect and reconnect with this one, then try again."
+        );
+      }
       // Deliberately no watchAsset ("add token to wallet") step here
       // anymore — it was a SEPARATE wallet prompt before the real
       // transfer one, and on mobile each wallet prompt is its own full
@@ -342,6 +369,7 @@ export function WalletDepositButton({
           abi: ERC20_TRANSFER_ABI,
           functionName: "transfer",
           args: [treasuryAddress as `0x${string}`, parseUnits(amount, tokenDecimals)],
+          account: freshAddress,
         }),
         120_000,
         "Wallet didn't respond to the transaction request in time. Please try again."
