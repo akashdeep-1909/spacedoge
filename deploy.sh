@@ -6,7 +6,27 @@
 #   bash deploy.sh
 #
 # What it does, in order:
-#   1. npm install --include=dev - installs dependencies for THIS server
+#   1. rm -rf .next          - wipes any previous build output before
+#                             rebuilding. next build does NOT reliably
+#                             fully replace stale .next/server chunk
+#                             files from a PRIOR build on its own —
+#                             confirmed live: after several deploys in a
+#                             row on this host (one of which had earlier
+#                             been killed mid-build by the OOM/SIGKILL
+#                             issue NODE_OPTIONS below now guards
+#                             against), the site came back up after a
+#                             restart with most routes throwing
+#                             "TypeError: Cannot read properties of
+#                             undefined (reading 'call')" from deep
+#                             inside .next/server/webpack-runtime.js —
+#                             a stale build's webpack module-id map no
+#                             longer matching the actual chunk files
+#                             physically on disk after being partially
+#                             overwritten by the next build. A full
+#                             clean rebuild is the standard fix; doing
+#                             it every deploy is cheap insurance against
+#                             this recurring silently.
+#   2. npm install --include=dev - installs dependencies for THIS server
 #                             (Linux binaries — see DEPLOY.md for why a
 #                             Windows-built node_modules can't be shipped
 #                             instead). --include=dev is required here:
@@ -23,7 +43,7 @@
 #                             failed the build with "Cannot find module
 #                             '@tailwindcss/postcss'" despite it being listed
 #                             in package.json.
-#   2. npx prisma generate - regenerates the Prisma client explicitly, run
+#   3. npx prisma generate - regenerates the Prisma client explicitly, run
 #                             here rather than trusting package.json's own
 #                             "postinstall" hook to have done it: on hosts
 #                             where node_modules is a SYMLINK into a
@@ -41,8 +61,8 @@
 #                             this explicit step (run directly from this
 #                             script's own, correct working directory) is
 #                             the one that's actually relied on.
-#   3. npm run build        - production build (next build --webpack).
-#   4. npx prisma migrate deploy - applies any new database migrations;
+#   4. npm run build        - production build (next build --webpack).
+#   5. npx prisma migrate deploy - applies any new database migrations;
 #                                  safe to re-run, already-applied
 #                                  migrations are skipped.
 #
@@ -54,6 +74,7 @@
 # After this finishes, restart the app from cPanel's Setup Node.js App
 # page (Restart button) to pick up the new build.
 set -e
+rm -rf .next
 npm install --include=dev
 npx prisma generate --schema=./prisma/schema.prisma
 # NODE_OPTIONS caps V8's heap explicitly rather than trusting Next's own
