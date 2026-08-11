@@ -41,33 +41,34 @@ export async function revokeInjectedPermissions(): Promise<void> {
   await ethereum.request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] });
 }
 
-// The connect-side half of the same fix revokeInjectedPermissions
-// documents above — covers every path that reaches a stale MetaMask
-// grant WITHOUT going through this app's own disconnect button first
-// (a cleared browser cache/cookies is the reported real-world trigger:
-// it wipes wagmi's own persisted state, so this app shows "disconnected",
-// but MetaMask's SEPARATE, extension-owned permission grant for this
-// site is completely untouched by that — the very next connectAsync()
-// call finds it still authorized and returns its stored account list
-// with no prompt at all, silently ignoring whatever account is actually
-// active in the extension right now). wallet_requestPermissions forces
-// a genuine fresh account check even on an already-authorized site —
-// called as a best-effort nudge immediately before connectAsync()
-// (useConnectAndSignIn.ts), never depended on for the connect to
-// succeed: plenty of wallets besides MetaMask (mobile in-app browsers
-// especially) don't implement this method at all, so a rejection/
-// timeout here is expected and must never block the normal connect
-// flow that follows it. Bounded the same way this file's other
-// wallet-prompt calls are (see waitForInjectedProvider) — a wallet that
-// never resolves this must not hang the whole connect attempt.
-export async function requestFreshInjectedAccounts(timeoutMs = 8_000): Promise<void> {
-  const ethereum = (window as unknown as { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
-  if (!ethereum) return;
-  await Promise.race([
-    ethereum.request({ method: "wallet_requestPermissions", params: [{ eth_accounts: {} }] }),
-    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
-  ]);
-}
+// NOTE: there used to be a requestFreshInjectedAccounts() here — a
+// manual wallet_requestPermissions call fired immediately before every
+// connectAsync(), meant to force MetaMask to re-confirm the account
+// list even on an already-authorized site (the "stale account after
+// switching" bug this file's revokeInjectedPermissions half also
+// addresses). Removed: wagmi's own injected() connector already does
+// exactly this internally — it's constructed with shimDisconnect: true
+// by default (see node_modules/@wagmi/core's connectors/injected.js
+// connect()), which makes connectAsync() itself call
+// wallet_requestPermissions as ITS first step on every non-reconnecting
+// connect. Calling it a second time from here didn't add any real
+// protection the connector didn't already have — it only created a
+// genuine race: MetaMask allows at most one pending
+// wallet_requestPermissions request per origin, and our copy's
+// Promise.race gave up after a fixed timeout without cancelling the
+// underlying extension-side request. A user who took a few seconds to
+// notice/click that first (redundant) prompt left it dangling exactly
+// long enough for connectAsync()'s own internal wallet_requestPermissions
+// call to collide with it and fail immediately with
+// ResourceUnavailableRpcError (-32002, "already processing... please
+// wait") — no new popup ever shown, connect just silently "does
+// nothing." Confirmed as the cause of "connect wallet doesn't connect
+// smoothly, takes 2-3 tries": each retry re-triggered the same
+// collision until the user happened to notice the extension icon and
+// resolved the original stuck prompt by hand. See
+// useConnectAndSignIn.ts's own explicit ResourceUnavailableRpcError
+// handling for the case this can still genuinely occur (e.g. an
+// unrelated prior prompt already open) even with the redundant call gone.
 
 // Bounded-wait variant for the moment a connect attempt actually starts.
 // window.ethereum isn't always present the instant a page's own scripts

@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useAccount, useConnect } from "wagmi";
 import { useAuth, isUserRejectionError } from "@/lib/auth-context";
 import { walletLog, errorDetails } from "@/lib/walletLog";
-import { waitForInjectedProvider, requestFreshInjectedAccounts } from "@/lib/wagmi";
+import { waitForInjectedProvider } from "@/lib/wagmi";
 
 // Extracted out of ConnectWalletButton so any other CTA that links to a
 // gated /dashboard/* route (marketing page "Play"/"Dashboard" buttons,
@@ -23,6 +23,22 @@ function isAlreadyConnectedError(err: unknown): boolean {
   return err instanceof Error && (err.name === "ConnectorAlreadyConnectedError" || /already connected/i.test(err.message));
 }
 
+// MetaMask (and most injected wallets) allow at most one pending
+// wallet_requestPermissions/eth_requestAccounts request per origin —
+// this is what a SECOND connect attempt collides with while an earlier
+// prompt is still sitting open and un-acted-on (e.g. the user tapped
+// Connect Wallet, didn't notice the popup, and clicked it again). viem
+// surfaces this as ResourceUnavailableRpcError, code -32002. Unlike a
+// genuine failure, the fix here isn't "try again" (that repeats the
+// exact same collision) — it's "go find the prompt that's already
+// open," which is different enough from every other failure message
+// below to need its own copy.
+function isRequestAlreadyPendingError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const code = (err as { code?: unknown }).code;
+  return code === -32002 || /already pending|already processing/i.test(err.message);
+}
+
 async function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -34,8 +50,23 @@ export function useConnectAndSignIn() {
   const [connectFailure, setConnectFailure] = useState<string | null>(null);
   const [attempting, setAttempting] = useState(false);
   const attemptIdRef = useRef(0);
+  // Synchronous re-entrancy guard, set at the very top of the function
+  // before any `await`. `attempting` (React state) can't do this job on
+  // its own: it only flips true after waitForInjectedProvider's own
+  // await (up to 1.5s), leaving a real window where the Connect button
+  // isn't disabled yet and an impatient extra click/tap fires a second,
+  // fully concurrent connectAndSignIn() — two overlapping connectAsync()
+  // calls hitting the wallet's single-flight-per-origin request queue at
+  // once, the same class of "already pending" collision documented on
+  // isRequestAlreadyPendingError below, just from a different source.
+  const inFlightRef = useRef(false);
 
   async function connectAndSignIn() {
+    if (inFlightRef.current) {
+      walletLog("connectAndSignIn skipped — already in flight");
+      return;
+    }
+    inFlightRef.current = true;
     const myAttemptId = ++attemptIdRef.current;
     markWalletAction();
     setConnectFailure(null);
@@ -52,6 +83,7 @@ export function useConnectAndSignIn() {
     });
 
     if (!targetConnector) {
+      inFlightRef.current = false;
       setConnectFailure(
         injectedAvailable
           ? "No wallet extension found."
@@ -62,24 +94,14 @@ export function useConnectAndSignIn() {
 
     setAttempting(true);
     try {
-      // See requestFreshInjectedAccounts' own doc-comment (src/lib/
-      // wagmi.ts) — forces MetaMask (and compatible wallets) to
-      // re-confirm the account list even when this site is already
-      // silently authorized, so a switched account or a stale grant
-      // left over from a cleared cache actually gets picked up instead
-      // of connectAsync() below silently reusing whatever was granted
-      // at the ORIGINAL connect time. Injected connector only — this
-      // doesn't apply to walletConnect()'s own QR/deep-link flow, which
-      // always shows a real fresh session proposal anyway. Best-effort:
-      // never blocks or fails the connect attempt that follows it.
-      if (injectedAvailable) {
-        try {
-          await requestFreshInjectedAccounts();
-        } catch (err) {
-          walletLog("requestFreshInjectedAccounts failed (non-fatal, continuing)", { attemptId: myAttemptId, ...errorDetails(err) });
-        }
-      }
-
+      // No manual wallet_requestPermissions call here — the injected()
+      // connector (src/lib/wagmi.ts) already does that internally via
+      // its default shimDisconnect: true, as its own first step inside
+      // connectAsync() below. A duplicate call used to live here; see
+      // wagmi.ts's note at the old requestFreshInjectedAccounts site for
+      // why it was removed (it raced the connector's own internal call
+      // for MetaMask's single-flight-per-origin request slot, which is
+      // what made connecting need "2-3 tries" to actually go through).
       let result;
       const MAX_RELAY_RETRIES = 2;
       for (let relayAttempt = 0; ; relayAttempt++) {
@@ -113,14 +135,17 @@ export function useConnectAndSignIn() {
         setConnectFailure(
           isTransientRelayError(err)
             ? "Couldn't reach the wallet network — check your connection and try again."
-            : isUserRejectionError(err)
-              ? "Connection request declined. If your wallet showed a \"could not verify this site\" warning, look past it for the actual connect request, then tap Connect Wallet again."
-              : err instanceof Error
-                ? err.message
-                : "Failed to connect wallet."
+            : isRequestAlreadyPendingError(err)
+              ? "Your wallet already has a connection request open — open the extension (or your wallet app) and approve or dismiss it, then tap Connect Wallet again."
+              : isUserRejectionError(err)
+                ? "Connection request declined. If your wallet showed a \"could not verify this site\" warning, look past it for the actual connect request, then tap Connect Wallet again."
+                : err instanceof Error
+                  ? err.message
+                  : "Failed to connect wallet."
         );
       }
     } finally {
+      inFlightRef.current = false;
       if (attemptIdRef.current === myAttemptId) setAttempting(false);
     }
   }
