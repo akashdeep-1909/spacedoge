@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAccount, useConnect, useSwitchChain, useWriteContract, useWaitForTransactionReceipt, useWatchAsset } from "wagmi";
+import { useAccount, useConnect, useSwitchChain, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseUnits } from "viem";
 import { waitForInjectedProvider, type wagmiConfig } from "@/lib/wagmi";
 import { isUserRejectionError, useAuth } from "@/lib/auth-context";
@@ -88,21 +88,82 @@ export function WalletDepositButton({
   // even after the timeout below gives up on that promise.
   const [reconnecting, setReconnecting] = useState(false);
   const { switchChainAsync } = useSwitchChain();
-  const { writeContractAsync, data: txHash, reset } = useWriteContract();
-  const { watchAssetAsync } = useWatchAsset();
-  const { data: receipt, isLoading: isConfirming } = useWaitForTransactionReceipt({
-    hash: txHash,
-    confirmations: 1, // just for "it landed" UI feedback — real crediting still waits for minConfirmations via the watcher
+  const { writeContractAsync, reset } = useWriteContract();
+
+  // The pending hash being verified — deliberately its OWN state, not
+  // read straight off useWriteContract()'s own `data`. Confirmed live
+  // root cause of "auto-verify (and even manually pasting the hash)
+  // does nothing": on mobile, a real app-switch to the wallet and back
+  // can reload this page (Safari/Chrome routinely do this for a
+  // backgrounded tab, and some wallet deep-link return flows are a real
+  // navigation, not just a foreground/background toggle) — that wipes
+  // ALL in-memory React state, including whatever useWriteContract()
+  // was holding, before this component ever gets a chance to verify the
+  // transaction it just sent. Persisting the hash to localStorage the
+  // MOMENT it's known (not after waiting for a receipt — the server's
+  // own verify already does its own eth_getTransactionReceipt lookup,
+  // it doesn't need this component to also confirm one first) and
+  // restoring it on mount means verification survives that reload and
+  // picks up exactly where it left off, instead of silently going
+  // nowhere.
+  const pendingKey = `spacedoge:pending-deposit:${chainKey}`;
+  const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | null>(null);
+  const { isLoading: isConfirming } = useWaitForTransactionReceipt({
+    hash: pendingTxHash ?? undefined,
+    confirmations: 1, // cosmetic "it landed" button label only — real crediting never waits on this, see below
   });
 
-  // Self-verify the moment this button's own transaction lands, instead
-  // of purely waiting on the background cron watcher (src/lib/deposits.ts
-  // syncAllDeposits). That watcher only scans FORWARD from the block it
-  // happened to be at on a chain's first-ever sync cycle — a deposit
-  // that landed at/before that exact moment (entirely possible for a
-  // chain an admin just added, see the real incident this fixed) is
-  // permanently invisible to it. This button already has the exact
-  // txHash in hand right after sending, so it can call the same
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(pendingKey);
+    if (stored && /^0x[a-f0-9]{64}$/i.test(stored)) {
+      // Deliberately a mount-time effect, not a useState lazy
+      // initializer that reads localStorage directly: this is a
+      // "use client" component that still gets server-rendered for the
+      // initial HTML (window/localStorage don't exist there), so a
+      // lazy initializer would return a DIFFERENT value between the
+      // server pass and the client's hydration pass — a real hydration
+      // mismatch, since pendingTxHash being set-or-not changes what
+      // actually renders (the AutoVerifyStatus block below). Starting
+      // both passes at null, then syncing from localStorage once
+      // mounted client-side, is the textbook-correct effect use case
+      // (see react.dev/learn/you-might-not-need-an-effect's own
+      // "Effects DO synchronize with external systems" section) —
+      // eslint's react-hooks/set-state-in-effect rule flags this
+      // pattern generically regardless of legitimacy.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPendingTxHash(stored as `0x${string}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only restore, deliberately not re-run if chainKey changes after mount (a new instance renders for a different chain anyway)
+  }, []);
+
+  function rememberPending(hash: `0x${string}`) {
+    setPendingTxHash(hash);
+    try {
+      window.localStorage.setItem(pendingKey, hash);
+    } catch {
+      // Private browsing / storage disabled — verification still runs
+      // for this page's own remaining lifetime, it just won't survive
+      // a reload. Not worth failing the deposit over.
+    }
+  }
+
+  function forgetPending() {
+    try {
+      window.localStorage.removeItem(pendingKey);
+    } catch {
+      // Same as above — nothing to clean up if it was never stored.
+    }
+  }
+
+  // Self-verify the moment a hash is known (fresh from a send, or
+  // restored from a reload above), instead of purely waiting on the
+  // background cron watcher (src/lib/deposits.ts syncAllDeposits). That
+  // watcher only scans FORWARD from the block it happened to be at on a
+  // chain's first-ever sync cycle — a deposit that landed at/before that
+  // exact moment (entirely possible for a chain an admin just added, see
+  // the real incident this fixed) is permanently invisible to it. This
+  // button already has the exact txHash in hand, so it can call the same
   // hash-based verify the manual "paste tx hash" flow uses
   // (verifyDepositByTxHash — looks up the transaction directly via
   // eth_getTransactionReceipt, no cursor involved) instead of hoping the
@@ -117,8 +178,8 @@ export function WalletDepositButton({
   // fallback — see resolveRpcUrl in deposits.ts), a completely different
   // node from whatever the user's own wallet/dapp provider used to
   // report the receipt here. That server-side node routinely lags a few
-  // seconds behind — a single verify attempt fired the instant `receipt`
-  // resolves can easily race ahead of it and come back "not found" even
+  // seconds behind — a single verify attempt fired the instant this hash
+  // is known can easily race ahead of it and come back "not found" even
   // though the transaction is real and already mined. Every other status
   // (credited, pending, or a genuine terminal failure like failed_tx /
   // sent_from_different_wallet) is definitive and NOT retried.
@@ -130,37 +191,46 @@ export function WalletDepositButton({
   const [autoVerifyGaveUp, setAutoVerifyGaveUp] = useState(false);
 
   useEffect(() => {
-    if (!receipt || !txHash) return;
-    if (verifiedTxHash.current !== txHash) {
-      verifiedTxHash.current = txHash;
+    if (!pendingTxHash) return;
+    if (verifiedTxHash.current !== pendingTxHash) {
+      verifiedTxHash.current = pendingTxHash;
       retryCountRef.current = 0;
       setAutoVerifyGaveUp(false);
-      verifyDeposit.mutate({ txHash, chainKey });
+      verifyDeposit.mutate({ txHash: pendingTxHash, chainKey });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately excludes verifyDeposit (a new mutation object identity every render would otherwise re-fire this)
-  }, [receipt, txHash, chainKey]);
+  }, [pendingTxHash, chainKey]);
 
   useEffect(() => {
-    if (!txHash || verifiedTxHash.current !== txHash) return;
+    if (!pendingTxHash || verifiedTxHash.current !== pendingTxHash) return;
     const result = verifyDeposit.data;
-    if (!result || !("error" in result)) return; // no result yet, or a definitive credited/pending — nothing to retry
-    if (result.status !== "not_found" && result.status !== "rpc_error") return; // a real terminal failure — retrying won't help
+    if (!result) return; // no result yet — nothing to act on
+    if (!("error" in result)) {
+      // credited or pending — a real, matched deposit is on record
+      // either way, so this hash no longer needs to survive a reload.
+      forgetPending();
+      return;
+    }
+    if (result.status !== "not_found" && result.status !== "rpc_error") {
+      forgetPending(); // a genuine terminal failure — retrying won't change it
+      return;
+    }
     if (retryCountRef.current >= MAX_AUTO_VERIFY_RETRIES) {
       setAutoVerifyGaveUp(true);
-      return;
+      return; // keep it persisted — the manual box (or a future page load) can still pick this hash back up
     }
     retryCountRef.current += 1;
     // 5s, 8s, 12s, 18s, 27s, 40s — gives a slow public RPC node
     // increasing room to catch up without hammering it every tick.
     const delayMs = 5000 * Math.pow(1.5, retryCountRef.current - 1);
     retryTimerRef.current = setTimeout(() => {
-      verifyDeposit.mutate({ txHash, chainKey });
+      verifyDeposit.mutate({ txHash: pendingTxHash, chainKey });
     }, delayMs);
     return () => {
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- verifyDeposit.data is the real trigger; verifyDeposit itself is a stable-enough mutate ref for this purpose
-  }, [verifyDeposit.data, txHash, chainKey]);
+  }, [verifyDeposit.data, pendingTxHash, chainKey]);
 
   const [amount, setAmount] = useState("10");
   const [error, setError] = useState<string | null>(null);
@@ -241,27 +311,22 @@ export function WalletDepositButton({
         setStep("switching");
         await switchToChainWithRetry();
       }
-      // Best-effort only — most wallets have no cached metadata for an
-      // arbitrary ERC20 contract, so without this the confirmation
-      // screen shows "Sending 10 Unknown" instead of "10 USDT" (real,
-      // observed MetaMask behavior on this exact flow). Never blocks
-      // the actual transfer: an unsupported wallet, a dismissed
-      // "add token?" prompt, or any other failure here is silently
-      // swallowed and the deposit proceeds exactly as before.
-      try {
-        await watchAssetAsync({
-          type: "ERC20",
-          options: { address: tokenContract as `0x${string}`, decimals: tokenDecimals, symbol: "USDT" },
-        });
-      } catch {
-        // Ignore — purely cosmetic, the transfer below is unaffected.
-      }
       setStep("sending");
+      // Deliberately no watchAsset ("add token to wallet") step here
+      // anymore — it was a SEPARATE wallet prompt before the real
+      // transfer one, and on mobile each wallet prompt is its own full
+      // app-switch round trip. Two prompts meant two round trips
+      // (confirmed live as "very inconvenient": add-token screen, back
+      // to spacedoge, back to the wallet again for the actual confirm).
+      // It was already purely cosmetic (nicer "10 USDT" vs "10 Unknown"
+      // on the confirm screen) — not worth doubling the app-switch cost
+      // of every single deposit for.
+      //
       // 120s, not 60 — same reasoning as ConnectWalletButton.tsx's
       // CONNECT_TIMEOUT_MS: a user actually reading and approving a real
       // transfer inside their wallet app can easily take longer than 60
       // seconds, especially on mobile with an app-switch round trip.
-      await withTimeout(
+      const hash = await withTimeout(
         writeContractAsync({
           chainId: chainId as RegisteredChainId,
           address: tokenContract as `0x${string}`,
@@ -272,6 +337,13 @@ export function WalletDepositButton({
         120_000,
         "Wallet didn't respond to the transaction request in time. Please try again."
       );
+      // Persisted immediately — not after also waiting for a receipt —
+      // specifically so a mobile app-switch-triggered reload right after
+      // this point (before this component would otherwise have gotten a
+      // chance to see its own receipt land) still has the hash saved to
+      // resume verifying on the next mount. See rememberPending's own
+      // call site (the mount-restore effect above) for the full reasoning.
+      rememberPending(hash);
     } catch (err) {
       setError(explainError(err));
     } finally {
@@ -382,7 +454,9 @@ export function WalletDepositButton({
         </div>
       )}
       {error && <p className="mt-2 text-xs text-risk">{error}</p>}
-      {receipt && <AutoVerifyStatus result={verifyDeposit.data} isPending={verifyDeposit.isPending} gaveUp={autoVerifyGaveUp} txHash={txHash} />}
+      {pendingTxHash && (
+        <AutoVerifyStatus result={verifyDeposit.data} isPending={verifyDeposit.isPending} gaveUp={autoVerifyGaveUp} txHash={pendingTxHash} />
+      )}
     </div>
   );
 }

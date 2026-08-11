@@ -21,6 +21,7 @@ import { useRouter } from "next/navigation";
 import { SiweMessage } from "siwe";
 import { walletLog, errorDetails } from "@/lib/walletLog";
 import { resetWalletConnectStorage, isStaleWalletConnectError } from "@/lib/walletConnectReset";
+import { revokeInjectedPermissions } from "@/lib/wagmi";
 
 // iOS Safari kills in-flight fetch() connections when a tab backgrounds
 // — even briefly, which is exactly what happens mid-request during the
@@ -741,6 +742,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetch("/api/auth/logout", { method: "POST" });
     setSession(null);
     disconnect();
+    // See revokeInjectedPermissions' own doc-comment (src/lib/wagmi.ts)
+    // — without this, MetaMask keeps silently reusing whatever account
+    // was originally authorized on the NEXT connect, ignoring whatever
+    // account the user has since made active in the extension. Wallets
+    // that don't support this method reject/throw here — expected,
+    // swallowed; wagmi's own disconnect() above already ran regardless.
+    try {
+      await revokeInjectedPermissions();
+    } catch {
+      // Not supported by this wallet, or nothing to revoke — fine either way.
+    }
     // A full reload (not just clearing React Query state client-side) —
     // per-page hooks (balances, mining stats, referral data, etc.) don't
     // re-key or refetch off `session` alone, so without this the

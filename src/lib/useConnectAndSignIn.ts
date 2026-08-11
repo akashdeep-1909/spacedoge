@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useAccount, useConnect } from "wagmi";
 import { useAuth, isUserRejectionError } from "@/lib/auth-context";
 import { walletLog, errorDetails } from "@/lib/walletLog";
-import { waitForInjectedProvider } from "@/lib/wagmi";
+import { waitForInjectedProvider, requestFreshInjectedAccounts } from "@/lib/wagmi";
 
 // Extracted out of ConnectWalletButton so any other CTA that links to a
 // gated /dashboard/* route (marketing page "Play"/"Dashboard" buttons,
@@ -62,6 +62,24 @@ export function useConnectAndSignIn() {
 
     setAttempting(true);
     try {
+      // See requestFreshInjectedAccounts' own doc-comment (src/lib/
+      // wagmi.ts) — forces MetaMask (and compatible wallets) to
+      // re-confirm the account list even when this site is already
+      // silently authorized, so a switched account or a stale grant
+      // left over from a cleared cache actually gets picked up instead
+      // of connectAsync() below silently reusing whatever was granted
+      // at the ORIGINAL connect time. Injected connector only — this
+      // doesn't apply to walletConnect()'s own QR/deep-link flow, which
+      // always shows a real fresh session proposal anyway. Best-effort:
+      // never blocks or fails the connect attempt that follows it.
+      if (injectedAvailable) {
+        try {
+          await requestFreshInjectedAccounts();
+        } catch (err) {
+          walletLog("requestFreshInjectedAccounts failed (non-fatal, continuing)", { attemptId: myAttemptId, ...errorDetails(err) });
+        }
+      }
+
       let result;
       const MAX_RELAY_RETRIES = 2;
       for (let relayAttempt = 0; ; relayAttempt++) {

@@ -15,6 +15,60 @@ export function hasInjectedProvider(): boolean {
   return typeof window !== "undefined" && Boolean((window as unknown as { ethereum?: unknown }).ethereum);
 }
 
+// MetaMask (and most injected wallets) keep a SITE-LEVEL account
+// permission grant that's completely independent of wagmi's own
+// disconnect() — confirmed live: switching the "active" account in the
+// extension's own UI dropdown does NOT change which account an
+// ALREADY-authorized site sees. The next eth_requestAccounts call just
+// silently returns whichever account(s) were granted at the ORIGINAL
+// connect time, no re-prompt shown, even after this app's own
+// Disconnect button ran and wagmi's own state was cleared — reported
+// live as "pick most recent wallet connect even change in metamask to
+// another wallet account". wallet_revokePermissions (the newer
+// EIP-2255-ish method MetaMask and a growing set of wallets support)
+// actually revokes that grant, so the NEXT connect() is forced to show
+// a genuine fresh account-selection prompt reflecting whatever account
+// the user currently has active — called from this app's own
+// disconnect flow (auth-context.tsx signOut) specifically so the *next*
+// connect starts clean, not as part of connecting itself. Best-effort:
+// older wallets/some mobile in-app browsers don't implement this method
+// at all, so a rejection here is expected and swallowed by the caller,
+// not a real failure — wagmi's own disconnect() already did its part
+// regardless.
+export async function revokeInjectedPermissions(): Promise<void> {
+  const ethereum = (window as unknown as { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
+  if (!ethereum) return;
+  await ethereum.request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] });
+}
+
+// The connect-side half of the same fix revokeInjectedPermissions
+// documents above — covers every path that reaches a stale MetaMask
+// grant WITHOUT going through this app's own disconnect button first
+// (a cleared browser cache/cookies is the reported real-world trigger:
+// it wipes wagmi's own persisted state, so this app shows "disconnected",
+// but MetaMask's SEPARATE, extension-owned permission grant for this
+// site is completely untouched by that — the very next connectAsync()
+// call finds it still authorized and returns its stored account list
+// with no prompt at all, silently ignoring whatever account is actually
+// active in the extension right now). wallet_requestPermissions forces
+// a genuine fresh account check even on an already-authorized site —
+// called as a best-effort nudge immediately before connectAsync()
+// (useConnectAndSignIn.ts), never depended on for the connect to
+// succeed: plenty of wallets besides MetaMask (mobile in-app browsers
+// especially) don't implement this method at all, so a rejection/
+// timeout here is expected and must never block the normal connect
+// flow that follows it. Bounded the same way this file's other
+// wallet-prompt calls are (see waitForInjectedProvider) — a wallet that
+// never resolves this must not hang the whole connect attempt.
+export async function requestFreshInjectedAccounts(timeoutMs = 8_000): Promise<void> {
+  const ethereum = (window as unknown as { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
+  if (!ethereum) return;
+  await Promise.race([
+    ethereum.request({ method: "wallet_requestPermissions", params: [{ eth_accounts: {} }] }),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+}
+
 // Bounded-wait variant for the moment a connect attempt actually starts.
 // window.ethereum isn't always present the instant a page's own scripts
 // run — MetaMask's in-app browser (and some extensions) inject it
