@@ -243,6 +243,30 @@ enum DepositStatus {
   CREDITED // confirmed and credited to PLAY_USDT — terminal, never re-credited
 }
 
+// How this row first entered our system — added after admins reported
+// being unable to tell, from /admin/deposits alone, which rows the
+// system found and processed on its own versus which ones needed a
+// human (the depositing user, or an admin) to step in. WATCHER and
+// AUTO_VERIFY are both "the system did it" (see src/lib/deposits.ts's
+// creditIfReady, the shared crediting core both go through) —
+// MANUAL_VERIFY and ADMIN_ASSIGN both required a person to act.
+// Set once, on the row's FIRST creation (creditIfReady's `create`
+// branch, not `update`) for WATCHER/AUTO_VERIFY/MANUAL_VERIFY — it
+// records how the deposit was first discovered, not who last touched
+// it. ADMIN_ASSIGN is the one exception: manuallyCreditDeposit
+// (the admin "Assign & Credit" action) deliberately OVERWRITES
+// whatever source was already on the row, because "an admin had to
+// manually resolve this one" is worth flagging regardless of how it
+// was originally noticed (e.g. the watcher saw it, but it sat
+// UNMATCHED until an admin assigned it — that's a manual outcome, not
+// an automatic one).
+enum DepositSource {
+  WATCHER // found by the background block-scanning cron (src/lib/deposits.ts syncAllDeposits)
+  AUTO_VERIFY // found by WalletDepositButton's own automatic post-send lookup — no one pasted anything
+  MANUAL_VERIFY // a user pasted the tx hash into the "Already sent it?" box themselves
+  ADMIN_ASSIGN // an admin used /admin/deposits' "Assign & Credit" to manually resolve it
+}
+
 model OnchainDeposit {
   id              String         @id @default(cuid())
   chain           String // DepositChainConfig.chainKey, e.g. "BEP20", "TRC20"
@@ -252,6 +276,7 @@ model OnchainDeposit {
   amount          Decimal        @db.Decimal(24, 8)
   confirmations   Int            @default(0)
   status          DepositStatus  @default(UNMATCHED)
+  source          DepositSource  @default(WATCHER) // see DepositSource above; defaults WATCHER for pre-existing rows backfilled by this column's own migration, since the watcher created the vast majority of historical rows before this concept existed
   walletProfileId String?
   walletProfile   WalletProfile? @relation(fields: [walletProfileId], references: [id])
   creditedAt      DateTime?

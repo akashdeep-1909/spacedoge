@@ -2,8 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/session";
 import { verifyDepositByTxHash } from "@/lib/deposits";
+import { DepositSource } from "@/generated/prisma/enums";
 
-const bodySchema = z.object({ txHash: z.string().min(1), chainKey: z.string().min(1) });
+// `source` distinguishes the two real callers of this one endpoint —
+// WalletDepositButton's own automatic post-send check (never any user
+// input involved) vs the dashboard's "Already sent it?" box (the user
+// typed/pasted the hash themselves) — recorded on the resulting
+// OnchainDeposit row so /admin/deposits can show which is which (see
+// DepositSource's own doc-comment in schema.prisma). Defaults to
+// "manual" — the safer assumption for any caller that omits it (e.g. an
+// older cached client build) is "a person did this," not "the system
+// did this on its own."
+const bodySchema = z.object({
+  txHash: z.string().min(1),
+  chainKey: z.string().min(1),
+  source: z.enum(["auto", "manual"]).default("manual"),
+});
 
 const MESSAGE: Record<string, string> = {
   invalid_hash: "That doesn't look like a transaction hash.",
@@ -31,7 +45,12 @@ export async function POST(request: NextRequest) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
-  const result = await verifyDepositByTxHash(parsed.data.txHash, session.walletProfileId, parsed.data.chainKey);
+  const result = await verifyDepositByTxHash(
+    parsed.data.txHash,
+    session.walletProfileId,
+    parsed.data.chainKey,
+    parsed.data.source === "auto" ? DepositSource.AUTO_VERIFY : DepositSource.MANUAL_VERIFY
+  );
 
   if (result.status === "credited" || result.status === "pending") {
     return NextResponse.json(result);

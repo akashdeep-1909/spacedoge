@@ -163,7 +163,7 @@ function ChainDepositPanel({ chain, sendFromAddress }: { chain: DepositChainInfo
 
   function doVerify() {
     if (!verifyTxHash.trim()) return;
-    verifyDeposit.mutate({ txHash: verifyTxHash.trim(), chainKey: chain.chainKey });
+    verifyDeposit.mutate({ txHash: verifyTxHash.trim(), chainKey: chain.chainKey, source: "manual" });
   }
 
   async function copyAddress() {

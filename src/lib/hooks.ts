@@ -145,7 +145,7 @@ export type VerifyDepositResult =
 export function useVerifyDeposit() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { txHash: string; chainKey: string }): Promise<VerifyDepositResult> => {
+    mutationFn: async (input: { txHash: string; chainKey: string; source: "auto" | "manual" }): Promise<VerifyDepositResult> => {
       const res = await fetch("/api/wallet/deposit-verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -745,6 +745,7 @@ export interface AdminDepositRow {
   amount: number;
   confirmations: number;
   status: "UNMATCHED" | "PENDING" | "CREDITED";
+  source: "WATCHER" | "AUTO_VERIFY" | "MANUAL_VERIFY" | "ADMIN_ASSIGN";
   walletAddress: string | null;
   createdAt: string;
   creditedAt: string | null;

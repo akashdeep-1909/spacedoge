@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { db } from "@/lib/db";
-import { BalanceType, DepositStatus } from "@/generated/prisma/enums";
+import { BalanceType, DepositStatus, DepositSource } from "@/generated/prisma/enums";
 import { getDepositChainConfigs, getDepositChainConfig } from "@/lib/settings";
 import type { DepositChainConfig, DepositTreasuryAddress } from "@/generated/prisma/client";
 
@@ -276,6 +276,7 @@ async function syncEvmChain(config: DepositChainConfig): Promise<void> {
           amount,
           confirmations,
           minConfirmations: config.minConfirmations,
+          source: DepositSource.WATCHER,
         });
       }
       scannedTo = toBlock;
@@ -363,6 +364,7 @@ async function syncTronAddress(config: DepositChainConfig, address: string): Pro
       amount,
       confirmations: 1,
       minConfirmations: 1,
+      source: DepositSource.WATCHER,
     });
   }
 }
@@ -379,8 +381,17 @@ async function creditIfReady(input: {
   amount: number;
   confirmations: number;
   minConfirmations: number;
+  // How this row was first discovered — see DepositSource's own
+  // doc-comment in schema.prisma. Only ever written on the row's FIRST
+  // creation (below), never on an update: it records how the deposit
+  // was first noticed, not who most recently re-checked it. A watcher
+  // scan and a user's own verify-by-hash call can both legitimately
+  // race to find the same brand-new transaction — whichever wins the
+  // upsert's `create` branch is what actually happened first, and that's
+  // the answer worth keeping.
+  source: DepositSource;
 }) {
-  const { chainKey, txHash, from, treasury, amount, confirmations, minConfirmations } = input;
+  const { chainKey, txHash, from, treasury, amount, confirmations, minConfirmations, source } = input;
   if (!Number.isFinite(amount) || amount <= 0) return null;
 
   return db.$transaction(async (trx) => {
@@ -405,6 +416,7 @@ async function creditIfReady(input: {
         amount,
         confirmations,
         status,
+        source,
         walletProfileId: walletProfile?.id,
       },
       update: {
@@ -454,22 +466,31 @@ export type VerifyDepositResult =
 // endpoint) and runs it through the same creditIfReady() crediting
 // logic, so a user who sent a real deposit doesn't have to wait for
 // the next lazy poll.
+//
+// `source` distinguishes the two real UI callers of this same function
+// (see /api/wallet/deposit-verify's own request body) — WalletDepositButton's
+// automatic post-send lookup (AUTO_VERIFY, no one pasted anything) versus
+// the dashboard's own "Already sent it?" box (MANUAL_VERIFY, the user
+// typed/pasted the hash themselves). Recorded on the resulting
+// OnchainDeposit row so /admin/deposits can show which is which.
 export async function verifyDepositByTxHash(
   txHash: string,
   callerWalletProfileId: string,
-  chainKey: string
+  chainKey: string,
+  source: typeof DepositSource.AUTO_VERIFY | typeof DepositSource.MANUAL_VERIFY
 ): Promise<VerifyDepositResult> {
   const config = await getDepositChainConfig(chainKey);
   if (!config || !config.enabled) return { status: "not_configured" };
 
-  if (config.kind === "TRON") return verifyTronDeposit(txHash, config);
-  return verifyEvmDeposit(txHash, config, callerWalletProfileId);
+  if (config.kind === "TRON") return verifyTronDeposit(txHash, config, source);
+  return verifyEvmDeposit(txHash, config, callerWalletProfileId, source);
 }
 
 async function verifyEvmDeposit(
   txHash: string,
   config: DepositChainConfig,
-  callerWalletProfileId: string
+  callerWalletProfileId: string,
+  source: typeof DepositSource.AUTO_VERIFY | typeof DepositSource.MANUAL_VERIFY
 ): Promise<VerifyDepositResult> {
   const hash = txHash.trim().toLowerCase();
   if (!/^0x[a-f0-9]{64}$/.test(hash)) return { status: "invalid_hash" };
@@ -521,6 +542,7 @@ async function verifyEvmDeposit(
     amount,
     confirmations,
     minConfirmations: config.minConfirmations,
+    source,
   });
   if (!deposit) return { status: "no_matching_transfer" }; // amount parsed as 0/invalid — treat like no real transfer
 
@@ -544,7 +566,11 @@ async function verifyEvmDeposit(
 // the caller). It still runs the transfer through creditIfReady() so a
 // real, matching deposit is recorded and visible to admins immediately
 // rather than waiting for the next background poll.
-async function verifyTronDeposit(txHash: string, config: DepositChainConfig): Promise<VerifyDepositResult> {
+async function verifyTronDeposit(
+  txHash: string,
+  config: DepositChainConfig,
+  source: typeof DepositSource.AUTO_VERIFY | typeof DepositSource.MANUAL_VERIFY
+): Promise<VerifyDepositResult> {
   const hash = txHash.trim();
   if (!/^[a-fA-F0-9]{64}$/.test(hash)) return { status: "invalid_hash" };
 
@@ -609,6 +635,7 @@ async function verifyTronDeposit(txHash: string, config: DepositChainConfig): Pr
     amount,
     confirmations: 1,
     minConfirmations: 1,
+    source,
   });
   if (!deposit) return { status: "no_matching_transfer" };
 
@@ -636,6 +663,13 @@ export async function manuallyCreditDeposit(depositId: string, walletProfileId: 
         walletProfileId,
         status: DepositStatus.CREDITED,
         creditedAt: new Date(),
+        // Deliberately overwrites whatever source was already on the
+        // row (unlike creditIfReady's create-only write above) — see
+        // DepositSource's own doc-comment: an admin having to manually
+        // resolve this one is the fact worth recording here, regardless
+        // of how it was originally noticed (e.g. the watcher saw it but
+        // it sat UNMATCHED until an admin stepped in).
+        source: DepositSource.ADMIN_ASSIGN,
       },
     });
 

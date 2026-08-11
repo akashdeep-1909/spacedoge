@@ -197,7 +197,7 @@ export function WalletDepositButton({
       verifiedTxHash.current = pendingTxHash;
       retryCountRef.current = 0;
       setAutoVerifyGaveUp(false);
-      verifyDeposit.mutate({ txHash: pendingTxHash, chainKey });
+      verifyDeposit.mutate({ txHash: pendingTxHash, chainKey, source: "auto" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately excludes verifyDeposit (a new mutation object identity every render would otherwise re-fire this)
   }, [pendingTxHash, chainKey]);
@@ -225,7 +225,7 @@ export function WalletDepositButton({
     // increasing room to catch up without hammering it every tick.
     const delayMs = 5000 * Math.pow(1.5, retryCountRef.current - 1);
     retryTimerRef.current = setTimeout(() => {
-      verifyDeposit.mutate({ txHash: pendingTxHash, chainKey });
+      verifyDeposit.mutate({ txHash: pendingTxHash, chainKey, source: "auto" });
     }, delayMs);
     return () => {
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);

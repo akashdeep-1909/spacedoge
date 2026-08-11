@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
       amount: Number(r.amount),
       confirmations: r.confirmations,
       status: r.status,
+      source: r.source,
       walletAddress: r.walletProfile?.address ?? null,
       createdAt: r.createdAt,
       creditedAt: r.creditedAt,

@@ -13,6 +13,29 @@ const STATUS_STYLE: Record<string, string> = {
 
 const FILTERS = ["", "UNMATCHED", "PENDING", "CREDITED"] as const;
 
+// How a deposit row first entered the system — see DepositSource's own
+// doc-comment in schema.prisma. WATCHER/AUTO_VERIFY are both "the
+// system did it with no one pasting/assigning anything" (styled mint,
+// same family as a healthy/no-action-needed state elsewhere in this
+// admin); MANUAL_VERIFY/ADMIN_ASSIGN both needed a person to act
+// (styled gold, same family this page already uses for "needs
+// attention"/in-progress elsewhere). The label spells out WHO/WHAT
+// specifically, since "Auto"/"Manual" alone doesn't say whether a user
+// or an admin was the one who intervened — the exact distinction that
+// prompted adding this tag in the first place.
+const SOURCE_STYLE: Record<string, string> = {
+  WATCHER: "border-mint/25 bg-mint-soft text-mint",
+  AUTO_VERIFY: "border-mint/25 bg-mint-soft text-mint",
+  MANUAL_VERIFY: "border-gold/25 bg-gold-soft text-gold",
+  ADMIN_ASSIGN: "border-gold/25 bg-gold-soft text-gold",
+};
+const SOURCE_LABEL: Record<string, string> = {
+  WATCHER: "Auto · Watcher",
+  AUTO_VERIFY: "Auto · On Deposit",
+  MANUAL_VERIFY: "Manual · User Hash",
+  ADMIN_ASSIGN: "Manual · Admin",
+};
+
 export default function AdminDepositsPage() {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("");
   const [txHashInput, setTxHashInput] = useState("");
@@ -130,9 +153,17 @@ function DepositRow({ row }: { row: AdminDepositRow }) {
   return (
     <tr className="border-b border-line align-top last:border-0">
       <td className="px-4 py-3">
-        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${STATUS_STYLE[row.status]}`}>
-          {row.status}
-        </span>
+        <div className="flex flex-col items-start gap-1">
+          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${STATUS_STYLE[row.status]}`}>
+            {row.status}
+          </span>
+          <span
+            title={`How this deposit was first found/resolved: ${SOURCE_LABEL[row.source] ?? row.source}`}
+            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${SOURCE_STYLE[row.source] ?? "border-line bg-panel text-muted"}`}
+          >
+            {SOURCE_LABEL[row.source] ?? row.source}
+          </span>
+        </div>
       </td>
       <td className="px-4 py-3 font-semibold">
         ${row.amount.toFixed(2)}
