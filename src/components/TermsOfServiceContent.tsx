@@ -211,7 +211,7 @@ const SECTIONS: LegalSection[] = [
       {
         type: "subcard",
         title: "Legal contact",
-        lines: ["Email: legal@spacedoge.games", "Company: Space DOGE Technologies", "Note: Insert governing law, company address and dispute-resolution clause after legal review."],
+        lines: ["Email: legal@spacedoge.games", "Company: GAMING SPACE LTD"],
       },
     ],
   },
