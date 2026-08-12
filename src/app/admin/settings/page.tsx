@@ -380,6 +380,7 @@ function DepositChainRow({ row }: { row: AdminDepositChainRow }) {
   const update = useUpdateDepositChain();
   const del = useDeleteDepositChain();
   const [editing, setEditing] = useState(false);
+  const [label, setLabel] = useState(row.label);
   const [tokenContract, setTokenContract] = useState(row.tokenContract);
   const [tokenDecimals, setTokenDecimals] = useState(String(row.tokenDecimals));
   const [minConfirmations, setMinConfirmations] = useState(String(row.minConfirmations));
@@ -400,6 +401,7 @@ function DepositChainRow({ row }: { row: AdminDepositChainRow }) {
     try {
       await update.mutateAsync({
         id: row.id,
+        label: label.trim(),
         tokenContract: tokenContract.trim(),
         tokenDecimals: Number(tokenDecimals),
         minConfirmations: Number(minConfirmations),
@@ -466,6 +468,7 @@ function DepositChainRow({ row }: { row: AdminDepositChainRow }) {
 
       {editing && (
         <div className="mt-3 grid gap-2 border-t border-line pt-3 sm:grid-cols-4">
+          <input value={label} onChange={(e) => setLabel(e.target.value)} className={inputClass} placeholder="Display label" />
           <input value={tokenContract} onChange={(e) => setTokenContract(e.target.value)} className={inputClass} placeholder="Token contract" />
           <input type="number" value={tokenDecimals} onChange={(e) => setTokenDecimals(e.target.value)} className={inputClass} placeholder="Token decimals" />
           <input type="number" value={minConfirmations} onChange={(e) => setMinConfirmations(e.target.value)} className={inputClass} placeholder="Min confirmations" />
@@ -478,7 +481,11 @@ function DepositChainRow({ row }: { row: AdminDepositChainRow }) {
               placeholder="EVM chain ID (56=BSC, 1=Ethereum)"
             />
           )}
-          <button onClick={saveEdit} disabled={update.isPending} className="btn-game-outline rounded-full px-4 py-1.5 text-xs disabled:opacity-50 sm:col-span-4 sm:w-fit">
+          <button
+            onClick={saveEdit}
+            disabled={update.isPending || !label.trim()}
+            className="btn-game-outline rounded-full px-4 py-1.5 text-xs disabled:opacity-50 sm:col-span-4 sm:w-fit"
+          >
             {update.isPending ? "Saving…" : "Save"}
           </button>
         </div>
