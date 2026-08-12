@@ -38,6 +38,26 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html {
+  /* Belt-and-suspenders with layout.tsx's viewport export
+     (maximumScale: 1, userScalable: false) — that meta tag alone isn't
+     reliably honored anymore: iOS Safari (10+) and most modern mobile
+     browsers deliberately IGNORE user-scalable=no/maximum-scale on the
+     viewport meta tag specifically so a page can never fully lock out
+     pinch-zoom, an intentional accessibility override on the browser's
+     part. touch-action, a CSS Pointer Events property, is a different
+     mechanism the browser DOES still honor — `pan-x pan-y` explicitly
+     lists panning as the only allowed multi-touch gesture, which
+     omits (and so disables) pinch-zoom, while leaving normal
+     scrolling completely unaffected. Requested explicitly, twice —
+     understood as a deliberate product choice: this does remove a
+     real accessibility affordance (pinch-zoom is how low-vision users
+     commonly magnify a page), a tradeoff made knowingly here, not an
+     oversight.
+  */
+  touch-action: pan-x pan-y;
+}
+
 body {
   /* Clips the decorative absolutely-positioned aurora/orbit-ring
      elements each public page uses so they can't create a horizontal
@@ -48,6 +68,7 @@ body {
      context away from the real document scroller — breaking it
      specifically on a fresh/hash-anchored page load. */
   overflow-x: hidden;
+  touch-action: pan-x pan-y;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
