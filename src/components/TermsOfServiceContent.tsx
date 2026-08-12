@@ -235,7 +235,7 @@ export function TermsOfServiceContent() {
       contactEmail="legal@spacedoge.games"
       sections={SECTIONS}
       ctaHeading="Questions about platform rules or legal language?"
-      ctaBody="If you need help interpreting a section, or want to connect this template to a live legal-support flow, contact the Space DOGE team and finalize the policy with counsel before launch."
+      ctaBody="If you need help interpreting a section of these Terms, reach out to the Space DOGE legal team below."
       ctaButtonLabel="Contact legal support"
     />
   );

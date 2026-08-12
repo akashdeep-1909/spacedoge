@@ -174,7 +174,7 @@ export function CookiePolicyContent() {
       ]}
       sections={SECTIONS}
       ctaHeading="Need help with cookie preferences or consent setup?"
-      ctaBody="Use this page as the legal and design foundation, then connect it to your live consent manager, analytics setup and compliance workflow before launch."
+      ctaBody="Have questions about the cookies and similar technologies used on this site? Reach out to our privacy team below."
       ctaButtonLabel="Contact privacy support"
       ctaSecondaryHref="/privacy-policy"
       ctaSecondaryLabel="Read Privacy Policy"

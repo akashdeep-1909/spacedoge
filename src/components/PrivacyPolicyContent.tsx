@@ -198,7 +198,7 @@ export function PrivacyPolicyContent() {
       ]}
       sections={SECTIONS}
       ctaHeading="Need privacy-related support or compliance review?"
-      ctaBody="Use this page as a polished website-ready template, then review and refine it with legal and privacy counsel before publishing the Space DOGE platform."
+      ctaBody="Have questions about how your data is collected, used or protected? Reach out to our privacy team below."
       ctaButtonLabel="Contact privacy support"
     />
   );
