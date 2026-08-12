@@ -122,7 +122,7 @@ export function ConnectWalletButton() {
   const { connectAndSignIn, cancelConnect, attempting, connectFailure } = useConnectAndSignIn();
 
   // Fires the connect flow automatically the moment this page loads
-  // via metaMaskAppLink()'s deep link (see AUTO_CONNECT_PARAM's
+  // via walletAppLink()'s deep link (see AUTO_CONNECT_PARAM's
   // doc-comment) — without this, landing inside MetaMask's browser was
   // just an ordinary page load that connected nothing, leaving the
   // user staring at a page that looks identical to before they tapped
@@ -188,7 +188,7 @@ export function ConnectWalletButton() {
             already inside a wallet app's own browser, otherwise
             walletConnect()'s own modal, which lists every wallet the
             user can pick from). Previously this jumped mobile users
-            straight into MetaMask's app via metaMaskAppLink() before
+            straight into MetaMask's app via walletAppLink() before
             they got a choice — confirmed unwanted: users on a different
             wallet were being forced through MetaMask's install/open
             flow instead of picking their own. */}

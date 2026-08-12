@@ -91,7 +91,8 @@ export async function waitForInjectedProvider(timeoutMs = 1500): Promise<boolean
   return false;
 }
 
-// Marks a page load as having arrived via metaMaskAppLink() below, so
+// Marks a page load as having arrived via one of walletAppLink()'s
+// deep links below, so
 // ConnectWalletButton knows to auto-trigger the connect flow instead
 // of silently doing nothing until the user finds the button and taps
 // it a second time — confirmed live as genuinely confusing ("nothing
@@ -102,26 +103,77 @@ export async function waitForInjectedProvider(timeoutMs = 1500): Promise<boolean
 // refresh of the same page never re-triggers it.
 export const AUTO_CONNECT_PARAM = "wcauto";
 
-// MetaMask's own documented Universal Link format for opening a
-// specific URL directly inside its in-app browser
-// (metamask.io/en-GB/faqs, "Deep Linking"). The real fix for mobile
-// WalletConnect being slow/redirect-prone (QR/relay round-trip, then
-// an app-switch back to the browser that Apple's own OS has blocked
-// from happening automatically since iOS 17 — confirmed against
-// MetaMask's and WalletConnect's own docs/issue trackers, not
-// something any in-app code change can override): skip WalletConnect
-// entirely and land the user inside MetaMask's OWN browser instead,
-// where window.ethereum is just there directly — instant connect, and
-// no "return to Safari" step exists to go wrong in the first place.
-// Plain navigation (this is a normal https:// link, not any kind of
-// wallet-specific SDK call), so it works identically whether or not
-// MetaMask is already installed — the App/Play Store prompt is
-// MetaMask's own fallback if it isn't.
-export function metaMaskAppLink(): string {
-  if (typeof window === "undefined") return "https://metamask.app.link";
+// Deep links that open THIS site directly inside a wallet's own
+// in-app browser, sidestepping WalletConnect's QR/relay round-trip
+// (and its return-redirect back to the wrong tab/page) entirely —
+// once landed, window.ethereum is just there directly, same as any
+// other injected-provider site, with no "return to Safari" step to go
+// wrong in the first place. This is the real fix for that whole class
+// of complaint (confirmed against MetaMask's and WalletConnect's own
+// docs/issue trackers: iOS has blocked automatic return-to-browser
+// redirects at the OS level since iOS 17 — not something any in-app
+// code change can override). Every one of these is a plain https://
+// navigation (not any kind of wallet-specific SDK call), so it works
+// identically whether or not that wallet app is already installed —
+// each wallet's own App/Play Store prompt is its fallback if not.
+//
+// CONFIDENCE VARIES per wallet — noted individually. A stale/wrong
+// format here fails SAFELY: the wallet app either ignores the link or
+// shows its own generic "can't open that" error, it can never affect
+// anything else on this page, since this is just an <a href>.
+export type WalletAppLinkKey = "metamask" | "trust" | "okx" | "bitget";
+
+export function walletAppLink(key: WalletAppLinkKey): string {
+  // SSR-safe fallback (window.location isn't available server-side) —
+  // each wallet's own bare marketing/download page, matching
+  // metaMaskAppLink's original fallback pattern. Real, page-specific
+  // links are only ever computed client-side (see
+  // OpenInWalletAppLinks.tsx's own doc-comment for why this matters:
+  // computing this during SSR vs. the client's first render produced a
+  // real, confirmed hydration mismatch here previously).
+  if (typeof window === "undefined") {
+    switch (key) {
+      case "metamask":
+        return "https://metamask.app.link";
+      case "trust":
+        return "https://trustwallet.com";
+      case "okx":
+        return "https://www.okx.com/web3";
+      case "bitget":
+        return "https://web3.bitget.com";
+    }
+  }
   const target = new URL(window.location.href);
   target.searchParams.set(AUTO_CONNECT_PARAM, "1");
-  return `https://metamask.app.link/dapp/${target.host}${target.pathname}${target.search}`;
+  const fullUrl = target.toString();
+  switch (key) {
+    // MetaMask's own documented Universal Link format
+    // (metamask.io/en-GB/faqs, "Deep Linking") — CONFIRMED live,
+    // stable, long-established. High confidence.
+    case "metamask":
+      return `https://metamask.app.link/dapp/${target.host}${target.pathname}${target.search}`;
+    // Trust Wallet's own documented deep-link format
+    // (developer.trustwallet.com, "Deep Linking" — coin_id 60 =
+    // Ethereum/EVM chains). Long-stable, well-documented. High
+    // confidence, though not live-device-confirmed the way MetaMask's
+    // has been.
+    case "trust":
+      return `https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(fullUrl)}`;
+    // OKX Wallet's universal link wrapping its own native okx:// dapp-
+    // browser URI scheme, per OKX's own developer docs (web3.okx.com).
+    // BEST EFFORT — not verified against a real device or OKX's
+    // current app version. If OKX has since changed this format, this
+    // link simply won't open correctly in their app; nothing else on
+    // this page is affected. Please verify on a real device before
+    // fully trusting it.
+    case "okx":
+      return `https://www.okx.com/download?deeplink=${encodeURIComponent(`okx://wallet/dapp/url?dappUrl=${encodeURIComponent(fullUrl)}`)}`;
+    // Bitget Wallet's (formerly BitKeep) documented dapp-open format.
+    // BEST EFFORT — same unverified caveat as OKX above; please verify
+    // on a real device before fully trusting it.
+    case "bitget":
+      return `https://bkcode.vip/?action=dapp&url=${encodeURIComponent(fullUrl)}`;
+  }
 }
 
 // SIWE sign-in itself is chain-agnostic — whatever network the wallet
