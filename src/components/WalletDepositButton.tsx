@@ -5,8 +5,9 @@ import { useAccount, useConnect, useSwitchChain, useWriteContract, useWaitForTra
 import { parseUnits } from "viem";
 import { waitForInjectedProvider, type wagmiConfig } from "@/lib/wagmi";
 import { isUserRejectionError, useAuth } from "@/lib/auth-context";
-import { useVerifyDeposit, type VerifyDepositResult } from "@/lib/hooks";
+import { useVerifyDeposit } from "@/lib/hooks";
 import { markPendingDepositReturn, clearPendingDepositReturn } from "@/lib/depositReturn";
+import { DepositTimeline } from "@/components/DepositTimeline";
 
 // Wraps a wallet-prompting promise (network switch, transaction confirm)
 // with a hard ceiling — without this, a wallet that never shows/responds
@@ -107,7 +108,18 @@ export function WalletDepositButton({
   // picks up exactly where it left off, instead of silently going
   // nowhere.
   const pendingKey = `spacedoge:pending-deposit:${chainKey}`;
+  // The amount as the user entered it at the moment they sent THIS
+  // specific transaction — captured into its own state (and persisted
+  // alongside the hash) rather than just reading the live `amount`
+  // input below, since that field stays editable once the on-chain
+  // send itself confirms (isConfirming goes false) even while the
+  // server-side verify above is still ongoing; without this, editing
+  // the amount box to start a second deposit while the first is still
+  // verifying would make DepositTimeline show the WRONG amount for the
+  // still-in-flight one.
+  const pendingAmountKey = `spacedoge:pending-deposit-amount:${chainKey}`;
   const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | null>(null);
+  const [pendingAmount, setPendingAmount] = useState<number | undefined>(undefined);
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({
     hash: pendingTxHash ?? undefined,
     confirmations: 1, // cosmetic "it landed" button label only — real crediting never waits on this, see below
@@ -124,7 +136,7 @@ export function WalletDepositButton({
       // lazy initializer would return a DIFFERENT value between the
       // server pass and the client's hydration pass — a real hydration
       // mismatch, since pendingTxHash being set-or-not changes what
-      // actually renders (the AutoVerifyStatus block below). Starting
+      // actually renders (the DepositTimeline block below). Starting
       // both passes at null, then syncing from localStorage once
       // mounted client-side, is the textbook-correct effect use case
       // (see react.dev/learn/you-might-not-need-an-effect's own
@@ -133,14 +145,18 @@ export function WalletDepositButton({
       // pattern generically regardless of legitimacy.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setPendingTxHash(stored as `0x${string}`);
+      const storedAmount = Number(window.localStorage.getItem(pendingAmountKey));
+      if (Number.isFinite(storedAmount) && storedAmount > 0) setPendingAmount(storedAmount);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only restore, deliberately not re-run if chainKey changes after mount (a new instance renders for a different chain anyway)
   }, []);
 
-  function rememberPending(hash: `0x${string}`) {
+  function rememberPending(hash: `0x${string}`, amountValue: number) {
     setPendingTxHash(hash);
+    setPendingAmount(amountValue);
     try {
       window.localStorage.setItem(pendingKey, hash);
+      window.localStorage.setItem(pendingAmountKey, String(amountValue));
     } catch {
       // Private browsing / storage disabled — verification still runs
       // for this page's own remaining lifetime, it just won't survive
@@ -151,6 +167,7 @@ export function WalletDepositButton({
   function forgetPending() {
     try {
       window.localStorage.removeItem(pendingKey);
+      window.localStorage.removeItem(pendingAmountKey);
     } catch {
       // Same as above — nothing to clean up if it was never stored.
     }
@@ -379,7 +396,7 @@ export function WalletDepositButton({
       // chance to see its own receipt land) still has the hash saved to
       // resume verifying on the next mount. See rememberPending's own
       // call site (the mount-restore effect above) for the full reasoning.
-      rememberPending(hash);
+      rememberPending(hash, amountNum);
     } catch (err) {
       setError(explainError(err));
     } finally {
@@ -491,69 +508,16 @@ export function WalletDepositButton({
       )}
       {error && <p className="mt-2 text-xs text-risk">{error}</p>}
       {pendingTxHash && (
-        <AutoVerifyStatus result={verifyDeposit.data} isPending={verifyDeposit.isPending} gaveUp={autoVerifyGaveUp} txHash={pendingTxHash} />
+        <DepositTimeline
+          txHash={pendingTxHash}
+          chainLabel={chainLabel}
+          knownAmount={pendingAmount}
+          result={verifyDeposit.data}
+          isPending={verifyDeposit.isPending}
+          gaveUp={autoVerifyGaveUp}
+          mode="auto"
+        />
       )}
     </div>
-  );
-}
-
-// Surfaces what the auto-verify-on-receipt effect above is actually
-// doing — previously nothing here rendered verifyDeposit's result or
-// error at all, so a failed/retrying attempt (see that effect's own
-// doc-comment on the "not_found"/"rpc_error" race with the server's own,
-// often-laggier RPC node) was completely invisible: the user just saw a
-// generic "Sent" message forever, with no way to tell a slow-but-fine
-// confirmation apart from a silently-abandoned one.
-function AutoVerifyStatus({
-  result,
-  isPending,
-  gaveUp,
-  txHash,
-}: {
-  result: VerifyDepositResult | undefined;
-  isPending: boolean;
-  gaveUp: boolean;
-  txHash: `0x${string}` | undefined;
-}) {
-  const short = txHash ? `${txHash.slice(0, 10)}…` : "";
-
-  if (!result || isPending) {
-    return (
-      <p className="mt-2 text-xs text-mint">
-        Sent — tx {short}. Confirming with our server…
-      </p>
-    );
-  }
-  if (!("error" in result)) {
-    return result.status === "credited" ? (
-      <p className="mt-2 text-xs text-mint">✅ Credited — ${result.amount.toFixed(2)} added to your balance.</p>
-    ) : (
-      <p className="mt-2 text-xs text-gold">
-        ⏳ Found on-chain — {result.confirmations}/{result.minConfirmations} confirmations, tracked below.
-      </p>
-    );
-  }
-  if (result.status === "not_found" || result.status === "rpc_error") {
-    if (gaveUp) {
-      return (
-        <p className="mt-2 text-xs text-risk">
-          Still not confirmed after several tries (a slow RPC node, most likely — your transaction is
-          real, this is just our server catching up). Paste tx {short} into the box below to check
-          again.
-        </p>
-      );
-    }
-    return (
-      <p className="mt-2 text-xs text-mint">
-        Sent — tx {short}. Confirming with our server… (this can take up to ~2 minutes on a busy network)
-      </p>
-    );
-  }
-  // Any other status is a genuine terminal outcome — retrying won't
-  // change it, so show it plainly instead of a generic "confirming".
-  return (
-    <p className="mt-2 text-xs text-risk">
-      {result.error}
-    </p>
   );
 }
