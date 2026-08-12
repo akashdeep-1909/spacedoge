@@ -106,7 +106,15 @@ export function coinIcon(coinSymbol: string, size?: number) {
 const CHAIN_ICON: Record<string, (size?: number) => React.ReactNode> = {
   BEP20: (size) => <Bep20Icon size={size} />,
   TRC20: (size) => <Trc20Icon size={size} />,
+  // The live chainKey for Ethereum deposits/withdrawals is "ERC20"
+  // (DepositChainConfig.chainKey, e.g. "Ethereum (ERC20)"), not "ETH"
+  // — "ETH" was never actually used anywhere, so this fell through to
+  // GenericChainIcon's plain gray "E" badge instead of the real
+  // purple Ethereum mark. Both keys map to the same icon in case
+  // "ETH" is ever used directly (e.g. a future native-ETH withdrawal
+  // chain, as opposed to the ERC20 USDT deposit chain).
   ETH: (size) => <EthIcon size={size} />,
+  ERC20: (size) => <EthIcon size={size} />,
   POLYGON: (size) => <PolygonIcon size={size} />,
   DOGE: (size) => <DogeIcon size={size} />,
 };
