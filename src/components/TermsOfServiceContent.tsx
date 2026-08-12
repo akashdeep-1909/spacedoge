@@ -232,8 +232,6 @@ export function TermsOfServiceContent() {
         { title: "Separate balances", body: "Deposits, game rewards, mining rewards and referral balances may have different rules." },
         { title: "Review required", body: "This template should be reviewed by legal counsel before launch." },
       ]}
-      notice="This page is a design and product-policy template for the Space DOGE website and should be reviewed by qualified counsel before public launch."
-      effectiveDate="August 5, 2026"
       contactEmail="legal@spacedoge.games"
       sections={SECTIONS}
       ctaHeading="Questions about platform rules or legal language?"
