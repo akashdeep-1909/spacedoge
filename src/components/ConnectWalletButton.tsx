@@ -119,7 +119,7 @@ export function ConnectWalletButton() {
     refresh,
     cancelSignIn,
   } = useAuth();
-  const { connectAndSignIn, attempting, connectFailure } = useConnectAndSignIn();
+  const { connectAndSignIn, cancelConnect, attempting, connectFailure } = useConnectAndSignIn();
 
   // Fires the connect flow automatically the moment this page loads
   // via metaMaskAppLink()'s deep link (see AUTO_CONNECT_PARAM's
@@ -192,13 +192,34 @@ export function ConnectWalletButton() {
             they got a choice — confirmed unwanted: users on a different
             wallet were being forced through MetaMask's install/open
             flow instead of picking their own. */}
-        <button
-          onClick={connectAndSignIn}
-          disabled={busy}
-          className="btn-game hud-corner whitespace-nowrap rounded-full px-4 py-2 text-sm"
-        >
-          {connectLabel}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={connectAndSignIn}
+            disabled={busy}
+            className="btn-game hud-corner whitespace-nowrap rounded-full px-4 py-2 text-sm"
+          >
+            {connectLabel}
+          </button>
+          {/* Escape hatch for a stuck "Connecting…" state — see
+              cancelConnect's own doc-comment (useConnectAndSignIn.ts)
+              for why this can take much longer in wall-clock time than
+              the nominal 2-minute bound suggests (a wallet app's own
+              native confirm overlay commonly pauses the underlying
+              page's JS execution, including our timers, while it's on
+              screen). Deliberately NEVER disabled, matching the exact
+              same reasoning as the analogous Disconnect button below
+              for a stuck sign-in state — a stuck connect previously had
+              no way out at all except reloading the whole page. */}
+          {attempting && (
+            <button
+              onClick={cancelConnect}
+              title="Cancel and try again"
+              className="whitespace-nowrap rounded-full border border-line bg-panel px-2.5 py-2 text-xs text-muted transition hover:text-foreground"
+            >
+              ✕
+            </button>
+          )}
+        </div>
 
         {/* Deliberately secondary (small text link, mobile-only — see
             OpenInWalletAppLink's own doc-comment), not a replacement for

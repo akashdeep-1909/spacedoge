@@ -168,5 +168,32 @@ export function useConnectAndSignIn() {
     }
   }
 
-  return { connectAndSignIn, attempting, connectFailure, setConnectFailure };
+  // Escape hatch for a stuck "Connecting…" state — mirrors
+  // auth-context.tsx's own cancelSignIn() for the equivalent
+  // "signing"/"verifying" stuck states. Confirmed live as a real gap:
+  // MetaMask's in-app browser commonly pauses the underlying page's JS
+  // execution (including our own setTimeout-based CONNECT_TIMEOUT_MS
+  // bound) while it shows its own native confirm overlay on top —
+  // meaning a user who takes their time approving a prompt there can
+  // sit well past what should be a hard 2-minute cap, with no way back
+  // except reloading the whole page (previously the ONLY escape;
+  // ConnectWalletButton's stuck-sign-in state already had a Disconnect
+  // button for exactly this class of problem, this state never did).
+  // Bumping attemptIdRef invalidates whatever's still in flight — every
+  // check in connectAndSignIn above (`attemptIdRef.current === myAttemptId`)
+  // already treats a stale attempt's eventual resolution as a no-op, so
+  // this is safe even if the underlying wallet_requestPermissions call
+  // is still genuinely pending in the wallet's own queue (it can't
+  // actually be cancelled once sent) — a retry that then collides with
+  // it is exactly what isRequestAlreadyPendingError above already gives
+  // a clear, actionable message for, rather than another silent hang.
+  function cancelConnect() {
+    attemptIdRef.current++;
+    inFlightRef.current = false;
+    setAttempting(false);
+    setConnectFailure(null);
+    walletLog("connect attempt cancelled by user");
+  }
+
+  return { connectAndSignIn, cancelConnect, attempting, connectFailure, setConnectFailure };
 }
