@@ -15,6 +15,7 @@ import { DepositQrCode } from "@/components/DepositQrCode";
 import { DepositTimeline } from "@/components/DepositTimeline";
 import { WalletDepositButton } from "@/components/WalletDepositButton";
 import { DEPOSIT_CAPABLE_EVM_CHAIN_IDS } from "@/lib/wagmi";
+import { UsdtIcon } from "@/components/icons/CoinIcons";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 const STATUS_STYLE: Record<string, string> = {
@@ -69,7 +70,7 @@ function DepositContent() {
                   without restructuring this UI at all). */}
               <div className="flex gap-2">
                 <span className="flex items-center gap-1.5 rounded-full border border-gold bg-gold-soft px-4 py-1.5 text-xs font-semibold text-gold">
-                  💵 USDT
+                  <UsdtIcon size={14} /> USDT
                 </span>
               </div>
             </div>
