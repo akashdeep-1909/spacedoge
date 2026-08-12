@@ -151,7 +151,7 @@ const SECTIONS: LegalSection[] = [
       {
         type: "subcard",
         title: "Cookie policy contact",
-        lines: ["Email: privacy@spacedoge.games", "Company: Space DOGE Technologies", "Note: Add your final legal entity details, consent-provider details and live cookie inventory before production release."],
+        lines: ["Email: privacy@spacedoge.games", "Company: GAMING SPACE LTD"],
       },
     ],
   },
