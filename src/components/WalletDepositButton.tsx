@@ -6,7 +6,6 @@ import { parseUnits } from "viem";
 import { waitForInjectedProvider, type wagmiConfig } from "@/lib/wagmi";
 import { isUserRejectionError, useAuth } from "@/lib/auth-context";
 import { useVerifyDeposit, type VerifyDepositResult } from "@/lib/hooks";
-import { OpenInWalletAppLink } from "@/components/OpenInWalletAppLink";
 import { markPendingDepositReturn, clearPendingDepositReturn } from "@/lib/depositReturn";
 
 // Wraps a wallet-prompting promise (network switch, transaction confirm)
@@ -460,7 +459,6 @@ export function WalletDepositButton({
           >
             {reconnecting ? "Reconnecting…" : "Reconnect Wallet to Deposit"}
           </button>
-          <OpenInWalletAppLink />
         </div>
       ) : (
         <div className="mt-3 flex gap-2">

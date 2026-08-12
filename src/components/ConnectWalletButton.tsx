@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAccount, useDisconnect } from "wagmi";
 import { useAuth } from "@/lib/auth-context";
 import { useSetNickname } from "@/lib/hooks";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
-import { AUTO_CONNECT_PARAM } from "@/lib/wagmi";
 import { useConnectAndSignIn } from "@/lib/useConnectAndSignIn";
-import { OpenInWalletAppLink } from "@/components/OpenInWalletAppLink";
 
 function shortenAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -121,26 +119,6 @@ export function ConnectWalletButton() {
   } = useAuth();
   const { connectAndSignIn, cancelConnect, attempting, connectFailure } = useConnectAndSignIn();
 
-  // Fires the connect flow automatically the moment this page loads
-  // via walletAppLink()'s deep link (see AUTO_CONNECT_PARAM's
-  // doc-comment) — without this, landing inside MetaMask's browser was
-  // just an ordinary page load that connected nothing, leaving the
-  // user staring at a page that looks identical to before they tapped
-  // the link ("nothing happen no confirm, connect etc", confirmed
-  // live). Strips the marker from the URL right away via replaceState
-  // (not a Next.js navigation — this must NOT add a history entry or
-  // trigger a server round-trip) so refreshing afterward doesn't loop.
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    if (!url.searchParams.has(AUTO_CONNECT_PARAM)) return;
-    url.searchParams.delete(AUTO_CONNECT_PARAM);
-    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
-    if (!session?.authenticated) connectAndSignIn();
-    // Deliberately only depends on mount — this must fire exactly once
-    // per real page load, not re-run as auth state resolves.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const busy = attempting || status === "signing" || status === "verifying" || resuming;
 
   // A real signed-in session takes priority over wagmi's live wallet
@@ -187,11 +165,17 @@ export function ConnectWalletButton() {
             real wallet-choice flow (connectAndSignIn: injected() when
             already inside a wallet app's own browser, otherwise
             walletConnect()'s own modal, which lists every wallet the
-            user can pick from). Previously this jumped mobile users
-            straight into MetaMask's app via walletAppLink() before
-            they got a choice — confirmed unwanted: users on a different
-            wallet were being forced through MetaMask's install/open
-            flow instead of picking their own. */}
+            user can pick from — MetaMask, Trust, OKX, Bitget, Binance
+            and dozens more, each with a direct tap-to-open on mobile).
+            Deliberately just this one button, no secondary per-wallet
+            deep-link row alongside it — confirmed live as explicitly
+            unwanted UX ("I want to click connect wallet, show all
+            built-in and connect", i.e. exactly what this modal already
+            does on its own). An earlier version of this button also
+            forced mobile users straight into MetaMask's app before
+            they got a choice at all — also confirmed unwanted, for the
+            same underlying reason: this button's job is to open the
+            picker, not to pre-select a wallet for the user. */}
         <div className="flex items-center gap-1.5">
           <button
             onClick={connectAndSignIn}
@@ -220,28 +204,6 @@ export function ConnectWalletButton() {
             </button>
           )}
         </div>
-
-        {/* Deliberately secondary (small text link, mobile-only — see
-            OpenInWalletAppLink's own doc-comment), not a replacement for
-            the button above: this was previously only wired into
-            WalletDepositButton.tsx, not here, even though this is
-            actually the FIRST point a mobile user hits the WalletConnect
-            app-switch-and-back round trip. Confirmed live as a real,
-            repeated complaint: on a regular mobile browser tab (no
-            injected provider), WalletConnect's own redirect can land the
-            user back in a NEW tab instead of the same one — an OS/wallet-
-            level constraint no app-side code can fully eliminate (see
-            wagmi.ts's own doc-comment on buildWagmiConfig's `redirect`
-            option). Landing inside MetaMask's OWN browser via this link
-            instead sidesteps the round trip entirely — window.ethereum is
-            injected directly into the SAME tab/view, so there's no
-            app-switch and therefore nothing that could redirect back to
-            the wrong place. Not the default/forced path (that would
-            exclude every non-MetaMask wallet, the exact regression the
-            comment above already documents) — just now actually
-            reachable from the very first connect prompt for anyone who
-            wants the smoother, zero-redirect route.  */}
-        <OpenInWalletAppLink />
 
         <div className="flex max-w-56 flex-col items-end gap-1">
           {justAutoRecovered && (
