@@ -196,9 +196,6 @@ export function PrivacyPolicyContent() {
         { title: "Operational use", body: "Data helps us operate gameplay, mining, security and withdrawals." },
         { title: "Counsel review", body: "This privacy template should be reviewed before public launch." },
       ]}
-      notice="This page is a design and product-policy template for the Space DOGE website and should be reviewed by qualified counsel before public launch."
-      effectiveDate="August 5, 2026"
-      contactEmail="privacy@spacedoge.games"
       sections={SECTIONS}
       ctaHeading="Need privacy-related support or compliance review?"
       ctaBody="Use this page as a polished website-ready template, then review and refine it with legal and privacy counsel before publishing the Space DOGE platform."
