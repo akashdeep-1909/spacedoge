@@ -328,7 +328,10 @@ export function botScore(mapSeed: string, botIndex: number, durationSec: number)
 
 export interface RankTierTargets { 1: number; 2: number; 3: number }
 
-const RANK_TIER_SHARE_RANGE: Record<1 | 2 | 3, [number, number]> = {
+// Exported so display-only code (CoinRushContent.tsx's "Win Upto:"
+// figure on each stake-level card) can derive its number from this
+// single source of truth instead of a hardcoded duplicate.
+export const RANK_TIER_SHARE_RANGE: Record<1 | 2 | 3, [number, number]> = {
   1: [1250 / 2800, 1500 / 2800],
   2: [600 / 2800, 900 / 2800],
   3: [400 / 2800, 600 / 2800],

@@ -25,7 +25,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { Reveal, TiltCard, EASE, Starfield } from "@/components/motionPrimitives";
-import { GAME_MODE_CONFIG, DIFFICULTY_BY_MODE } from "@/lib/game-config";
+import { GAME_MODE_CONFIG, DIFFICULTY_BY_MODE, RANK_TIER_SHARE_RANGE } from "@/lib/game-config";
 
 interface PlatformStats {
   walletCount: number;
@@ -396,13 +396,22 @@ export function CoinRushContent({ platformStats }: { platformStats: PlatformStat
                 const difficulty = DIFFICULTY_BY_MODE[mode].difficultyLabel;
                 // 1st place's own share of a match's reward pool is
                 // randomized per match (computeRankTierTargetsPts in
-                // game-config.ts draws rank 1 from [1250,1500]/2800 of
-                // the pool while rank 2/3 draw from their own ranges,
+                // game-config.ts draws rank 1 from RANK_TIER_SHARE_RANGE[1]
+                // — 1,250-1,500 of a 2,800 PTS reference pool — while
+                // rank 2/3 draw independently from their own ranges,
                 // then all three are normalized to sum to the pool
-                // exactly) — 60% is that draw's real ceiling: rank 1 at
-                // its own max (1500) while rank 2/3 land at their own
-                // mins (600, 400), i.e. 1500/(1500+600+400).
-                const firstPlaceMaxUsdt = (cfg.entryFeeUsdt * cfg.players * 0.7 * 0.6).toFixed(2);
+                // exactly). Shown here as rank 1's own max share
+                // (1500/2800 = 53.57%) of the reward pool — the
+                // straightforward "best case for 1st place" figure.
+                // Note this is rank 1's own draw ceiling, not the
+                // absolute highest 1st place could ever land at after
+                // normalization (that edge case — rank 1 drawing its
+                // max while 2nd/3rd both draw their own mins — pushes
+                // 1st's actual share to 60%; deliberately not shown
+                // here to keep this one figure matching the plain
+                // per-rank range table, not a compounded edge case).
+                const rewardPoolUsdt = cfg.entryFeeUsdt * cfg.players * 0.7;
+                const firstPlaceMaxUsdt = (rewardPoolUsdt * RANK_TIER_SHARE_RANGE[1][1]).toFixed(2);
                 return (
                   <Reveal key={mode} delay={i * 0.06} y={20}>
                     <TiltCard glow={`${color}22`} className="flex h-full flex-col p-6" style={{ borderColor: `${color}55` }}>
