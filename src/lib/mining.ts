@@ -222,6 +222,11 @@ export async function settleEpochForDate(epochDate: Date) {
   });
 
   const ehByContract = new Map<string, number>();
+  // Same activeHours this loop already computes for `eh` — kept per
+  // contract (not just folded into eh) so the target-crediting loop
+  // below can prorate a contract's guaranteed daily target by it too.
+  // See that loop's own doc-comment for why this matters.
+  const activeHoursByContract = new Map<string, number>();
   let teh = 0;
   for (const c of contracts) {
     const overlapStart = Math.max(c.startsAt.getTime(), dayStart.getTime());
@@ -230,6 +235,7 @@ export async function settleEpochForDate(epochDate: Date) {
     if (activeHours <= 0) continue;
     const eh = Number(c.miningPower) * activeHours;
     ehByContract.set(c.id, eh);
+    activeHoursByContract.set(c.id, activeHours);
     teh += eh;
   }
 
@@ -317,7 +323,24 @@ export async function settleEpochForDate(epochDate: Date) {
     }
 
     const organicNet = grossShare - netElectricityShare - poolFeeShare;
-    const target = (Number(c.pricePaidUsdt) * (1 + Number(c.targetRoiPct))) / c.termDays;
+    // Prorated by that day's actual active hours (÷24) — confirmed live
+    // via a real settlement-data investigation (Aug 11, 2026's epoch):
+    // without this, a contract purchased partway through the day still
+    // earned a FULL day's target (this line used to have no ×(activeHours/24)
+    // factor at all) while its organicNet share above is correctly
+    // scaled down to the hours it actually mined that day, since eh/teh
+    // already accounts for that. A single large, late-day purchase could
+    // therefore draw a disproportionate reserve top-up on its first day
+    // — e.g. a contract that only mined its last ~4.5 of 24 hours still
+    // billing a full 24-hour day's guaranteed return. Harmless at the
+    // reserve balances seen so far, but not correct as contract sizes
+    // grow. `eh` is already activeHours-scaled (Number(c.miningPower) *
+    // activeHours from the loop above), so dividing by 24 here — not by
+    // termDays' own day-count — matches the same one-day window every
+    // other quantity in this function (grossShare, electricityShare,
+    // poolFeeShare) is already scoped to.
+    const activeHours = activeHoursByContract.get(c.id) ?? 24;
+    const target = ((Number(c.pricePaidUsdt) * (1 + Number(c.targetRoiPct))) / c.termDays) * (activeHours / 24);
     const deduction = organicNet - target;
 
     let reserveDraw = 0;
