@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence, useScroll } from "framer-motion";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Languages } from "lucide-react";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
@@ -82,7 +82,11 @@ export function SiteHeader() {
           </nav>
 
           <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
-            <div className="hidden sm:block">
+            {/* Below lg (same breakpoint the hamburger button below
+                appears at), Language moves into the mobile dropdown
+                instead — one less item crowding the header row on a
+                phone/tablet width alongside the wallet chip. */}
+            <div className="hidden lg:block">
               <LanguageSwitcher />
             </div>
             <ConnectWalletButton />
@@ -123,10 +127,11 @@ export function SiteHeader() {
                       </Link>
                     </motion.div>
                   ))}
-                  <div className="my-1 border-t border-line sm:hidden" />
-                  <div className="px-3 py-1.5 sm:hidden">
-                    <LanguageSwitcher />
-                  </div>
+                  <div className="my-1 border-t border-line" />
+                  <LanguageSwitcher
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-muted transition hover:bg-panel-2 hover:text-gold"
+                    icon={<Languages size={16} strokeWidth={2} className="shrink-0" />}
+                  />
                 </motion.nav>
               </motion.div>
             )}

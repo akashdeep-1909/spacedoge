@@ -68,7 +68,15 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
             was actually happening: Disconnect getting cut off entirely,
             invisible, rather than reachable another way). */}
         <div className="flex min-w-0 shrink items-center gap-2 overflow-x-auto">
-          <LanguageSwitcher />
+          {/* Below lg, MobileNav's own hamburger drawer carries its own
+              Language row instead (see MobileNav.tsx) — the header at
+              phone/tablet widths doesn't have room for logo + language
+              flag + hamburger + wallet chip too, so this direct pill
+              only earns its spot back once the hamburger itself is
+              gone (lg:hidden, same breakpoint). */}
+          <div className="hidden lg:block">
+            <LanguageSwitcher />
+          </div>
           <MobileNav />
           <ConnectWalletButton />
         </div>

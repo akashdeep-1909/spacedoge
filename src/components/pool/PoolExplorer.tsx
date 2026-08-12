@@ -246,9 +246,12 @@ export function PoolExplorer({
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
           <Link href="/" className="flex items-center gap-3">
             <Image src="/SpaceDOGE-icon.png" alt="SPACE DOGE" width={44} height={44} priority className="shrink-0" />
-            <div className="min-w-0">
+            {/* Hidden below lg, same as DashboardChrome/SiteHeader's own
+                brand text — the logo icon alone is enough on a phone
+                screen, and matches every other header on the site. */}
+            <div className="hidden min-w-0 lg:block">
               <h1 className="text-sm font-black uppercase tracking-widest">SPACE DOGE</h1>
-              <p className="hidden text-[11px] text-muted sm:block">{t("pool.headerTagline")}</p>
+              <p className="text-[11px] text-muted">{t("pool.headerTagline")}</p>
             </div>
           </Link>
           <div className="flex shrink-0 items-center gap-2">

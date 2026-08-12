@@ -20,9 +20,11 @@ import {
   Menu,
   X,
   LogOut,
+  Languages,
 } from "lucide-react";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { useAuth } from "@/lib/auth-context";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 const LINKS = [
   { href: "/dashboard", key: "nav.dashboard" as const, Icon: Home },
@@ -133,6 +135,18 @@ export function MobileNav() {
                     <span className="min-w-0">{t(l.key)}</span>
                   </Link>
                 ))}
+                {/* Language lives here instead of as its own header pill
+                    — the header row at phone/tablet widths only had
+                    room for so much (logo + language flag + this
+                    hamburger + the wallet chip), and the flag pill was
+                    the one item with no fixed relationship to "using
+                    the app" the way the nav links or the wallet chip
+                    do. One less item competing for space up top. */}
+                <div className="my-1 border-t border-line" />
+                <LanguageSwitcher
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm font-bold uppercase leading-tight tracking-wide text-muted transition hover:bg-panel-2 hover:text-gold"
+                  icon={<Languages size={17} strokeWidth={2} className="shrink-0" />}
+                />
                 {session?.authenticated && (
                   <>
                     <div className="my-1 border-t border-line" />

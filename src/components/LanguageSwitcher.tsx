@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
@@ -9,10 +9,20 @@ import { LOCALES, LOCALE_LABELS } from "@/lib/i18n/locales";
 const PANEL_WIDTH = 224; // matches w-56 below
 const MARGIN = 8;
 
+const DEFAULT_TRIGGER_CLASS =
+  "flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-panel px-3 py-1.5 text-xs font-semibold text-muted transition hover:border-gold/40 hover:text-foreground";
+
 // Globe icon in the header — click to open a single-column dropdown of
 // all supported locales, one line per row (flag + native name only — no
 // English gloss, which just duplicated the native name for entries like
 // "English").
+//
+// `className`/`icon` let this same component also be dropped in as a
+// full-width ROW inside another menu (MobileNav's dashboard hamburger,
+// SiteHeader's mobile dropdown) instead of only ever rendering as its
+// own standalone header pill — both callers pass a menu-row style and
+// a leading icon; the default (no props) keeps the original compact
+// pill for direct header placement.
 //
 // The backdrop + panel are portaled to document.body rather than
 // rendered inline, same as src/components/MobileNav.tsx and for the
@@ -21,7 +31,7 @@ const MARGIN = 8;
 // with sibling header elements (the wallet chip, the mobile-nav
 // toggle) no matter how high its own z-index goes. Portaling — plus a
 // full-screen backdrop — makes it a true top-layer overlay instead.
-export function LanguageSwitcher() {
+export function LanguageSwitcher({ className, icon }: { className?: string; icon?: ReactNode } = {}) {
   const { locale, setLocale, t } = useLocale();
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
@@ -63,10 +73,15 @@ export function LanguageSwitcher() {
         title={t("common.language")}
         aria-label={t("common.language")}
         aria-expanded={open}
-        className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-panel px-3 py-1.5 text-xs font-semibold text-muted transition hover:border-gold/40 hover:text-foreground"
+        className={className ?? DEFAULT_TRIGGER_CLASS}
       >
+        {icon}
         <span aria-hidden className="shrink-0 text-base leading-none">{LOCALE_LABELS[locale].flag}</span>
-        <span className="hidden sm:inline">{LOCALE_LABELS[locale].native}</span>
+        {/* Without an icon (the default standalone pill) the native
+            name only earns its space at sm+; inside a full-width menu
+            row (icon passed) there's always room, and flex-1 pushes
+            the chevron to the row's trailing edge. */}
+        <span className={icon ? "flex-1 truncate text-left normal-case" : "hidden sm:inline"}>{LOCALE_LABELS[locale].native}</span>
         <ChevronDown size={12} className={`shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
