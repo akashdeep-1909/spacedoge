@@ -13,7 +13,7 @@ const ru = {
     autoRecoveredMessage: "Мы обнаружили и очистили зависшее подключение кошелька. Нажмите «Connect Wallet», чтобы попробовать снова.",
     disclaimer: "Отказ от ответственности",
     language: "Язык",
-    openInMetaMask: "Faster: open in MetaMask app →",
+    openInMetaMask: "Smoother: open in MetaMask app →",
         okButton: "OK",
     closeButton: "Close",
   },

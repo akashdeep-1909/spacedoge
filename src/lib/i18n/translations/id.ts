@@ -13,7 +13,7 @@ const id = {
     autoRecoveredMessage: "Kami mendeteksi dan membersihkan koneksi wallet yang macet. Silakan ketuk Connect Wallet untuk mencoba lagi.",
     disclaimer: "Sangkalan",
     language: "Bahasa",
-    openInMetaMask: "Faster: open in MetaMask app →",
+    openInMetaMask: "Smoother: open in MetaMask app →",
         okButton: "OK",
     closeButton: "Close",
   },

@@ -29,7 +29,7 @@ const en = {
     autoRecoveredMessage: "We detected and cleared a stuck wallet connection. Please tap Connect Wallet to try again.",
     disclaimer: "Disclaimer",
     language: "Language",
-    openInMetaMask: "Faster: open in MetaMask app →",
+    openInMetaMask: "Smoother: open in MetaMask app →",
     okButton: "OK",
     closeButton: "Close",
   },

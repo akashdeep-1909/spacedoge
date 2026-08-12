@@ -13,7 +13,7 @@ const th = {
     autoRecoveredMessage: "เราตรวจพบและล้างการเชื่อมต่อกระเป๋าเงินที่ค้างอยู่แล้ว กรุณาแตะ Connect Wallet เพื่อลองอีกครั้ง",
     disclaimer: "ข้อจำกัดความรับผิดชอบ",
     language: "ภาษา",
-    openInMetaMask: "Faster: open in MetaMask app →",
+    openInMetaMask: "Smoother: open in MetaMask app →",
         okButton: "OK",
     closeButton: "Close",
   },

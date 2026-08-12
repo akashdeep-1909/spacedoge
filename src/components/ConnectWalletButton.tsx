@@ -7,6 +7,7 @@ import { useSetNickname } from "@/lib/hooks";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { AUTO_CONNECT_PARAM } from "@/lib/wagmi";
 import { useConnectAndSignIn } from "@/lib/useConnectAndSignIn";
+import { OpenInWalletAppLink } from "@/components/OpenInWalletAppLink";
 
 function shortenAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -190,9 +191,7 @@ export function ConnectWalletButton() {
             straight into MetaMask's app via metaMaskAppLink() before
             they got a choice — confirmed unwanted: users on a different
             wallet were being forced through MetaMask's install/open
-            flow instead of picking their own. See OpenInWalletAppLink
-            for the deliberately-secondary "open in MetaMask" shortcut
-            that still exists elsewhere for people who want it. */}
+            flow instead of picking their own. */}
         <button
           onClick={connectAndSignIn}
           disabled={busy}
@@ -200,6 +199,28 @@ export function ConnectWalletButton() {
         >
           {connectLabel}
         </button>
+
+        {/* Deliberately secondary (small text link, mobile-only — see
+            OpenInWalletAppLink's own doc-comment), not a replacement for
+            the button above: this was previously only wired into
+            WalletDepositButton.tsx, not here, even though this is
+            actually the FIRST point a mobile user hits the WalletConnect
+            app-switch-and-back round trip. Confirmed live as a real,
+            repeated complaint: on a regular mobile browser tab (no
+            injected provider), WalletConnect's own redirect can land the
+            user back in a NEW tab instead of the same one — an OS/wallet-
+            level constraint no app-side code can fully eliminate (see
+            wagmi.ts's own doc-comment on buildWagmiConfig's `redirect`
+            option). Landing inside MetaMask's OWN browser via this link
+            instead sidesteps the round trip entirely — window.ethereum is
+            injected directly into the SAME tab/view, so there's no
+            app-switch and therefore nothing that could redirect back to
+            the wrong place. Not the default/forced path (that would
+            exclude every non-MetaMask wallet, the exact regression the
+            comment above already documents) — just now actually
+            reachable from the very first connect prompt for anyone who
+            wants the smoother, zero-redirect route.  */}
+        <OpenInWalletAppLink />
 
         <div className="flex max-w-56 flex-col items-end gap-1">
           {justAutoRecovered && (
