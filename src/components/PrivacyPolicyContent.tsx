@@ -9,7 +9,7 @@ const SECTIONS: LegalSection[] = [
     navLabel: "Overview",
     title: "Overview",
     blocks: [
-      { type: "p", text: "This Privacy Policy explains how Space DOGE Technologies collects, uses, shares and protects information when you access the Space DOGE website, wallet-connected dashboards, gameplay interfaces, mining pages, referral tools and related services." },
+      { type: "p", text: "This Privacy Policy explains how Space DOGE collects, uses, shares and protects information when you access the Space DOGE website, wallet-connected dashboards, gameplay interfaces, mining pages, referral tools and related services." },
       { type: "p", text: "Because Space DOGE is a wallet-first ecosystem, the types of information we collect may differ from those collected by conventional email-and-password web platforms." },
     ],
   },
