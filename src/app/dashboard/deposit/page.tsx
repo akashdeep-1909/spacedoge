@@ -15,7 +15,6 @@ import { DepositQrCode } from "@/components/DepositQrCode";
 import { DepositTimeline } from "@/components/DepositTimeline";
 import { WalletDepositButton } from "@/components/WalletDepositButton";
 import { DEPOSIT_CAPABLE_EVM_CHAIN_IDS } from "@/lib/wagmi";
-import { chainIcon } from "@/components/icons/CoinIcons";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 const STATUS_STYLE: Record<string, string> = {
@@ -38,15 +37,6 @@ function DepositContent() {
   const { data: deposits, isLoading: depositsLoading } = useMyDeposits();
   const depositPage = usePagination(deposits?.rows ?? []);
   const [selectedChainKey, setSelectedChainKey] = useState<string | null>(null);
-  // Two tabs — requested explicitly: pick coin + chain first (a
-  // dedicated step, not just pills sitting above the deposit panel),
-  // THEN see the address/QR/deposit UI for that specific selection.
-  // "select" is always the very first thing a user sees; jumping
-  // straight to "deposit" only happens via the Continue button below,
-  // never automatically — picking a different chain shouldn't yank
-  // someone already looking at their current chain's address out from
-  // under them.
-  const [activeTab, setActiveTab] = useState<"select" | "deposit">("select");
 
   const chains = info?.chains ?? [];
   // Derived, not synced via an effect: falls back to the first chain
@@ -67,87 +57,46 @@ function DepositContent() {
             {t("deposit.notSetUpBody")}
           </p>
         ) : (
-          <>
-            <div className="mt-4 flex gap-1 rounded-full border border-line bg-panel p-1 text-xs font-semibold">
-              <button
-                onClick={() => setActiveTab("select")}
-                className={`flex-1 rounded-full px-3 py-1.5 uppercase transition ${
-                  activeTab === "select" ? "bg-gold-soft text-gold" : "text-muted hover:text-foreground"
-                }`}
-              >
-                {t("deposit.selectTabLabel")}
-              </button>
-              <button
-                onClick={() => selected && setActiveTab("deposit")}
-                disabled={!selected}
-                className={`flex-1 rounded-full px-3 py-1.5 uppercase transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                  activeTab === "deposit" ? "bg-gold-soft text-gold" : "text-muted hover:text-foreground"
-                }`}
-              >
-                {t("deposit.depositTabLabel")}
-              </button>
+          <div className="mt-4 flex flex-col gap-4">
+            <div>
+              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted">
+                {t("deposit.selectCoinLabel")}
+              </p>
+              {/* Only one coin is supported today (USDT) — still shown
+                  as its own selected pill, not skipped entirely, since
+                  the design deliberately treats coin and chain as two
+                  independent choices (more coins can be added later
+                  without restructuring this UI at all). */}
+              <div className="flex gap-2">
+                <span className="flex items-center gap-1.5 rounded-full border border-gold bg-gold-soft px-4 py-1.5 text-xs font-semibold text-gold">
+                  💵 USDT
+                </span>
+              </div>
             </div>
 
-            {activeTab === "select" ? (
-              <div className="mt-4 flex flex-col gap-4">
-                <div>
-                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted">
-                    {t("deposit.selectCoinLabel")}
-                  </p>
-                  {/* Only one coin is supported today (USDT) — still
-                      shown as its own selected pill, not skipped
-                      entirely, since the design deliberately treats
-                      coin and chain as two independent choices (more
-                      coins can be added later without restructuring
-                      this UI at all). */}
-                  <div className="flex gap-2">
-                    <span className="flex items-center gap-1.5 rounded-full border border-gold bg-gold-soft px-4 py-1.5 text-xs font-semibold text-gold">
-                      💵 USDT
-                    </span>
-                  </div>
-                </div>
+            <div>
+              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-muted">
+                {t("deposit.selectChainLabel")}
+              </label>
+              {/* A real <select>, not pills — everything below
+                  (QR/address/deposit button) is shown immediately
+                  under it for whatever's currently selected, no
+                  separate step/tab to advance through. */}
+              <select
+                value={effectiveChainKey ?? ""}
+                onChange={(e) => setSelectedChainKey(e.target.value)}
+                className="w-full max-w-xs rounded-lg border border-line bg-panel px-3 py-2 text-sm font-semibold text-foreground"
+              >
+                {chains.map((c) => (
+                  <option key={c.chainKey} value={c.chainKey}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                <div>
-                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted">
-                    {t("deposit.selectChainLabel")}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {chains.map((c) => (
-                      <button
-                        key={c.chainKey}
-                        onClick={() => setSelectedChainKey(c.chainKey)}
-                        className={`flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-semibold transition ${
-                          effectiveChainKey === c.chainKey ? "border-gold bg-gold-soft text-gold" : "border-line bg-panel text-muted"
-                        }`}
-                      >
-                        {chainIcon(c.chainKey)} {c.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setActiveTab("deposit")}
-                  disabled={!selected}
-                  className="btn-game hud-corner self-start rounded-full px-5 py-2 text-sm disabled:opacity-50"
-                >
-                  {t("deposit.continueToDepositButton")}
-                </button>
-              </div>
-            ) : (
-              selected && (
-                <div className="mt-4 flex flex-col gap-3">
-                  <button
-                    onClick={() => setActiveTab("select")}
-                    className="self-start text-xs font-semibold text-muted underline decoration-dotted underline-offset-2 hover:text-gold"
-                  >
-                    {t("deposit.changeSelectionLink")}
-                  </button>
-                  <ChainDepositPanel chain={selected} sendFromAddress={info!.sendFromAddress} />
-                </div>
-              )
-            )}
-          </>
+            {selected && <ChainDepositPanel chain={selected} sendFromAddress={info!.sendFromAddress} />}
+          </div>
         )}
       </div>
 
