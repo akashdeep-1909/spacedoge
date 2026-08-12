@@ -15,7 +15,8 @@ import { DepositQrCode } from "@/components/DepositQrCode";
 import { DepositTimeline } from "@/components/DepositTimeline";
 import { WalletDepositButton } from "@/components/WalletDepositButton";
 import { DEPOSIT_CAPABLE_EVM_CHAIN_IDS } from "@/lib/wagmi";
-import { UsdtIcon } from "@/components/icons/CoinIcons";
+import { UsdtIcon, chainIcon } from "@/components/icons/CoinIcons";
+import { Dropdown } from "@/components/Dropdown";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 const STATUS_STYLE: Record<string, string> = {
@@ -79,21 +80,29 @@ function DepositContent() {
               <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-muted">
                 {t("deposit.selectChainLabel")}
               </label>
-              {/* A real <select>, not pills — everything below
-                  (QR/address/deposit button) is shown immediately
-                  under it for whatever's currently selected, no
-                  separate step/tab to advance through. */}
-              <select
-                value={effectiveChainKey ?? ""}
-                onChange={(e) => setSelectedChainKey(e.target.value)}
-                className="w-full max-w-xs rounded-lg border border-line bg-panel px-3 py-2 text-sm font-semibold text-foreground"
-              >
-                {chains.map((c) => (
-                  <option key={c.chainKey} value={c.chainKey}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
+              {/* The shared Dropdown component, not a native <select> —
+                  a real <select>'s popup is rendered by the OS/browser
+                  itself (plain white list on most platforms) and can't
+                  be restyled to match the dark theme, exactly the
+                  problem this component exists to solve (see its own
+                  doc-comment). Everything below (QR/address/deposit
+                  button) is still shown immediately under it for
+                  whatever's currently selected — no separate step/tab
+                  to advance through. */}
+              <div className="max-w-xs">
+                <Dropdown
+                  value={effectiveChainKey ?? ""}
+                  onChange={setSelectedChainKey}
+                  options={chains.map((c) => ({
+                    value: c.chainKey,
+                    label: (
+                      <span className="flex items-center gap-1.5">
+                        {chainIcon(c.chainKey)} {c.label}
+                      </span>
+                    ),
+                  }))}
+                />
+              </div>
             </div>
 
             {selected && <ChainDepositPanel chain={selected} sendFromAddress={info!.sendFromAddress} />}
