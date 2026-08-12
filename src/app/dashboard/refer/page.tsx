@@ -223,12 +223,11 @@ function CommissionActivityTable() {
 }
 
 // The mining-referral counterpart to CommissionActivityTable above —
-// one row per (day, level) DOGE credit, not per match. There's no
-// single "referred wallet" or "won/lost" to show per row here: each
-// entry is the aggregated carve-out across every contributing referred
-// wallet's active contract that day (see creditMiningReferralDoge in
-// src/lib/referrals.ts), so the table only ever shows date, level and
-// amount.
+// one row per (day, level, referred wallet) DOGE credit, reconstructed
+// from MiningContractAllocation on the server (see
+// /api/referrals/activity's own doc-comment) since the ledger entry
+// creditMiningReferralDoge actually writes is one AGGREGATED credit per
+// day/level across every contributing wallet, not a per-wallet one.
 function MiningCommissionActivityTable() {
   const { t } = useLocale();
   const { data, isLoading } = useReferralActivity();
@@ -244,10 +243,11 @@ function MiningCommissionActivityTable() {
       ) : (
         <>
           <DataTable
-            columns={[t("wallet.dateColumn"), t("history.levelColumn"), t("wallet.amountColumn")]}
+            columns={[t("wallet.dateColumn"), t("refer.walletColumn"), t("history.levelColumn"), t("wallet.amountColumn")]}
             empty={t("referActivity.noMiningActivityYet")}
             rows={pageItems.map((r) => [
               new Date(r.createdAt).toLocaleDateString(),
+              r.referredAddress ? `${r.referredAddress.slice(0, 6)}…${r.referredAddress.slice(-4)}` : "—",
               r.level,
               <span key="amount" className="text-gold">
                 +{r.amountDoge.toFixed(4)} DOGE

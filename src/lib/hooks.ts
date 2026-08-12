@@ -434,15 +434,16 @@ export interface ReferralActivityRow {
   won: boolean | null;
 }
 
-// Mining referral commission is a daily (day, level) rollup, not a
-// per-match event — see /api/referrals/activity's own doc-comment for
-// why there's no referredAddress/mode/won here the way the USDT rows
-// above have.
+// Reconstructed per referred wallet from MiningContractAllocation, not
+// read straight off the ledger — see /api/referrals/activity's own
+// doc-comment for why (the ledger itself only stores one AGGREGATED
+// entry per day/level, summed across every contributing wallet).
 export interface MiningReferralActivityRow {
   id: string;
   createdAt: string;
   level: "L1" | "L2";
   amountDoge: number;
+  referredAddress: string | null;
 }
 
 // The per-event detail behind the Refer page's aggregate Level 1/2
