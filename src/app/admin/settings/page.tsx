@@ -31,7 +31,7 @@ export default function AdminSettingsPage() {
       <div>
         <h1 className="text-lg font-black uppercase tracking-wide">Settings</h1>
         <p className="mt-1 text-sm text-muted">
-          Platform-wide configuration — deposit chains, withdrawal chains/coins, admin access,
+          Platform-wide configuration, deposit chains, withdrawal chains/coins, admin access,
           and public social links. Changes take effect immediately, no redeploy needed.
         </p>
       </div>
@@ -235,14 +235,14 @@ function DepositChainsSection() {
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-gold">Deposit Chains</p>
           <p className="mt-1 text-xs text-muted">
-            Multi-chain. Each chain has a POOL of addresses — users are automatically split
+            Multi-chain. Each chain has a POOL of addresses, users are automatically split
             across whichever addresses exist (1 address = everyone sees it, 2 = roughly half
-            each, 3 = roughly a third each, and so on) — add or remove addresses any time and
+            each, 3 = roughly a third each, and so on), add or remove addresses any time and
             the split adjusts itself. EVM chains (BEP20 and any other you add) are auto-detected
             and auto-credited by a live watcher regardless of which pool address a deposit lands
-            on — matching is by the SENDER&rsquo;s wallet, not the receiving address. TRON chains
+            on, matching is by the SENDER&rsquo;s wallet, not the receiving address. TRON chains
             (TRC20) are detected live too, but this app has no way to link a user&rsquo;s Tron
-            wallet to their account yet — Tron deposits always need an admin&rsquo;s manual
+            wallet to their account yet, Tron deposits always need an admin&rsquo;s manual
             assign on the Deposits tab, they never self-credit.
           </p>
         </div>
@@ -332,7 +332,7 @@ function AddDepositChainForm({ onDone }: { onDone: () => void }) {
         </Field>
         <Field
           label={`Starting deposit addresses (${addresses.length})`}
-          hint="One per line (or comma-separated) — users are split evenly across all of them automatically. Add more later any time."
+          hint="One per line (or comma-separated), users are split evenly across all of them automatically. Add more later any time."
         >
           <textarea
             value={addressesText}
@@ -345,17 +345,17 @@ function AddDepositChainForm({ onDone }: { onDone: () => void }) {
         <Field label="Token decimals">
           <input type="number" value={tokenDecimals} onChange={(e) => setTokenDecimals(e.target.value)} className={inputClass} />
         </Field>
-        <Field label="Min confirmations" hint={kind === "TRON" ? "Unused for Tron — it uses TronGrid's own finality flag" : undefined}>
+        <Field label="Min confirmations" hint={kind === "TRON" ? "Unused for Tron, it uses TronGrid's own finality flag" : undefined}>
           <input type="number" value={minConfirmations} onChange={(e) => setMinConfirmations(e.target.value)} className={inputClass} />
         </Field>
         {kind === "EVM" && (
           <>
-            <Field label="RPC URL" hint="Blank falls back to a free public RPC for well-known chain IDs (1=Ethereum, 56=BSC, 137=Polygon) — required for anything else">
+            <Field label="RPC URL" hint="Blank falls back to a free public RPC for well-known chain IDs (1=Ethereum, 56=BSC, 137=Polygon), required for anything else">
               <input value={rpcUrl} onChange={(e) => setRpcUrl(e.target.value)} placeholder="https://…" className={inputClass} />
             </Field>
             <Field
               label="EVM chain ID"
-              hint="56=BSC, 137=Polygon, 1=Ethereum. Needed for the in-wallet deposit button — without it (or for an unregistered chain id) users can still deposit by copying the address or pasting a tx hash to verify."
+              hint="56=BSC, 137=Polygon, 1=Ethereum. Needed for the in-wallet deposit button, without it (or for an unregistered chain id) users can still deposit by copying the address or pasting a tx hash to verify."
             >
               <input type="number" value={evmChainId} onChange={(e) => setEvmChainId(e.target.value)} placeholder="56" className={inputClass} />
             </Field>
@@ -441,8 +441,8 @@ function DepositChainRow({ row }: { row: AdminDepositChainRow }) {
             {row.addresses.length === 0
               ? "No deposit addresses yet"
               : row.addresses.length === 1
-                ? "1 address — every user sees this one"
-                : `${row.addresses.length} addresses — users split roughly evenly across all of them`}
+                ? "1 address, every user sees this one"
+                : `${row.addresses.length} addresses, users split roughly evenly across all of them`}
           </p>
         </div>
         <div className="flex shrink-0 gap-1.5">
@@ -599,7 +599,7 @@ function WithdrawChainsSection() {
             Every destination a user can withdraw to. USDT chains let the user pick Recycled or
             Referral USDT as the source balance; the DOGE coin always debits Available DOGE
             directly, no picker. Every withdrawal is still completed by an admin manually
-            broadcasting the real transaction on the Withdrawals tab — adding a chain here never
+            broadcasting the real transaction on the Withdrawals tab, adding a chain here never
             automates sending.
           </p>
         </div>
@@ -896,10 +896,10 @@ function WeeklyLeaderboardSection() {
     <section className="game-panel hud-corner rounded-2xl p-5">
       <p className="text-[10px] font-bold uppercase tracking-widest text-gold">Weekly Leaderboard</p>
       <p className="mt-1 text-xs text-muted">
-        Reward payout is off by default — the leaderboard page always shows real rankings from
+        Reward payout is off by default, the leaderboard page always shows real rankings from
         real settled matches, but no Game Reward USDT is credited until both fields below are set.
         Top 3 split is fixed at 55% / 30% / 15%. Turning this on only affects weeks that haven&rsquo;t
-        ended yet — a week already finalized unpaid stays unpaid.
+        ended yet, a week already finalized unpaid stays unpaid.
       </p>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -918,7 +918,7 @@ function WeeklyLeaderboardSection() {
         </button>
         {saved && !update.isPending && (
           <span className="text-xs text-mint">
-            ✓ Saved — {willPayOut ? "reward payout is live for the current week" : "rankings only, no reward"}
+            ✓ Saved: {willPayOut ? "reward payout is live for the current week" : "rankings only, no reward"}
           </span>
         )}
         {error && <span className="text-xs text-risk">{error}</span>}
@@ -993,7 +993,7 @@ function WalletConnectSection() {
         <button onClick={save} disabled={update.isPending} className="btn-game-outline rounded-full px-4 py-1.5 text-xs disabled:opacity-50">
           {update.isPending ? "Saving…" : "Save WalletConnect"}
         </button>
-        {saved && !update.isPending && <span className="text-xs text-mint">✓ Saved — takes effect on next page load</span>}
+        {saved && !update.isPending && <span className="text-xs text-mint">✓ Saved: takes effect on next page load</span>}
         {error && <span className="text-xs text-risk">{error}</span>}
       </div>
     </section>
@@ -1031,7 +1031,7 @@ function AdminUsersSection() {
       <p className="text-[10px] font-bold uppercase tracking-widest text-gold">Admin Users</p>
       <p className="mt-1 text-xs text-muted">
         Wallet addresses with access to this /admin area. Entries from ADMIN_ADDRESSES (env) are
-        read-only here — edit .env directly to change those. Everyone else can be added or
+        read-only here, edit .env directly to change those. Everyone else can be added or
         removed below, no redeploy needed.
       </p>
 
@@ -1066,7 +1066,7 @@ function AdminUsersSection() {
                   {row.address === data.you && <span className="ml-2 rounded-full bg-gold-soft px-2 py-0.5 text-[10px] font-bold text-gold">YOU</span>}
                 </p>
                 <p className="mt-0.5 text-[11px] text-muted">
-                  {row.source === "env" ? "From ADMIN_ADDRESSES (env) — read-only" : `Added${row.createdAt ? ` ${new Date(row.createdAt).toLocaleDateString()}` : ""}`}
+                  {row.source === "env" ? "From ADMIN_ADDRESSES (env), read-only" : `Added${row.createdAt ? ` ${new Date(row.createdAt).toLocaleDateString()}` : ""}`}
                 </p>
               </div>
               {row.source === "db" && row.id && row.address !== data.you && (

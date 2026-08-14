@@ -15,6 +15,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { Pickaxe } from "lucide-react";
 import { OnboardingGate } from "@/components/OnboardingGate";
 import { BalanceCard } from "@/components/BalanceCard";
 import { Dropdown } from "@/components/Dropdown";
@@ -112,6 +113,17 @@ function MiningContent() {
   const [activateSource, setActivateSource] = useState<FundingSource>("GAME_REWARD_USDT");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [successModal, setSuccessModal] = useState<{ title: string; body?: string; rows: SuccessModalRow[] } | null>(null);
+
+  // Scrolls the adjacent Buy Hashrate panel into view instead of
+  // duplicating its amount/source/purchase controls here — this panel
+  // (Your Rig, "no hashrate yet" state) is purely a nudge, not a second
+  // place to actually buy from. Smoothly relevant on mobile, where the
+  // two panels stack vertically and Buy Hashrate can be a full scroll
+  // away; a harmless no-op on desktop's side-by-side layout where it's
+  // already on screen.
+  function scrollToBuyHashrate() {
+    document.getElementById("buy-hashrate-panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
 
   async function doActivate() {
     setFeedback(null);
@@ -252,11 +264,18 @@ function MiningContent() {
               <p className="mt-1 text-sm text-muted">
                 {t("mining.noHashrateBody", { min: MIN_PURCHASE_USDT })}
               </p>
+              <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border border-mint/20 bg-mint-soft/40 px-4 py-5 text-center">
+                <Pickaxe size={26} className="text-mint" strokeWidth={1.75} />
+                <p className="text-sm font-semibold text-foreground">{t("mining.noHashrateCtaHeadline")}</p>
+                <button onClick={scrollToBuyHashrate} className="btn-game hud-corner mt-1 rounded-full px-4 py-2 text-sm">
+                  {t("mining.noHashrateCtaButton")}
+                </button>
+              </div>
             </>
           )}
         </div>
 
-        <div className="game-panel hud-corner rounded-2xl border-mint/15 p-5">
+        <div id="buy-hashrate-panel" className="game-panel hud-corner rounded-2xl border-mint/15 p-5">
           <p className="text-[10px] font-bold uppercase tracking-widest text-mint">⚡ {t("mining.buyHashrateLabel")}</p>
           <p className="mt-1 text-sm text-muted">
             {t("mining.buyHashrateBody", { rate: HASHRATE_PER_USDT, min: MIN_PURCHASE_USDT, days: HASHRATE_TERM_DAYS })}
@@ -525,12 +544,12 @@ function MiningContent() {
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("mining.packageColumn")}</p>
                 <p className="stat-value mt-1 text-base">
-                  {proof.hasContract ? levelDisplayNameWithPlus(proof.level ?? "", proof.miningPower ?? 0) : "—"}
+                  {proof.hasContract ? levelDisplayNameWithPlus(proof.level ?? "", proof.miningPower ?? 0) : "-"}
                 </p>
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("mining.hashrateColumn")}</p>
-                <p className="stat-value mt-1 text-base">{proof.hasContract ? `${proof.miningPower?.toFixed(1)} MH/s` : "—"}</p>
+                <p className="stat-value mt-1 text-base">{proof.hasContract ? `${proof.miningPower?.toFixed(1)} MH/s` : "-"}</p>
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("mining.productionTodayLabel")}</p>
@@ -607,7 +626,7 @@ function MiningContent() {
                         : "text-risk"
                     }`}
                   >
-                    {proof.roiSummary.onTrackPct === null ? "—" : `${proof.roiSummary.onTrackPct.toFixed(1)}%`}
+                    {proof.roiSummary.onTrackPct === null ? "-" : `${proof.roiSummary.onTrackPct.toFixed(1)}%`}
                   </p>
                 </div>
               </>
@@ -676,7 +695,7 @@ function MiningContent() {
       {proof?.lastEpoch && (
         <section>
           <h2 className="mb-3 flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.2em] text-mint">
-            ▸ {t("mining.yesterdaySettledHeading")} — {new Date(proof.lastEpoch.epochDate).toLocaleDateString()}
+            ▸ {t("mining.yesterdaySettledHeading")} ({new Date(proof.lastEpoch.epochDate).toLocaleDateString()})
             <InfoTooltip text={t("mining.yesterdaySettledTooltip")} />
           </h2>
 

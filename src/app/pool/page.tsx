@@ -134,6 +134,13 @@ export default async function PoolPage() {
     observedHashrate: Number(e.observedHashrate),
     grossOutputDoge: Number(e.grossOutputDoge),
     netDistributableDoge: Number(e.netDistributableDoge),
+    // Extra breakdown fields, only rendered inside each row's own
+    // expand/collapse detail panel (see PoolExplorer's epochs table) —
+    // every one a real MiningEpoch column, nothing derived/fabricated.
+    poolFeeDoge: Number(e.poolProviderFeesDoge),
+    electricityCostDoge: Number(e.maintenanceCostDoge),
+    reserveContributionDoge: Number(e.reserveContributionDoge),
+    totalEffectiveMhsHours: Number(e.totalEffectiveMp),
     status: e.status,
   }));
 

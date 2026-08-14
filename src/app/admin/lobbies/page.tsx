@@ -95,7 +95,7 @@ export default function AdminLobbiesPage() {
                 <td className="px-4 py-3 font-mono text-xs">{shortAddr(lobby.hostAddress)}</td>
                 <td className="px-4 py-3">{lobby.humanCount}/4</td>
                 <td className="px-4 py-3 text-xs text-muted">{fmtDateTime(lobby.createdAt)}</td>
-                <td className="px-4 py-3 font-mono text-xs text-muted">{lobby.finalMatchId ? lobby.finalMatchId.slice(0, 10) + "…" : "—"}</td>
+                <td className="px-4 py-3 font-mono text-xs text-muted">{lobby.finalMatchId ? lobby.finalMatchId.slice(0, 10) + "…" : "-"}</td>
               </tr>
             ))}
           </tbody>

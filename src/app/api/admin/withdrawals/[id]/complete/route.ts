@@ -26,7 +26,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const withdrawal = await db.withdrawal.findUnique({ where: { id } });
   if (!withdrawal) return NextResponse.json({ error: "Withdrawal not found" }, { status: 404 });
   if (withdrawal.status === "COMPLETED") {
-    return NextResponse.json({ error: "Already completed — a withdrawal can't be re-completed." }, { status: 409 });
+    return NextResponse.json({ error: "Already completed, a withdrawal can't be re-completed." }, { status: 409 });
   }
 
   const updated = await db.withdrawal.update({

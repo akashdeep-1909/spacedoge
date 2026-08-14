@@ -50,7 +50,7 @@ export function RigIllustration({ level }: { level: string }) {
         viewBox={`0 0 ${width} ${height}`}
         className="w-full max-w-[260px]"
         role="img"
-        aria-label={`${level} mining rig — ${chips} GPU slots running`}
+        aria-label={`${level} mining rig, ${chips} GPU slots running`}
       >
         <defs>
           <filter id={`glow-${uid}`} x="-80%" y="-80%" width="260%" height="260%">

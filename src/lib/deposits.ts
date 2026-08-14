@@ -101,50 +101,68 @@ async function evmRpcCallOnce<T>(rpcUrl: string, method: string, params: unknown
   return body.result as T;
 }
 
-// Free public 1rpc.io nodes, one per chain id — used only when a
-// DepositChainConfig row leaves `rpcUrl` blank. Previously a single
-// hardcoded BSC URL was used as the fallback for EVERY chain
-// regardless of which one a config row actually represented — harmless
-// while BSC was the only EVM chain configured, but silently wrong the
-// moment a second one (Ethereum) existed with no rpcUrl of its own:
-// scanning Ethereum contract logs against a BSC node just returns
-// nothing ever matching, so deposits would silently never be detected,
-// with every other part of the flow (address, QR, deposit button)
-// still looking perfectly configured. Falls back to undefined (no
-// default) for any chain id not in this map — callers must then either
-// have a configured rpcUrl or skip the cycle, never silently guess.
-const DEFAULT_EVM_RPC_URLS: Record<number, string> = {
-  1: "https://1rpc.io/eth", // Ethereum mainnet
-  56: "https://1rpc.io/bnb", // BSC
-  137: "https://1rpc.io/matic", // Polygon
+// Free public RPC nodes, several per chain id — used as fallbacks
+// alongside (not instead of) a DepositChainConfig row's own `rpcUrl`.
+// Previously this was ONE hardcoded URL per chain: fine as long as that
+// single node stayed up, but confirmed live to fail for extended
+// stretches (rate limiting, an outage) with no fallback at all, turning
+// a real, already-mined deposit into a repeating "couldn't reach the
+// blockchain" for however long that one node was down. Falls back to an
+// empty list for any chain id not in this map — callers must then
+// either have a configured rpcUrl or skip the cycle, never silently
+// guess.
+const DEFAULT_EVM_RPC_URLS: Record<number, string[]> = {
+  1: ["https://1rpc.io/eth", "https://ethereum-rpc.publicnode.com", "https://eth.llamarpc.com"], // Ethereum mainnet
+  56: ["https://1rpc.io/bnb", "https://bsc-rpc.publicnode.com", "https://bsc-dataseed.binance.org"], // BSC
+  137: ["https://1rpc.io/matic", "https://polygon-rpc.com", "https://polygon-bor-rpc.publicnode.com"], // Polygon
 };
 
-function resolveRpcUrl(config: DepositChainConfig): string | undefined {
-  return config.rpcUrl || (config.evmChainId ? DEFAULT_EVM_RPC_URLS[config.evmChainId] : undefined);
+// All URLs worth trying for this chain, in priority order: the admin's
+// own configured node first (if set — presumably the most trustworthy/
+// dedicated one), then every known free public fallback for that EVM
+// chain id. Returns [] (not undefined) when there's genuinely nothing
+// to try, so callers can treat "not configured" and "configured but
+// every URL is currently down" as the two distinct cases they are.
+function resolveRpcUrls(config: DepositChainConfig): string[] {
+  const fallbacks = config.evmChainId ? DEFAULT_EVM_RPC_URLS[config.evmChainId] ?? [] : [];
+  return config.rpcUrl ? [config.rpcUrl, ...fallbacks] : fallbacks;
 }
 
-// Free public RPC nodes blip often enough in practice that a single
-// failed call shouldn't be the difference between "found your real
-// deposit" and "couldn't reach the blockchain" for a user pasting a tx
-// hash. One retry after a short delay absorbs most of that without
-// meaningfully slowing down the common case. Every failure (including
-// the final one) is logged with the real underlying error — callers
-// still only see a generic status, but this is what makes a report
-// like "verify says unreachable" diagnosable server-side instead of a
-// dead end.
-async function evmRpcCall<T>(rpcUrl: string, method: string, params: unknown[]): Promise<T> {
-  try {
-    return await evmRpcCallOnce<T>(rpcUrl, method, params);
-  } catch (err) {
-    console.error(`[deposits] RPC call failed (attempt 1/2): ${method}`, err);
-    await new Promise((resolve) => setTimeout(resolve, 500));
+// Free public RPC nodes blip — and sometimes go down or rate-limit for
+// extended stretches — often enough in practice that retrying the SAME
+// node twice isn't enough: confirmed live, a real, already-mined
+// transaction repeatedly came back "rpc_error" for minutes on end
+// because the one configured/defaulted node was unreachable, even
+// though the transaction was fine and any other node (or a block
+// explorer) could see it immediately. Trying every configured/fallback
+// URL for this chain (see resolveRpcUrls below) before giving up — and
+// only THEN doing one more full pass after a short delay for a blip
+// that hits all of them at once — turns "one flaky free node" from a
+// hard failure into a non-event. Every failure (including the final
+// one) is logged with the real underlying error and which URL it hit —
+// callers still only see a generic status, but this is what makes a
+// report like "verify says unreachable" diagnosable server-side instead
+// of a dead end.
+async function evmRpcCall<T>(rpcUrls: string[], method: string, params: unknown[]): Promise<T> {
+  let lastErr: unknown;
+  for (const url of rpcUrls) {
     try {
-      return await evmRpcCallOnce<T>(rpcUrl, method, params);
-    } catch (err2) {
-      console.error(`[deposits] RPC call failed (attempt 2/2): ${method}`, err2);
-      throw err2;
+      return await evmRpcCallOnce<T>(url, method, params);
+    } catch (err) {
+      lastErr = err;
+      console.error(`[deposits] RPC call failed on ${url}: ${method}`, err);
     }
   }
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  for (const url of rpcUrls) {
+    try {
+      return await evmRpcCallOnce<T>(url, method, params);
+    } catch (err) {
+      lastErr = err;
+      console.error(`[deposits] RPC retry failed on ${url}: ${method}`, err);
+    }
+  }
+  throw lastErr;
 }
 
 // Converts a raw hex wei-style integer (e.g. "0x1158e460913d00000")
@@ -205,8 +223,8 @@ async function getAddressesToWatch(chainConfigId: string): Promise<Set<string>> 
 }
 
 async function syncEvmChain(config: DepositChainConfig): Promise<void> {
-  const rpcUrl = resolveRpcUrl(config);
-  if (!rpcUrl) {
+  const rpcUrls = resolveRpcUrls(config);
+  if (rpcUrls.length === 0) {
     console.error(`[deposits] No RPC URL configured or defaulted for chain ${config.chainKey} (evmChainId=${config.evmChainId}) — set one in /admin/settings.`);
     return;
   }
@@ -216,11 +234,25 @@ async function syncEvmChain(config: DepositChainConfig): Promise<void> {
 
   let latestBlock: number;
   try {
-    const latestHex = await evmRpcCall<string>(rpcUrl, "eth_blockNumber", []);
+    const latestHex = await evmRpcCall<string>(rpcUrls, "eth_blockNumber", []);
     latestBlock = parseInt(latestHex, 16);
   } catch {
-    return; // RPC unreachable this cycle — try again on the next poll
+    return; // every configured/fallback RPC unreachable this cycle — try again on the next poll
   }
+
+  // Re-check every still-PENDING deposit on this chain against the
+  // current chain head BEFORE the forward-only scan below — a PENDING
+  // row's confirmations count is a snapshot from whenever it was first
+  // recorded (either by this same forward scan, or by a user's own
+  // verify-by-hash call), and the forward scan never revisits a block
+  // range once it's moved past it. Without this, a deposit that landed
+  // with fewer than minConfirmations at that moment would sit PENDING
+  // forever with a stale count — confirmed live as exactly the "stuck
+  // on pending, never credits" report — even though the chain keeps
+  // confirming it every block. This is what actually clears it,
+  // independent of whether the depositing user's browser tab is even
+  // still open to keep polling client-side.
+  await recheckPendingEvmDeposits(config, rpcUrls, latestBlock);
 
   const cursor = await db.depositWatcherCursor.findUnique({ where: { chain: config.chainKey } });
   if (!cursor) {
@@ -253,7 +285,7 @@ async function syncEvmChain(config: DepositChainConfig): Promise<void> {
       // exactly one RPC call per chain per poll regardless of pool size
       // — the tradeoff is a busier token can return more log rows per
       // call, bounded by MAX_BLOCK_RANGE same as before.
-      const logs = await evmRpcCall<TransferLog[]>(rpcUrl, "eth_getLogs", [
+      const logs = await evmRpcCall<TransferLog[]>(rpcUrls, "eth_getLogs", [
         {
           address: tokenContract,
           topics: [TRANSFER_TOPIC0],
@@ -292,6 +324,50 @@ async function syncEvmChain(config: DepositChainConfig): Promise<void> {
       where: { chain: config.chainKey },
       data: { lastBlock: BigInt(scannedTo) },
     });
+  }
+}
+
+// See the call site in syncEvmChain above for the full "why". One
+// eth_getTransactionReceipt per still-PENDING row on this chain, each
+// cycle, feeding an up-to-date confirmations count back through the
+// exact same creditIfReady() crediting logic the forward scan uses —
+// PENDING rows are expected to be few and short-lived (they only exist
+// between "found, not yet confirmed enough" and "confirmed", typically
+// well under a minute), so this stays cheap even on a free RPC node.
+async function recheckPendingEvmDeposits(config: DepositChainConfig, rpcUrls: string[], latestBlock: number): Promise<void> {
+  const pending = await db.onchainDeposit.findMany({
+    where: { chain: config.chainKey, status: DepositStatus.PENDING },
+  });
+  if (pending.length === 0) return;
+
+  interface TransactionReceipt {
+    status: string;
+    blockNumber: string;
+  }
+
+  for (const dep of pending) {
+    try {
+      const receipt = await evmRpcCall<TransactionReceipt | null>(rpcUrls, "eth_getTransactionReceipt", [dep.txHash]);
+      if (!receipt || receipt.status === "0x0") continue; // not mined (shouldn't happen for an already-recorded row) or reverted since — leave it for a human to look at, don't touch its status here
+      const blockNumber = parseInt(receipt.blockNumber, 16);
+      const confirmations = Math.max(0, latestBlock - blockNumber + 1);
+      if (confirmations <= dep.confirmations) continue; // no new information yet this cycle
+      await creditIfReady({
+        chainKey: config.chainKey,
+        txHash: dep.txHash,
+        from: dep.fromAddress,
+        treasury: dep.toAddress,
+        amount: Number(dep.amount),
+        confirmations,
+        minConfirmations: config.minConfirmations,
+        source: DepositSource.WATCHER,
+      });
+    } catch (err) {
+      // One stuck row's lookup failing shouldn't stop the rest from
+      // being rechecked this cycle — it just stays PENDING and gets
+      // tried again next poll, same as any other RPC hiccup here.
+      console.error(`[deposits] recheck failed for pending deposit ${dep.txHash}`, err);
+    }
   }
 }
 
@@ -495,8 +571,8 @@ async function verifyEvmDeposit(
   const hash = txHash.trim().toLowerCase();
   if (!/^0x[a-f0-9]{64}$/.test(hash)) return { status: "invalid_hash" };
 
-  const rpcUrl = resolveRpcUrl(config);
-  if (!rpcUrl) return { status: "rpc_error" };
+  const rpcUrls = resolveRpcUrls(config);
+  if (rpcUrls.length === 0) return { status: "rpc_error" };
   const tokenContract = config.tokenContract.toLowerCase();
   const watchedAddresses = await getAddressesToWatch(config.id);
 
@@ -510,8 +586,8 @@ async function verifyEvmDeposit(
   let latestBlock: number;
   try {
     [receipt, latestBlock] = await Promise.all([
-      evmRpcCall<TransactionReceipt | null>(rpcUrl, "eth_getTransactionReceipt", [hash]),
-      evmRpcCall<string>(rpcUrl, "eth_blockNumber", []).then((hex) => parseInt(hex, 16)),
+      evmRpcCall<TransactionReceipt | null>(rpcUrls, "eth_getTransactionReceipt", [hash]),
+      evmRpcCall<string>(rpcUrls, "eth_blockNumber", []).then((hex) => parseInt(hex, 16)),
     ]);
   } catch {
     return { status: "rpc_error" };

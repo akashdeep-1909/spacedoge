@@ -37,7 +37,15 @@ function DashboardContent() {
         <h2 className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-gold">
           ⬢ {t("dashboardHome.balancesHeading")}
         </h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {/* Every balance the system actually tracks (see WalletBalances),
+            not a partial subset — this used to omit PTS and Mining
+            Earnings entirely, so a wallet holding either saw no trace of
+            it here despite both showing up on the full Wallet page.
+            Grouped and toned to match that page exactly: USDT balances
+            first (mint = withdrawable, plain = restricted — Game Reward
+            USDT is locked to mining spend, so it's plain here too, not
+            mint), then points/DOGE. */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <BalanceCard
             label={t("dashboardHome.playUsdt")}
             value={isLoading ? "…" : fmtUsdt(balances?.playUsdt ?? 0)}
@@ -46,7 +54,6 @@ function DashboardContent() {
           <BalanceCard
             label={t("dashboardHome.gameRewardUsdt")}
             value={isLoading ? "…" : fmtUsdt(balances?.gameRewardUsdt ?? 0)}
-            tone="mint"
             hint={t("dashboardHome.gameRewardUsdtHint")}
           />
           <BalanceCard
@@ -56,10 +63,21 @@ function DashboardContent() {
             hint={t("dashboardHome.referralUsdtHint")}
           />
           <BalanceCard
-            label={t("dashboardHome.miningPower")}
-            value={isLoading ? "…" : `${(balances?.activeMiningPower ?? 0).toFixed(1)} MH/s`}
-            tone="gold"
-            hint={t("dashboardHome.miningPowerHint")}
+            label={t("wallet.recycledUsdtLabel")}
+            value={isLoading ? "…" : fmtUsdt(balances?.recycledUsdt ?? 0)}
+            tone="mint"
+            hint={t("dashboardHome.recycledUsdtHint")}
+          />
+          <BalanceCard
+            label={t("wallet.ptsLabel")}
+            value={isLoading ? "…" : (balances?.pts ?? 0).toLocaleString()}
+            hint={t("wallet.ptsHint")}
+          />
+          <BalanceCard
+            label={t("dashboardHome.availableDoge")}
+            value={isLoading ? "…" : fmtDoge(balances?.availableDoge ?? 0)}
+            tone="mint"
+            hint={t("dashboardHome.availableDogeHint")}
           />
           <BalanceCard
             label={t("dashboardHome.pendingDoge")}
@@ -67,10 +85,10 @@ function DashboardContent() {
             hint={t("dashboardHome.pendingDogeHint")}
           />
           <BalanceCard
-            label={t("dashboardHome.availableDoge")}
-            value={isLoading ? "…" : fmtDoge(balances?.availableDoge ?? 0)}
-            tone="mint"
-            hint={t("dashboardHome.availableDogeHint")}
+            label={t("dashboardHome.miningPower")}
+            value={isLoading ? "…" : `${(balances?.activeMiningPower ?? 0).toFixed(1)} MH/s`}
+            tone="gold"
+            hint={t("dashboardHome.miningPowerHint")}
           />
         </div>
       </section>

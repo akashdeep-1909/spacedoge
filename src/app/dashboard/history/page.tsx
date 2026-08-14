@@ -91,7 +91,7 @@ function GameTab() {
         r.mode,
         r.status,
         r.score,
-        r.rank ?? "—",
+        r.rank ?? "-",
         <div key="reward">
           <div>${r.rewardUsdt.toFixed(2)}</div>
           {r.bonusPts > 0 && (

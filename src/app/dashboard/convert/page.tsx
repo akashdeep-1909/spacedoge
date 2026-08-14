@@ -200,7 +200,7 @@ function ConvertContent() {
               </div>
               <div className="flex items-center justify-between pt-1">
                 <p className="text-[11px] text-muted">
-                  {t("convert.quoteExpiresIn", { s: secondsLeft ?? "—" })}
+                  {t("convert.quoteExpiresIn", { s: secondsLeft ?? "-" })}
                 </p>
                 <button
                   type="button"

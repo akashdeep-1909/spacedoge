@@ -4,7 +4,7 @@ import { fetchDogeUsdtRate } from "@/lib/conversion";
 import { getMiningEconomicsConfig } from "@/lib/mining-settings";
 
 export const metadata: Metadata = {
-  title: "Referral Network — Space DOGE",
+  title: "Referral Network - Space DOGE",
   description: "Invite players and earn a transparent, instantly-credited commission whenever a referred wallet enters a paid Coin Rush match or has an active mining contract.",
 };
 

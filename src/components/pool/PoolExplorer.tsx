@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ShieldCheck, Landmark, Fingerprint } from "lucide-react";
+import { ShieldCheck, Landmark, Fingerprint, ChevronDown } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { DogeIcon } from "@/components/icons/CoinIcons";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { SocialLinks } from "@/components/SocialLinks";
 import { ChartTooltip } from "@/components/ChartTooltip";
+import { PaginationControls } from "@/components/PaginationControls";
+import { usePagination } from "@/lib/usePagination";
 import { CHART } from "@/lib/chart-theme";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 
@@ -19,6 +22,13 @@ interface EpochRow {
   observedHashrate: number;
   grossOutputDoge: number;
   netDistributableDoge: number;
+  // Extra breakdown fields, only surfaced inside each row's own
+  // expand/collapse detail panel — real MiningEpoch columns, not
+  // derived/fabricated (see pool/page.tsx's own epochRows mapping).
+  poolFeeDoge: number;
+  electricityCostDoge: number;
+  reserveContributionDoge: number;
+  totalEffectiveMhsHours: number;
   status: string;
 }
 
@@ -103,8 +113,15 @@ function useIllustrativeHashrateSeries(totalHashrateGhs: number) {
   useEffect(() => {
     if (totalHashrateGhs <= 0) return;
 
+    // A gentle ±1.5% drift, not the ±6% swing this used to jump by —
+    // real fleet-wide hashrate (an aggregate of many contracts) doesn't
+    // actually lurch tick-to-tick, it drifts smoothly, and a wide swing
+    // rendered with `type="natural"` interpolation produced a jagged,
+    // spiky line rather than the calm rolling wave a real pool's own
+    // hashrate chart shows (e.g. pool.binance.com's Network Hashrate
+    // chart, the explicit reference this was tuned to match).
     function jitteredValue() {
-      return totalHashrateGhs * (0.94 + Math.random() * 0.12);
+      return totalHashrateGhs * (0.985 + Math.random() * 0.03);
     }
 
     // Pre-fill a full 24h of illustrative history immediately on
@@ -133,7 +150,10 @@ function useIllustrativeHashrateSeries(totalHashrateGhs: number) {
       setSeries((prev) => [...prev.filter((p) => p.time >= cutoff), point]);
     }
 
-    const interval = setInterval(pushPoint, 1800);
+    // Slower cadence than before (was 1800ms) — paired with the
+    // narrower jitter above, this reads as a slow, steady drift instead
+    // of a nervous flicker.
+    const interval = setInterval(pushPoint, 2500);
     return () => clearInterval(interval);
   }, [totalHashrateGhs]);
 
@@ -202,6 +222,22 @@ function EpochDot({ cx, cy }: { cx?: number; cy?: number }) {
   );
 }
 
+// One cell in the "Our Hashrate" panel's top info bar — styled after
+// real pool-comparison sites' own coin-row stat columns (Algo / Active
+// Workers / Hashrate / Network), just stacked label-over-value instead
+// of a table cell, so it wraps cleanly on narrow screens.
+function HeaderStat({ label, value, unit, accent }: { label: string; value: string; unit?: string; accent?: boolean }) {
+  return (
+    <div>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{label}</p>
+      <p className={`stat-value mt-1 text-lg ${accent ? "text-glow-mint text-mint" : "text-foreground"}`}>
+        {value}
+        {unit && <span className={`ml-1 text-xs font-normal ${accent ? "text-mint/80" : "text-muted"}`}>{unit}</span>}
+      </p>
+    </div>
+  );
+}
+
 export function PoolExplorer({
   summary,
   epochs,
@@ -239,6 +275,22 @@ export function PoolExplorer({
   }, [live]);
 
   const hashrateSeries = useIllustrativeHashrateSeries(summary.totalHashrateGhs);
+
+  // Recent Settlement Epochs table: 10 rows per page (newest first,
+  // `epochs` already arrives in that order from pool/page.tsx), plus a
+  // per-row expand/collapse for the fuller breakdown — a Set so more
+  // than one row can be open at once, keyed by the epoch's own unique
+  // date string.
+  const epochPage = usePagination(epochs, 10);
+  const [expandedEpochs, setExpandedEpochs] = useState<Set<string>>(new Set());
+  function toggleEpoch(epochDateIso: string) {
+    setExpandedEpochs((prev) => {
+      const next = new Set(prev);
+      if (next.has(epochDateIso)) next.delete(epochDateIso);
+      else next.add(epochDateIso);
+      return next;
+    });
+  }
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-background text-foreground">
@@ -377,7 +429,7 @@ export function PoolExplorer({
           <div className="game-panel hud-corner rounded-2xl p-5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("pool.latestEpochLabel")}</p>
             <p className="stat-value mt-1.5 text-xl">
-              {summary.latestEpochDateIso ? fmtDate(summary.latestEpochDateIso) : "—"}
+              {summary.latestEpochDateIso ? fmtDate(summary.latestEpochDateIso) : "-"}
             </p>
           </div>
         </div>
@@ -544,175 +596,276 @@ export function PoolExplorer({
           </div>
         </section>
 
-        {/* Our Hashrate — the same real summary.totalHashrateGhs value as
-            the summary card up top, surfaced again here as a lead-in
-            stat directly above the fleet feed. Paired with the REAL
-            Dogecoin network's own difficulty/hashrate (fetched live from
-            a public blockchain data source, see dogeNetworkStats.ts) —
-            never a fabricated number, and deliberately in its own
-            separately-labeled card so it's never mistaken for something
-            this platform measures or causes. This platform doesn't
-            submit work to the real network; the two cards are just
-            placed side by side for honest real-world context. */}
+        {/* Our Hashrate — a real pool site's own coin-mining page,
+            reference: pool.binance.com/en (a coin header row — icon,
+            algo, active workers, hashrate, network — sitting directly
+            above that coin's own hashrate chart, all in one panel).
+            Every number in the header row is real: summary.
+            totalHashrateGhs / summary.minerCount from this platform's
+            own contracts, dogeNetworkStats fetched live from a public
+            blockchain data source (see dogeNetworkStats.ts) for the
+            REAL Dogecoin network's difficulty/hashrate — never
+            fabricated, and never implied to be caused by this fleet
+            (this platform doesn't submit work to that network; the
+            two groups of numbers are just placed side by side for
+            honest real-world context, same framing the previous two-
+            card layout used). The chart below is explicitly illustrative
+            (see useIllustrativeHashrateSeries's own doc-comment) — every
+            point still wiggles gently around the real "Our Hashrate"
+            figure directly above it, just smoothed to read as a calm
+            rolling wave instead of a nervous spike train. */}
         <section className="mt-8">
           <h3 className="flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.2em] text-mint">
             ⚡ {t("pool.ourHashrateHeading")}
           </h3>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <div className="game-panel hud-corner glow-mint flex items-center justify-between rounded-2xl border-mint/25 p-5">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("pool.ourHashrateLabel")}</p>
-                <p className="stat-value text-glow-mint mt-1.5 text-3xl text-mint">
-                  {summary.totalHashrateGhs.toLocaleString(undefined, { maximumFractionDigits: 2 })}{" "}
-                  <span className="text-base">GH/s</span>
-                </p>
+          <div className="game-panel hud-corner glow-mint mt-4 overflow-hidden rounded-2xl border-mint/25">
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-4 border-b border-line/60 p-5">
+              <div className="flex items-center gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-panel-2">
+                  <DogeIcon size={26} />
+                </span>
+                <div>
+                  <p className="text-sm font-black leading-tight text-foreground">Dogecoin</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("pool.listingAlgoLabel")}</p>
+                </div>
               </div>
+              <HeaderStat label={t("pool.listingColMiners")} value={summary.minerCount.toLocaleString()} />
+              <HeaderStat
+                label={t("pool.totalHashrateLabel")}
+                value={summary.totalHashrateGhs.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                unit="GH/s"
+                accent
+              />
+              {dogeNetworkStats && (
+                <div>
+                  <div className="flex items-center gap-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("pool.dogeNetworkLabel")}</p>
+                    <InfoTooltip text={t("pool.dogeNetworkTooltip")} />
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-0.5">
+                    <p className="stat-value text-lg">
+                      {dogeNetworkStats.networkHashrateThs.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                      <span className="ml-1 text-xs font-normal text-muted">TH/s</span>
+                    </p>
+                    <p className="stat-value text-lg">
+                      {dogeNetworkStats.difficulty.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      <span className="ml-1 text-xs font-normal text-muted">{t("pool.dogeNetworkDifficultyUnit")}</span>
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
-            {dogeNetworkStats && (
-              <div className="game-panel hud-corner flex flex-col justify-center rounded-2xl p-5">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("pool.dogeNetworkLabel")}</p>
-                  <InfoTooltip text={t("pool.dogeNetworkTooltip")} />
+
+            <div className="p-5">
+              <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted">{t("pool.liveFeedHeading")}</p>
+              {hashrateSeries.length < 2 ? (
+                <p className="text-sm text-muted">{t("pool.liveFeedEmptyNoMiners")}</p>
+              ) : (
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={hashrateSeries} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="liveFleetFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={CHART.mint} stopOpacity={0.4} />
+                          <stop offset="70%" stopColor={CHART.mint} stopOpacity={0.06} />
+                          <stop offset="100%" stopColor={CHART.mint} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke={CHART.grid} vertical={false} strokeDasharray="3 5" />
+                      <XAxis
+                        dataKey="time"
+                        type="number"
+                        domain={["dataMin", "dataMax"]}
+                        tickFormatter={fmtDayTime}
+                        stroke={CHART.muted}
+                        fontSize={10}
+                        tickLine={false}
+                        axisLine={{ stroke: CHART.grid }}
+                        minTickGap={40}
+                      />
+                      <YAxis
+                        stroke={CHART.muted}
+                        fontSize={11}
+                        tickLine={false}
+                        axisLine={false}
+                        width={56}
+                        tickFormatter={(v: number) => v.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        domain={[(min: number) => min - Math.max(2, min * 0.015), (max: number) => max + Math.max(2, max * 0.015)]}
+                      />
+                      <Tooltip
+                        cursor={{ stroke: CHART.mint, strokeWidth: 1, strokeDasharray: "4 4" }}
+                        content={<ChartTooltip unit="GH/s" formatValue={(n) => n.toFixed(2)} formatLabel={fmtDayTime} />}
+                      />
+                      <Area
+                        // "natural" instead of "monotone" — a rounder,
+                        // smoother spline that (combined with the
+                        // narrower jitter above) reads as a calm rolling
+                        // wave rather than a jagged zigzag.
+                        type="natural"
+                        dataKey="hashrateGhs"
+                        isAnimationActive={false}
+                        stroke={CHART.mint}
+                        strokeWidth={2.5}
+                        fill="url(#liveFleetFill)"
+                        dot={false}
+                        activeDot={{ r: 5, fill: CHART.mint, stroke: CHART.panel2, strokeWidth: 2 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
-                <div className="mt-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                  <p className="stat-value text-lg">
-                    {dogeNetworkStats.difficulty.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                    <span className="ml-1 text-xs font-normal text-muted">{t("pool.dogeNetworkDifficultyUnit")}</span>
-                  </p>
-                  <p className="stat-value text-lg">
-                    {dogeNetworkStats.networkHashrateThs.toLocaleString(undefined, { maximumFractionDigits: 1 })}{" "}
-                    <span className="text-xs font-normal text-muted">TH/s</span>
-                  </p>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </section>
 
-        {/* Live fleet activity — explicitly labeled illustrative, see
-            useIllustrativeHashrateSeries's own doc-comment. Not a
-            stand-in for real telemetry; the epochs table below is the
-            real settlement history. Styled like a real pool's "last
-            few minutes" hashrate chart (dense, continuously updating
-            area chart with a hover tooltip) — the one place on this
-            page that visual texture is honest, since every point
-            wiggles around the REAL total hashrate above, unlike a
-            fabricated network-difficulty-style number would be. */}
-        <section className="mt-8">
-          <h3 className="flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.2em] text-mint">
-            ⚡ {t("pool.liveFeedHeading")}
-          </h3>
-          <div className="game-panel hud-corner mt-4 rounded-2xl p-5">
-            {hashrateSeries.length < 2 ? (
-              <p className="text-sm text-muted">{t("pool.liveFeedEmptyNoMiners")}</p>
-            ) : (
-              <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={hashrateSeries} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="liveFleetFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={CHART.mint} stopOpacity={0.4} />
-                        <stop offset="70%" stopColor={CHART.mint} stopOpacity={0.06} />
-                        <stop offset="100%" stopColor={CHART.mint} stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke={CHART.grid} vertical={false} strokeDasharray="3 5" />
-                    <XAxis
-                      dataKey="time"
-                      type="number"
-                      domain={["dataMin", "dataMax"]}
-                      tickFormatter={fmtDayTime}
-                      stroke={CHART.muted}
-                      fontSize={10}
-                      tickLine={false}
-                      axisLine={{ stroke: CHART.grid }}
-                      minTickGap={40}
-                    />
-                    <YAxis
-                      stroke={CHART.muted}
-                      fontSize={11}
-                      tickLine={false}
-                      axisLine={false}
-                      width={48}
-                      domain={["dataMin - 5", "dataMax + 5"]}
-                    />
-                    <Tooltip
-                      cursor={{ stroke: CHART.mint, strokeWidth: 1, strokeDasharray: "4 4" }}
-                      content={<ChartTooltip unit="GH/s" formatValue={(n) => n.toFixed(2)} formatLabel={fmtDayTime} />}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="hashrateGhs"
-                      isAnimationActive={false}
-                      stroke={CHART.mint}
-                      strokeWidth={2}
-                      fill="url(#liveFleetFill)"
-                      dot={false}
-                      activeDot={{ r: 5, fill: CHART.mint, stroke: CHART.panel2, strokeWidth: 2 }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Recent settlement epochs table */}
+        {/* Recent settlement epochs table — 10 rows/page, each with its
+            own expand/collapse "Detail" panel breaking the day's
+            settlement down into every real MiningEpoch column (pool
+            fee, electricity cost, reserve contribution, and the total
+            effective hashrate-hours every contract's share that day was
+            computed from) instead of only the five headline columns. */}
         <section className="mt-8">
           <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gold">▸ {t("pool.epochsTableHeading")}</h3>
           <div className="game-panel hud-corner mt-4 overflow-x-auto rounded-2xl">
-            <table className="w-full min-w-[720px] text-left text-xs">
+            <table className="w-full min-w-[760px] text-left text-xs">
               <thead>
                 <tr className="border-b border-line text-[10px] uppercase tracking-widest text-muted">
                   <th className="px-4 py-3 font-bold">{t("pool.colDate")}</th>
                   <th className="px-4 py-3 font-bold">{t("pool.colContractedHashrate")}</th>
                   <th className="px-4 py-3 font-bold">{t("pool.colObservedHashrate")}</th>
-                  <th className="px-4 py-3 font-bold">{t("pool.colGrossOutput")}</th>
-                  <th className="px-4 py-3 font-bold">{t("pool.colNetDistributed")}</th>
+                  <th className="px-4 py-3 font-bold">
+                    <span className="inline-flex items-center gap-1">
+                      {t("pool.colGrossOutput")}
+                      <InfoTooltip text={t("pool.colGrossOutputTooltip")} />
+                    </span>
+                  </th>
+                  <th className="px-4 py-3 font-bold">
+                    <span className="inline-flex items-center gap-1">
+                      {t("pool.colNetDistributed")}
+                      <InfoTooltip text={t("pool.colNetDistributedTooltip")} />
+                    </span>
+                  </th>
                   <th className="px-4 py-3 font-bold">{t("pool.colStatus")}</th>
+                  <th className="px-4 py-3 font-bold text-right">{t("pool.colDetail")}</th>
                 </tr>
               </thead>
               <tbody>
                 {epochs.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-muted">
+                    <td colSpan={7} className="px-4 py-6 text-center text-muted">
                       {t("pool.noEpochsYet")}
                     </td>
                   </tr>
                 )}
-                {epochs.map((e, idx) => (
-                  <tr
-                    key={e.epochDateIso}
-                    className={`border-b border-line/60 last:border-0 ${idx === 0 ? "bg-mint-soft/40" : ""}`}
-                  >
-                    <td className="px-4 py-2.5 tabular-nums">
-                      <span className="flex items-center gap-1.5">
-                        {fmtDateTime(e.epochDateIso)}
-                        {idx === 0 && (
-                          <span className="rounded-full border border-mint/25 bg-mint-soft px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-mint">
-                            {t("pool.latestBadge")}
-                          </span>
-                        )}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 tabular-nums">{e.contractedHashrate.toFixed(2)} GH/s</td>
-                    <td className="px-4 py-2.5 tabular-nums">{e.observedHashrate.toFixed(2)} GH/s</td>
-                    <td className="px-4 py-2.5 tabular-nums">{e.grossOutputDoge.toFixed(4)} DOGE</td>
-                    <td className="px-4 py-2.5 tabular-nums text-mint">{e.netDistributableDoge.toFixed(4)} DOGE</td>
-                    <td className="px-4 py-2.5">
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                          EPOCH_STATUS_STYLE[e.status] ?? "border-line bg-panel-2 text-muted"
-                        }`}
+                {epochPage.pageItems.map((e) => {
+                  const isLatest = e.epochDateIso === epochs[0]?.epochDateIso;
+                  const expanded = expandedEpochs.has(e.epochDateIso);
+                  const isReserveDraw = e.reserveContributionDoge < 0;
+                  return (
+                    <Fragment key={e.epochDateIso}>
+                      <tr
+                        className={`border-b border-line/60 ${expanded ? "" : "last:border-0"} ${isLatest ? "bg-mint-soft/40" : ""}`}
                       >
-                        {t(statusLabelKey(e.status))}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                        <td className="px-4 py-2.5 tabular-nums">
+                          <span className="flex items-center gap-1.5">
+                            {fmtDateTime(e.epochDateIso)}
+                            {isLatest && (
+                              <span className="rounded-full border border-mint/25 bg-mint-soft px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-mint">
+                                {t("pool.latestBadge")}
+                              </span>
+                            )}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 tabular-nums">{e.contractedHashrate.toFixed(2)} GH/s</td>
+                        <td className="px-4 py-2.5 tabular-nums">{e.observedHashrate.toFixed(2)} GH/s</td>
+                        <td className="px-4 py-2.5 tabular-nums">{e.grossOutputDoge.toFixed(4)} DOGE</td>
+                        <td className="px-4 py-2.5 tabular-nums text-mint">{e.netDistributableDoge.toFixed(4)} DOGE</td>
+                        <td className="px-4 py-2.5">
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                              EPOCH_STATUS_STYLE[e.status] ?? "border-line bg-panel-2 text-muted"
+                            }`}
+                          >
+                            {t(statusLabelKey(e.status))}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => toggleEpoch(e.epochDateIso)}
+                            aria-expanded={expanded}
+                            aria-label={expanded ? t("pool.hideDetailsAria") : t("pool.showDetailsAria")}
+                            className="btn-game-outline inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-gold"
+                          >
+                            {t("pool.detailButtonLabel")}
+                            <ChevronDown size={12} strokeWidth={2.5} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
+                          </button>
+                        </td>
+                      </tr>
+                      {expanded && (
+                        <tr className="border-b border-line/60 last:border-0 bg-panel-2/60">
+                          <td colSpan={7} className="px-4 py-4">
+                            <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted">
+                              {t("pool.detailPanelCaption")}
+                            </p>
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
+                              <div>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("pool.colGrossOutput")}</p>
+                                <p className="stat-value mt-0.5 text-sm">{e.grossOutputDoge.toFixed(4)} DOGE</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("pool.detailPoolFeeLabel")}</p>
+                                <p className="stat-value mt-0.5 text-sm">{e.poolFeeDoge.toFixed(4)} DOGE</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("pool.detailElectricityLabel")}</p>
+                                <p className="stat-value mt-0.5 text-sm">{e.electricityCostDoge.toFixed(4)} DOGE</p>
+                              </div>
+                              <div>
+                                <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted">
+                                  {t("pool.detailReserveContributionLabel")}
+                                  <InfoTooltip text={t("pool.detailReserveContributionTooltip")} />
+                                </p>
+                                <p className={`stat-value mt-0.5 text-sm ${isReserveDraw ? "text-risk" : "text-mint"}`}>
+                                  {isReserveDraw ? "−" : "+"}
+                                  {Math.abs(e.reserveContributionDoge).toFixed(4)} DOGE
+                                </p>
+                                <p className="mt-0.5 text-[10px] text-muted">
+                                  {isReserveDraw ? t("pool.detailReserveDrawnNote") : t("pool.detailReserveAddedNote")}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted">
+                                  {t("pool.detailActiveHashrateHoursLabel")}
+                                  <InfoTooltip text={t("pool.detailActiveHashrateHoursTooltip")} />
+                                </p>
+                                <p className="stat-value mt-0.5 text-sm">
+                                  {e.totalEffectiveMhsHours.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                  <span className="ml-1 text-xs font-normal text-muted">MH·h</span>
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("pool.colNetDistributed")}</p>
+                                <p className="stat-value mt-0.5 text-sm text-mint">{e.netDistributableDoge.toFixed(4)} DOGE</p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+          <PaginationControls
+            page={epochPage.page}
+            pageCount={epochPage.pageCount}
+            start={epochPage.start}
+            pageSize={epochPage.pageSize}
+            total={epochPage.total}
+            onChange={epochPage.setPage}
+          />
           <p className="mt-3 text-[11px] text-muted">{t("pool.refreshNote")}</p>
         </section>
       </main>

@@ -28,7 +28,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   const result = await finalizeLobby(id);
   if (!result) {
-    return NextResponse.json({ error: "Lobby could not be started — try again" }, { status: 409 });
+    return NextResponse.json({ error: "Lobby could not be started, try again" }, { status: 409 });
   }
 
   return NextResponse.json(await serializeLobby(id, session.walletProfileId));

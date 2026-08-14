@@ -462,7 +462,7 @@ function PlayFlow() {
 // Spec: an insufficient-balance rejection should offer a direct path to
 // fund the wallet, not just a dead-end error string. Detected by the
 // exact phrase src/lib/lobby.ts's checkPaidEligibility() always uses
-// for a 402 — every "not enough Deposit Balance" message across
+// for a 402 — every "not enough Deposit USDT" message across
 // create-lobby, join, and accept-invite all share this wording.
 //
 // A centered popup, not an inline banner appended after the (long, on
@@ -471,7 +471,7 @@ function PlayFlow() {
 // invisible unless the player happened to scroll all the way down.
 function ErrorNotice({ message, onClose }: { message: string; onClose: () => void }) {
   const { t } = useLocale();
-  const isBalanceError = message.includes("Deposit Balance");
+  const isBalanceError = message.includes("Deposit USDT");
 
   useEffect(() => {
     function onEscape(e: KeyboardEvent) {

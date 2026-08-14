@@ -28,7 +28,7 @@ export function DashboardHero() {
         <div className="h-16 w-24 shrink-0 sm:h-20 sm:w-28">
           <Image
             src="/dogemine-banner.png"
-            alt="SPACE DOGE — mine real DOGE from verified game wins"
+            alt="SPACE DOGE, mine real DOGE from verified game wins"
             width={1536}
             height={1024}
             priority

@@ -17,9 +17,9 @@ export default function AdminWithdrawalsPage() {
           Requesting debits the user&rsquo;s balance immediately and creates a PENDING record.
           No treasury contract exists yet, so completing one is manual: send the real on-chain
           USDT transfer yourself, then paste the resulting transaction hash below to mark it
-          COMPLETED — that&rsquo;s what makes the hash appear (as a clickable block-explorer
+          COMPLETED, that&rsquo;s what makes the hash appear (as a clickable block-explorer
           link) on the user&rsquo;s own withdrawal page. The network fee comes <b>out of</b> the
-          requested amount (send Amount − Fee on-chain), not on top of it — fee is editable
+          requested amount (send Amount − Fee on-chain), not on top of it, fee is editable
           any time, including after completion, in case it wasn&rsquo;t known when you sent it.
         </p>
       </div>

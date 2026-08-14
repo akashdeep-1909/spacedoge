@@ -33,11 +33,11 @@ function resolveStage(
   }
   if (!("error" in result)) {
     if (result.status === "credited") {
-      return { stage: "credited", note: `Credited — $${result.amount.toFixed(2)} added to your balance.`, failed: false };
+      return { stage: "credited", note: `Credited: $${result.amount.toFixed(2)} added to your balance.`, failed: false };
     }
     return {
       stage: "passed",
-      note: `Found on-chain — ${result.confirmations}/${result.minConfirmations} confirmations. Credits automatically once confirmed.`,
+      note: `Found on-chain: ${result.confirmations}/${result.minConfirmations} confirmations. Credits automatically once confirmed.`,
       failed: false,
     };
   }
@@ -48,7 +48,7 @@ function resolveStage(
   // jumping straight to a scary "failed" for something that's likely
   // to resolve fine on its own.
   if ((result.status === "not_found" || result.status === "rpc_error") && !gaveUp) {
-    return { stage: "verifying", note: "Still confirming — this can take a couple of minutes on a busy network…", failed: false };
+    return { stage: "verifying", note: "Still confirming, this can take a couple of minutes on a busy network…", failed: false };
   }
   return { stage: "failed", note: result.error, failed: true };
 }

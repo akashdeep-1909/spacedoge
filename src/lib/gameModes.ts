@@ -27,7 +27,7 @@ const SEED_DEFAULTS: Record<
 > = {
   PRACTICE: {
     label: "Demo",
-    description: "A 60-second practice round, zero risk — sharpen your reflexes before playing for real stakes.",
+    description: "A 60-second practice round, zero risk, sharpen your reflexes before playing for real stakes.",
     entryFeeUsdt: 0,
     durationSec: 60,
     prefundedPoolUsdt: null,
@@ -38,7 +38,7 @@ const SEED_DEFAULTS: Record<
   },
   QUICK_RUSH: {
     label: "Rookie Rush",
-    description: "A 60-second round with a light hazard field and full lives to spare — the ideal starting point for your first real match.",
+    description: "A 60-second round with a light hazard field and full lives to spare, the ideal starting point for your first real match.",
     entryFeeUsdt: 1,
     durationSec: 60,
     prefundedPoolUsdt: null,
@@ -49,7 +49,7 @@ const SEED_DEFAULTS: Record<
   },
   EXPLORER_RUSH: {
     label: "Explorer Rush",
-    description: "60 seconds against a denser hazard field — the natural next step once dodging becomes second nature.",
+    description: "60 seconds against a denser hazard field, the natural next step once dodging becomes second nature.",
     entryFeeUsdt: 2,
     durationSec: 60,
     prefundedPoolUsdt: null,
@@ -82,7 +82,7 @@ const SEED_DEFAULTS: Record<
   },
   CHAMPION_RUSH: {
     label: "Champion Rush",
-    description: "90 seconds against the densest hazard field on the ladder, competing for the biggest prize pool — Coin Rush's top tier.",
+    description: "90 seconds against the densest hazard field on the ladder, competing for the biggest prize pool, Coin Rush's top tier.",
     entryFeeUsdt: 25,
     durationSec: 90,
     prefundedPoolUsdt: null,
@@ -96,7 +96,7 @@ const SEED_DEFAULTS: Record<
   // mode. "played 20 times in the last 24 hours" → minPlays 20.
   SPONSORED_DROP: {
     label: "Sponsored Drop",
-    description: "A free 60-second round backed by a $10 sponsored prize pool — unlocks after 20 matches in 24 hours, one entry per day.",
+    description: "A free 60-second round backed by a $10 sponsored prize pool, unlocks after 20 matches in 24 hours, one entry per day.",
     entryFeeUsdt: 0,
     durationSec: 60,
     prefundedPoolUsdt: 10,
@@ -109,7 +109,7 @@ const SEED_DEFAULTS: Record<
   // minimum is 26 (25 does not qualify, 26 does).
   FORGE_CUP: {
     label: "Weekly Forge Cup",
-    description: "A free 90-second round backed by a $30 sponsored prize pool for the platform's most active players — one entry per week.",
+    description: "A free 90-second round backed by a $30 sponsored prize pool for the platform's most active players, one entry per week.",
     entryFeeUsdt: 0,
     durationSec: 90,
     prefundedPoolUsdt: 30,
@@ -124,7 +124,7 @@ const SEED_DEFAULTS: Record<
   // so those fields stay null (they'd never fit "exactly 3 plays ever").
   KOL_REFERRAL_BONUS: {
     label: "Referral Bonus Rush",
-    description: "A one-time referral gift — 3 free 60-second plays worth up to $0.30 combined, unlocked once by your referrer.",
+    description: "A one-time referral gift, 3 free 60-second plays worth up to $0.30 combined, unlocked once by your referrer.",
     entryFeeUsdt: 0,
     durationSec: 60,
     prefundedPoolUsdt: null,

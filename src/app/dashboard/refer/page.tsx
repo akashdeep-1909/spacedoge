@@ -197,10 +197,10 @@ function CommissionActivityTable() {
             empty={t("referActivity.noActivityYet")}
             rows={pageItems.map((r) => [
               new Date(r.createdAt).toLocaleDateString(),
-              r.referredNickname || (r.referredAddress ? `${r.referredAddress.slice(0, 6)}…${r.referredAddress.slice(-4)}` : "—"),
+              r.referredNickname || (r.referredAddress ? `${r.referredAddress.slice(0, 6)}…${r.referredAddress.slice(-4)}` : "-"),
               r.level,
-              r.mode ?? "—",
-              r.won === null ? "—" : (
+              r.mode ?? "-",
+              r.won === null ? "-" : (
                 <span
                   key="result"
                   className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${
@@ -247,7 +247,7 @@ function MiningCommissionActivityTable() {
             empty={t("referActivity.noMiningActivityYet")}
             rows={pageItems.map((r) => [
               new Date(r.createdAt).toLocaleDateString(),
-              r.referredAddress ? `${r.referredAddress.slice(0, 6)}…${r.referredAddress.slice(-4)}` : "—",
+              r.referredAddress ? `${r.referredAddress.slice(0, 6)}…${r.referredAddress.slice(-4)}` : "-",
               r.level,
               <span key="amount" className="text-gold">
                 +{r.amountDoge.toFixed(4)} DOGE

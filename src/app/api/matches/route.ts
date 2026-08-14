@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
   if (econ.entryFeeUsdt > 0) {
     const balances = await getWalletBalances(session.walletProfileId);
     if (balances.playUsdt < econ.entryFeeUsdt) {
-      return NextResponse.json({ error: "Not enough Deposit Balance." }, { status: 402 });
+      return NextResponse.json({ error: "Not enough Deposit USDT." }, { status: 402 });
     }
   }
 
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
   if (!eligibility.eligible) {
     return NextResponse.json(
       {
-        error: `This mode unlocks after ${eligibility.playsNeeded} matches played in the qualifying window — you're at ${eligibility.playsInWindow}.`,
+        error: `This mode unlocks after ${eligibility.playsNeeded} matches played in the qualifying window, you're at ${eligibility.playsInWindow}.`,
       },
       { status: 403 }
     );
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     });
     if (recent) {
       return NextResponse.json(
-        { error: "You've already entered this free ticket mode — try again later." },
+        { error: "You've already entered this free ticket mode, try again later." },
         { status: 429 }
       );
     }

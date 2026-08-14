@@ -92,7 +92,7 @@ export default function JoinLobbyPage({ params }: { params: Promise<{ token: str
               {joinError && (
                 <div className="mt-3 rounded-xl border border-risk/25 bg-risk-soft p-3">
                   <p className="text-xs text-risk">{joinError}</p>
-                  {joinError.includes("Deposit Balance") && (
+                  {joinError.includes("Deposit USDT") && (
                     <Link
                       href="/dashboard/deposit"
                       className="btn-game hud-corner mt-2 inline-block rounded-full px-4 py-1.5 text-xs"

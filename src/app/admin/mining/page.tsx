@@ -23,7 +23,7 @@ export default function AdminMiningPage() {
       <div>
         <h1 className="text-lg font-black uppercase tracking-wide">Mining</h1>
         <p className="mt-1 text-sm text-muted">
-          Mining v2 economy model — fleet economics, the Protection Reserve that smooths every
+          Mining v2 economy model, fleet economics, the Protection Reserve that smooths every
           contract&apos;s daily reward to its guaranteed target ROI, individual contracts, and a
           read-only platform revenue report. Changes take effect immediately, no redeploy needed.
         </p>
@@ -125,11 +125,11 @@ const FLEET_FIELDS: { key: NumericConfigKey; label: string; step: string; hint?:
   { key: "referenceMonthlyGrossUsdt", label: "Reference monthly gross (USDT)", step: "0.01", hint: "Full-fleet-utilization gross income per month" },
   { key: "minerPowerKw", label: "Miner power draw (kW)", step: "0.01" },
   { key: "electricityRateUsdtPerKwh", label: "Electricity rate (USDT/kWh)", step: "0.001", hint: "User-facing deduction rate" },
-  { key: "hostingElectricityRateUsdtPerKwh", label: "Hosting/cooling rate (USDT/kWh)", step: "0.001", hint: "Platform-internal, report-only — doc section 13" },
+  { key: "hostingElectricityRateUsdtPerKwh", label: "Hosting/cooling rate (USDT/kWh)", step: "0.001", hint: "Platform-internal, report-only, doc section 13" },
   { key: "poolFeePct", label: "Pool fee (fraction, e.g. 0.02 = 2%)", step: "0.0001" },
   { key: "targetRoiPct", label: "Target ROI (fraction, e.g. 0.10 = 10%)", step: "0.0001", hint: "Snapshotted onto new contracts at purchase time" },
   { key: "dailyVarianceBandPct", label: "Daily variance band (fraction)", step: "0.01", hint: "e.g. 0.10 = ±10% around the reference rate" },
-  { key: "platformProfitAllocationPct", label: "Platform profit allocation (fraction)", step: "0.01", hint: "Doc section 13 — report-only" },
+  { key: "platformProfitAllocationPct", label: "Platform profit allocation (fraction)", step: "0.01", hint: "Doc section 13, report-only" },
   { key: "profitabilityThresholdUsdt", label: "Profitability threshold (USDT/mo)", step: "0.01" },
 ];
 
@@ -186,9 +186,9 @@ function RigFleetSection() {
     <section className="game-panel hud-corner rounded-2xl p-5">
       <p className="text-[10px] font-bold uppercase tracking-widest text-gold">ASIC Rig Fleet</p>
       <p className="mt-1 text-xs text-muted">
-        Total physical rig count the platform&apos;s sellable hashrate is modeled against — one rig ={" "}
+        Total physical rig count the platform&apos;s sellable hashrate is modeled against, one rig ={" "}
         {MHS_PER_RIG.toLocaleString()} MH/s ({(MHS_PER_RIG / 1000).toFixed(0)} GH/s). Only a portion of
-        this fleet is typically under contract to users at any time — the public pool page shows both
+        this fleet is typically under contract to users at any time, the public pool page shows both
         numbers; the rest is uncontracted headroom.
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -286,7 +286,7 @@ function FleetEconomicsSection() {
       <p className="text-[10px] font-bold uppercase tracking-widest text-gold">Fleet Economics</p>
       <p className="mt-1 text-xs text-muted">
         The reference-fleet numbers every daily settlement scales from (src/lib/mining.ts
-        settleEpochForDate). Explicitly labeled &quot;model assumptions&quot; — see the doc&apos;s own footnote
+        settleEpochForDate). Explicitly labeled &quot;model assumptions&quot;, see the doc&apos;s own footnote
         on the pool fee and electricity rate.
       </p>
 
@@ -355,7 +355,7 @@ function ProtectionReserveSection() {
     <section className="game-panel hud-corner rounded-2xl border-mint/15 p-5">
       <p className="text-[10px] font-bold uppercase tracking-widest text-mint">Protection Reserve</p>
       <p className="mt-1 text-xs text-muted">
-        Smooths every contract&apos;s daily credited reward to its guaranteed target — surplus days
+        Smooths every contract&apos;s daily credited reward to its guaranteed target, surplus days
         sweep in automatically, shortfall days draw from here (capped by balance). Doc section 12
         recommends 96–128 USDT seeded per L9 six-month cohort.
       </p>
@@ -434,7 +434,7 @@ function PlatformEconomicsSection() {
     <section className="game-panel hud-corner rounded-2xl p-5">
       <p className="text-[10px] font-bold uppercase tracking-widest text-gold">Platform Economics (last {data?.days ?? 30} days)</p>
       <p className="mt-1 text-xs text-muted">
-        Read-only — derived from package sales and settlement ledger entries, never posts
+        Read-only, derived from package sales and settlement ledger entries, never posts
         anything itself. &quot;Maintenance reserve&quot; and &quot;hardware-recovery reserve&quot; are collapsed into
         one residual bucket here (see the route&apos;s own doc-comment for why).
       </p>

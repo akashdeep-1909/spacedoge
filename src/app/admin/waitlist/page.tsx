@@ -41,7 +41,7 @@ export default function AdminWaitlistPage() {
           empty="No waitlist signups yet."
           rows={(data?.rows ?? []).map((r) => [
             r.email,
-            r.source ?? "—",
+            r.source ?? "-",
             new Date(r.createdAt).toLocaleString(),
           ])}
         />

@@ -5,7 +5,7 @@ import { getMiningEconomicsConfig, getMiningProtectionReserveBalanceUsdt } from 
 import { fetchDogeUsdtRate } from "@/lib/conversion";
 
 export const metadata: Metadata = {
-  title: "DOGE Mining — Space DOGE",
+  title: "DOGE Mining - Space DOGE",
   description: "Activate once, fund a 180-day hashrate contract and earn a guaranteed target DOGE reward every day, smoothed by the Protection Reserve.",
 };
 

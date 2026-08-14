@@ -16,7 +16,7 @@ const CREDITABLE_BALANCE_TYPES = [
 ] as const;
 
 const BALANCE_TYPE_LABEL: Record<(typeof CREDITABLE_BALANCE_TYPES)[number], string> = {
-  PLAY_USDT: "Deposit Balance",
+  PLAY_USDT: "Deposit USDT",
   GAME_REWARD_USDT: "Game Reward USDT",
   PTS: "PTS",
   PENDING_DOGE: "Pending DOGE",
@@ -93,7 +93,7 @@ const RISK_STYLE: Record<string, string> = {
 };
 
 const BALANCE_FIELDS: { key: keyof AdminUserRow["balances"]; label: string; fmt: (n: number) => string }[] = [
-  { key: "playUsdt", label: "Deposit Balance", fmt: (n) => `$${n.toFixed(2)}` },
+  { key: "playUsdt", label: "Deposit USDT", fmt: (n) => `$${n.toFixed(2)}` },
   { key: "gameRewardUsdt", label: "Game Reward USDT", fmt: (n) => `$${n.toFixed(2)}` },
   { key: "recycledUsdt", label: "Mining Earnings", fmt: (n) => `$${n.toFixed(2)}` },
   { key: "referralUsdt", label: "Referral USDT", fmt: (n) => `$${n.toFixed(2)}` },
@@ -115,7 +115,7 @@ function UserCard({ row }: { row: AdminUserRow }) {
       {row.isBot && (
         <span
           className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-full border border-line bg-panel-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted"
-          title="AI-controlled opponent — not a real player"
+          title="AI-controlled opponent, not a real player"
         >
           🤖 Bot
         </span>
@@ -132,7 +132,7 @@ function UserCard({ row }: { row: AdminUserRow }) {
             {row.isKol && (
               <span
                 className="rounded-full border border-mint/30 bg-mint-soft px-2 py-0.5 text-[10px] font-bold uppercase text-mint"
-                title="Key Opinion Leader — referrals through this wallet unlock the KOL_REFERRAL_BONUS free-play gift"
+                title="Key Opinion Leader, referrals through this wallet unlock the KOL_REFERRAL_BONUS free-play gift"
               >
                 KOL
               </span>

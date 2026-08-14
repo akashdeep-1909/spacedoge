@@ -88,7 +88,7 @@ export default function AdminDepositsPage() {
         </div>
         {txHashQuery && !isLoading && (
           <p className="mt-2 text-[11px] text-muted">
-            {data?.rows.length ? `${data.rows.length} match(es) for "${txHashQuery}"` : `No deposit found matching "${txHashQuery}" — the watcher may not have picked it up yet, or it wasn't sent to the treasury address.`}
+            {data?.rows.length ? `${data.rows.length} match(es) for "${txHashQuery}"` : `No deposit found matching "${txHashQuery}", the watcher may not have picked it up yet, or it wasn't sent to the treasury address.`}
           </p>
         )}
       </div>

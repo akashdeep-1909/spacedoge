@@ -32,7 +32,7 @@ export default function AdminTransfersPage() {
         <h1 className="text-lg font-black uppercase tracking-wide">Transfers</h1>
         <p className="mt-1 text-sm text-muted">
           Every user-to-user wallet transfer (Recycled/Referral USDT sent directly between two different
-          accounts) — the one real-money channel between different users this app has, separate from the
+          accounts), the one real-money channel between different users this app has, separate from the
           same-wallet balance moves shown in a wallet's own ledger.
         </p>
       </div>

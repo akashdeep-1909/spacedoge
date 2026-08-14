@@ -57,7 +57,7 @@ const ERC20_TRANSFER_ABI = [
 // address into a separate wallet app. This still results in a real
 // signed ERC20 transfer broadcast from the user's own connected
 // wallet; the existing background watcher (src/lib/deposits.ts) picks
-// it up and credits the Deposit Balance the same way it would for a deposit
+// it up and credits Deposit USDT the same way it would for a deposit
 // sent any other way — this button doesn't create a shortcut around
 // that pipeline, it just triggers the same kind of transaction the
 // user would otherwise have sent manually. Chain-agnostic across any
@@ -188,18 +188,28 @@ export function WalletDepositButton({
   // (creditIfReady keys on txHash, "already settled — never re-credit"),
   // so this can safely run alongside the cron with no double-credit risk.
   //
-  // Retried on "not_found"/"rpc_error" specifically (confirmed live root
+  // Retried on "not_found"/"rpc_error"/"pending" (confirmed live root
   // cause of deposits silently requiring the manual "paste tx hash" box
-  // even after using this button): the server verifies via ITS OWN
-  // configured RPC node (DepositChainConfig.rpcUrl / a free public
-  // fallback — see resolveRpcUrl in deposits.ts), a completely different
-  // node from whatever the user's own wallet/dapp provider used to
-  // report the receipt here. That server-side node routinely lags a few
-  // seconds behind — a single verify attempt fired the instant this hash
-  // is known can easily race ahead of it and come back "not found" even
-  // though the transaction is real and already mined. Every other status
-  // (credited, pending, or a genuine terminal failure like failed_tx /
-  // sent_from_different_wallet) is definitive and NOT retried.
+  // even after using this button, and separately of deposits sitting on
+  // "Pending" forever): the server verifies via ITS OWN configured RPC
+  // node(s) (DepositChainConfig.rpcUrl / free public fallbacks — see
+  // resolveRpcUrls in deposits.ts), completely different nodes from
+  // whatever the user's own wallet/dapp provider used to report the
+  // receipt here. That server-side node routinely lags a few seconds
+  // behind — a single verify attempt fired the instant this hash is
+  // known can easily race ahead of it and come back "not found" even
+  // though the transaction is real and already mined. "pending"
+  // specifically means the server DID find a real, matching transfer —
+  // it's just short of `minConfirmations` so far — which will resolve
+  // to "credited" given enough time, not a dead end; this used to be
+  // lumped in with "credited" as "nothing left to do here" (forgetPending
+  // + stop), which silently abandoned polling the moment a deposit was
+  // found-but-unconfirmed and, on top of that, wiped the persisted hash
+  // so a page refresh had nothing left to resume — exactly the "stuck on
+  // Pending, disappears on refresh, never credits" report. Every OTHER
+  // status (a genuine terminal failure like failed_tx /
+  // sent_from_different_wallet, or "credited" itself) is definitive and
+  // NOT retried.
   const verifyDeposit = useVerifyDeposit();
   const verifiedTxHash = useRef<string | null>(null);
   const retryCountRef = useRef(0);
@@ -222,24 +232,34 @@ export function WalletDepositButton({
     if (!pendingTxHash || verifiedTxHash.current !== pendingTxHash) return;
     const result = verifyDeposit.data;
     if (!result) return; // no result yet — nothing to act on
-    if (!("error" in result)) {
-      // credited or pending — a real, matched deposit is on record
-      // either way, so this hash no longer needs to survive a reload.
+    if (!("error" in result) && result.status === "credited") {
+      // Fully settled — this hash no longer needs to survive a reload.
       forgetPending();
       return;
     }
-    if (result.status !== "not_found" && result.status !== "rpc_error") {
+    // "pending" isn't an error shape (no `.error` field), so fold it
+    // into the same status space as the retryable error statuses below
+    // rather than treating "no error field" as "done" — see this
+    // effect's doc-comment above for why "pending" specifically must
+    // keep polling instead of stopping here.
+    const status = "error" in result ? result.status : "pending";
+    if (status !== "not_found" && status !== "rpc_error" && status !== "pending") {
       forgetPending(); // a genuine terminal failure — retrying won't change it
       return;
     }
-    if (retryCountRef.current >= MAX_AUTO_VERIFY_RETRIES) {
+    const isUnconfirmed = status === "pending";
+    if (!isUnconfirmed && retryCountRef.current >= MAX_AUTO_VERIFY_RETRIES) {
       setAutoVerifyGaveUp(true);
       return; // keep it persisted — the manual box (or a future page load) can still pick this hash back up
     }
     retryCountRef.current += 1;
+    // A found-but-unconfirmed deposit is already a known-real transfer
+    // just waiting on more blocks — a steady 8s poll suits that better
+    // than escalating backoff, and (unlike not_found/rpc_error) never
+    // gives up: it WILL become "credited" given enough time. Otherwise:
     // 5s, 8s, 12s, 18s, 27s, 40s — gives a slow public RPC node
     // increasing room to catch up without hammering it every tick.
-    const delayMs = 5000 * Math.pow(1.5, retryCountRef.current - 1);
+    const delayMs = isUnconfirmed ? 8000 : 5000 * Math.pow(1.5, retryCountRef.current - 1);
     retryTimerRef.current = setTimeout(() => {
       verifyDeposit.mutate({ txHash: pendingTxHash, chainKey, source: "auto" });
     }, delayMs);
@@ -357,11 +377,11 @@ export function WalletDepositButton({
       const freshAccounts = await activeConnector?.getAccounts?.().catch(() => []);
       const freshAddress = freshAccounts?.[0];
       if (!freshAddress) {
-        throw new Error("Your wallet isn't connected to this site right now — tap Reconnect Wallet above and try again.");
+        throw new Error("Your wallet isn't connected to this site right now, tap Reconnect Wallet above and try again.");
       }
       if (address && freshAddress.toLowerCase() !== address.toLowerCase()) {
         throw new Error(
-          "Your wallet's active account has changed since you signed in — switch back to the original account, or disconnect and reconnect with this one, then try again."
+          "Your wallet's active account has changed since you signed in, switch back to the original account, or disconnect and reconnect with this one, then try again."
         );
       }
       // Deliberately no watchAsset ("add token to wallet") step here
@@ -464,7 +484,7 @@ export function WalletDepositButton({
     <div className="rounded-xl border border-line bg-panel-2 p-3">
       <p className="text-xs font-bold uppercase tracking-widest text-mint">⚡ Deposit From Wallet</p>
       <p className="mt-1 text-xs text-muted">
-        Sends a real {chainLabel} USDT transfer from your connected wallet — your wallet will ask
+        Sends a real {chainLabel} USDT transfer from your connected wallet, your wallet will ask
         you to confirm it, same as sending from any app.
       </p>
       {!isConnected ? (

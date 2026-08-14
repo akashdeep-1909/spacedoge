@@ -405,7 +405,7 @@ export async function checkPaidEligibility(
     if (balances.playUsdt < entryFeeUsdt) {
       return {
         status: 402,
-        error: `You need at least ${entryFeeUsdt} USDT in your Deposit Balance to join this match.`,
+        error: `You need at least ${entryFeeUsdt} USDT in your Deposit USDT to join this match.`,
       };
     }
   }
@@ -555,7 +555,7 @@ export async function joinLobbySeat(
     if (lobby.hostWalletProfileId !== walletProfile.id) {
       await sendPushToWallet(lobby.hostWalletProfileId, {
         title: "Player joined your lobby",
-        body: `${walletProfile.address.slice(0, 6)}…${walletProfile.address.slice(-4)} joined — ${nextSlot}/${LOBBY_MAX_PLAYERS} players.`,
+        body: `${walletProfile.address.slice(0, 6)}…${walletProfile.address.slice(-4)} joined, ${nextSlot}/${LOBBY_MAX_PLAYERS} players.`,
         url: `/dashboard/play/lobby/${lobbyId}`,
       });
     }
@@ -565,7 +565,7 @@ export async function joinLobbySeat(
     }
     return { ok: true, lobbyId };
   }
-  return { ok: false, status: 409, error: "Could not join — please try again." };
+  return { ok: false, status: 409, error: "Could not join, please try again." };
 }
 
 export { round8 };

@@ -1553,7 +1553,7 @@ export function CoinRushArena({
       {!ended && hud.lives <= 0 && (
         <div className="pointer-events-none absolute inset-x-0 top-[236px] z-20 flex justify-center">
           <div className="rounded-full border border-risk/40 bg-black/70 px-4 py-1.5 text-xs font-black uppercase tracking-wide text-risk backdrop-blur">
-            💀 You Died — waiting for the match to end
+            💀 You Died, waiting for the match to end
           </div>
         </div>
       )}

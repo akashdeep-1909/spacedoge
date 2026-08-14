@@ -100,7 +100,7 @@ export default function AdminOverviewPage() {
           <CompositionBar
             formatValue={(n) => fmtUsdt(n)}
             segments={[
-              { label: "Deposit Balance", value: data.balances.playUsdt, color: CHART.mint },
+              { label: "Deposit USDT", value: data.balances.playUsdt, color: CHART.mint },
               { label: "Game Reward USDT", value: data.balances.gameRewardUsdt, color: CHART.gold },
               { label: "Mining Earnings", value: data.balances.recycledUsdt, color: CHART.violet },
               { label: "Referral USDT", value: data.balances.referralUsdt, color: CHART.muted },
@@ -125,7 +125,7 @@ export default function AdminOverviewPage() {
           <StatCard label="Active Contracts" value={String(data.mining.activeContracts)} />
           <StatCard
             label="Latest Epoch Output"
-            value={data.mining.latestEpoch ? `${data.mining.latestEpoch.netDistributableDoge.toFixed(4)} DOGE` : "—"}
+            value={data.mining.latestEpoch ? `${data.mining.latestEpoch.netDistributableDoge.toFixed(4)} DOGE` : "-"}
             tone="mint"
           />
           <StatCard label="Protection Reserve" value={`$${data.mining.reserveBalanceUsdt.toFixed(2)}`} tone="gold" />
@@ -317,7 +317,7 @@ function WithdrawalsSection({ data }: { data: AdminOverview }) {
                   </td>
                   <td className="px-4 py-2.5 font-semibold">{fmtUsdt(w.amount)}</td>
                   <td className="px-4 py-2.5 text-muted">
-                    {w.networkFeeUsdt !== null ? `fee ${fmtUsdt(w.networkFeeUsdt)}` : "fee —"}
+                    {w.networkFeeUsdt !== null ? `fee ${fmtUsdt(w.networkFeeUsdt)}` : "fee -"}
                   </td>
                   <td className="px-4 py-2.5 text-muted">{shortAddr(w.address)}</td>
                   <td className="px-4 py-2.5 text-right text-muted">{fmtDateTime(w.createdAt)}</td>

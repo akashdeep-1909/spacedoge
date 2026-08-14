@@ -44,7 +44,7 @@ export const metadata: Metadata = {
   // literal og:image URL. NEXT_PUBLIC_APP_URL is already the app's one
   // source of truth for its own public origin (see src/lib/publicUrl.ts).
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://spacedoge.games"),
-  title: "Space DOGE — Play the Rush. Power the Hash. Claim DOGE.",
+  title: "Space DOGE - Play the Rush. Power the Hash. Claim DOGE.",
   description:
     "Wallet-first Coin Rush Arena with verifiable Scrypt cloud-mining rewards.",
   // Without this, iOS Safari auto-detects plain numeric stat values
@@ -58,7 +58,7 @@ export const metadata: Metadata = {
     telephone: false,
   },
   openGraph: {
-    title: "Space DOGE — Play the Rush. Power the Hash. Claim DOGE.",
+    title: "Space DOGE - Play the Rush. Power the Hash. Claim DOGE.",
     description:
       "Wallet-first Coin Rush Arena with verifiable Scrypt cloud-mining rewards.",
     images: ["/SpaceDOGE-logo.png"],

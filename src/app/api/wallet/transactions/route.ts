@@ -10,7 +10,7 @@ import en from "@/lib/i18n/translations/en";
 // table — a second hardcoded copy of these names previously drifted
 // out of sync with the real display names (e.g. still said "Play USDT"
 // and "Recycled USDT" here after the balance cards elsewhere had
-// already been renamed to "Deposit Balance" and "Mining Earnings"),
+// already been renamed to "Deposit USDT" and "Mining Earnings"),
 // producing "Transfer: Recycled USDT → Play USDT" rows next to balance
 // cards showing the new names. This endpoint has never been localized
 // (every REASON_LABEL below is English-only too), so EN is the correct

@@ -178,7 +178,7 @@ function TransferContent() {
           </div>
           <div>
             <label className="mb-1 block text-xs text-muted">
-              {t("transfer.amountLabel")} — {fmtUsdt(available)} {t("mining.availableSuffix")}
+              {t("transfer.amountLabel")} ({fmtUsdt(available)} {t("mining.availableSuffix")})
             </label>
             <AmountField value={amount} max={available} onChange={setAmount} />
           </div>
@@ -249,7 +249,7 @@ function TransferContent() {
               </div>
               <div>
                 <label className="mb-1 block text-xs text-muted">
-                  {t("transfer.amountLabel")} — {fmtUsdt(sendToUserAvailable)} {t("mining.availableSuffix")}
+                  {t("transfer.amountLabel")} ({fmtUsdt(sendToUserAvailable)} {t("mining.availableSuffix")})
                 </label>
                 <AmountField value={sendToUserAmount} max={sendToUserAvailable} onChange={setSendToUserAmount} />
               </div>

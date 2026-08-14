@@ -123,7 +123,7 @@ model WaitlistEntry {
 // ---------------------------------------------------------------------
 
 enum BalanceType {
-  PLAY_USDT // deposited, funds gameplay only
+  PLAY_USDT // deposited; funds paid game entries and mining (activation/hashrate purchases), never withdrawable directly
   // v3 economy: a settled paid room credits PTS (below), not this
   // directly anymore — PTS is manually converted into Game Reward
   // USDT at a fixed 1000:1 rate (src/app/api/wallet/convert-pts).

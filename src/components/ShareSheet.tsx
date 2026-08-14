@@ -135,7 +135,7 @@ export function ShareSheet({
   async function handleClick(t: ShareTarget) {
     if (t.copyFallback) {
       const ok = await copyToClipboard(link);
-      setHint(ok ? `Link copied — paste it in ${t.label}.` : `Couldn't copy automatically: ${link}`);
+      setHint(ok ? `Link copied, paste it in ${t.label}.` : `Couldn't copy automatically: ${link}`);
       if (ok) setTimeout(close, 900);
       return;
     }

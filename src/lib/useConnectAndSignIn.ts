@@ -88,7 +88,7 @@ export function useConnectAndSignIn() {
       setConnectFailure(
         injectedAvailable
           ? "No wallet extension found."
-          : "No wallet extension found, and mobile wallet connect isn't configured yet — open this page inside your wallet app's own browser instead."
+          : "No wallet extension found, and mobile wallet connect isn't configured yet, open this page inside your wallet app's own browser instead."
       );
       return;
     }
@@ -152,9 +152,9 @@ export function useConnectAndSignIn() {
       } else if (attemptIdRef.current === myAttemptId) {
         setConnectFailure(
           isTransientRelayError(err)
-            ? "Couldn't reach the wallet network — check your connection and try again."
+            ? "Couldn't reach the wallet network, check your connection and try again."
             : isRequestAlreadyPendingError(err)
-              ? "Your wallet already has a connection request open — open the extension (or your wallet app) and approve or dismiss it, then tap Connect Wallet again."
+              ? "Your wallet already has a connection request open, open the extension (or your wallet app) and approve or dismiss it, then tap Connect Wallet again."
               : isUserRejectionError(err)
                 ? "Connection request declined. If your wallet showed a \"could not verify this site\" warning, look past it for the actual connect request, then tap Connect Wallet again."
                 : err instanceof Error

@@ -50,7 +50,7 @@ export function NotificationsPrompt() {
   return (
     <div className="mt-4 rounded-xl border border-gold/25 bg-gold-soft px-3 py-2.5 text-xs text-gold">
       <div className="flex items-center justify-between gap-3">
-        <span>🔔 Get notified the instant someone invites, accepts, or declines — even if you&rsquo;re not on this page.</span>
+        <span>🔔 Get notified the instant someone invites, accepts, or declines, even if you&rsquo;re not on this page.</span>
         <div className="flex shrink-0 gap-1.5">
           <button onClick={enable} disabled={enabling} className="btn-game rounded-full px-3 py-1 text-[11px] disabled:opacity-50">
             {enabling ? "Enabling…" : "Enable"}

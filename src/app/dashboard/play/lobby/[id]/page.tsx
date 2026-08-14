@@ -254,7 +254,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
       <div className="game-panel hud-corner mx-auto max-w-sm rounded-2xl p-6 text-center">
         <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-line border-t-gold" />
         <h2 className="text-glow-gold text-2xl font-black">Waiting for other racers…</h2>
-        <p className="mt-2 text-sm text-muted">Your run is finished — hang tight while everyone else finishes theirs.</p>
+        <p className="mt-2 text-sm text-muted">Your run is finished, hang tight while everyone else finishes theirs.</p>
         <p className="mt-1 text-sm font-bold text-foreground">
           {waitingForOthers.submitted} of {waitingForOthers.total} results in.
         </p>
@@ -276,7 +276,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   if (lobby.status === "CANCELLED") {
     return (
       <div className="mx-auto max-w-md text-center">
-        <p className="text-sm text-muted">This lobby was cancelled. Any held entry fee has been returned to your Deposit Balance.</p>
+        <p className="text-sm text-muted">This lobby was cancelled. Any held entry fee has been returned to your Deposit USDT.</p>
         <button onClick={() => router.push("/dashboard/play")} className="btn-game-outline mt-3 rounded-full px-4 py-2 text-sm">
           Back to Game Modes
         </button>
@@ -326,7 +326,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
               <span className="font-bold">{slot.slotNumber}.</span>
               {slot.state === "HUMAN" ? (
                 <span className="flex-1 px-2">
-                  {slot.address && displayName(slot.address, slot.nickname)} {slot.isHost ? "— Host" : "— Joined"}
+                  {slot.address && displayName(slot.address, slot.nickname)} {slot.isHost ? "(Host)" : "(Joined)"}
                 </span>
               ) : (
                 <span className="flex-1 px-2">Waiting for player…</span>
@@ -360,7 +360,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
               <ul className="mt-2 space-y-1 text-xs text-muted">
                 {lobby.pendingInvitations.map((inv) => (
                   <li key={inv.id}>
-                    {displayName(inv.recipientAddress, inv.recipientNickname)} — pending
+                    {displayName(inv.recipientAddress, inv.recipientNickname)} (pending)
                   </li>
                 ))}
               </ul>

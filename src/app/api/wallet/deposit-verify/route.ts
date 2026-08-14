@@ -21,15 +21,15 @@ const bodySchema = z.object({
 
 const MESSAGE: Record<string, string> = {
   invalid_hash: "That doesn't look like a transaction hash.",
-  not_configured: "That deposit chain isn't configured yet — please check back soon.",
-  rpc_error: "Couldn't reach the blockchain right now — try again in a minute.",
+  not_configured: "That deposit chain isn't configured yet, please check back soon.",
+  rpc_error: "Couldn't reach the blockchain right now, try again in a minute.",
   not_found: "We couldn't find that transaction yet. If you just sent it, wait a bit for it to be mined/confirmed and try again.",
-  failed_tx: "That transaction failed on-chain (reverted) — no funds were transferred.",
+  failed_tx: "That transaction failed on-chain (reverted), no funds were transferred.",
   no_matching_transfer: "That transaction doesn't contain a USDT transfer to our treasury address on this chain. Double-check the hash, the chain you selected, and that you sent the right asset.",
   sent_from_different_wallet:
     "That transaction wasn't sent from your connected wallet, so it can't be auto-credited. If you sent it from an exchange or a different wallet, contact support with this transaction hash.",
   tron_needs_manual_review:
-    "Found it on-chain — it's a real transfer to our treasury address. Tron deposits can't self-credit yet (we don't have a way to link a Tron wallet to your account), so an admin will review and credit it manually. It won't appear in Recent Deposits below until that happens — contact support with this transaction hash if it's been a while.",
+    "Found it on-chain, it's a real transfer to our treasury address. Tron deposits can't self-credit yet (we don't have a way to link a Tron wallet to your account), so an admin will review and credit it manually. It won't appear in Recent Deposits below until that happens, contact support with this transaction hash if it's been a while.",
 };
 
 // POST /api/wallet/deposit-verify — the user-facing, on-demand

@@ -53,7 +53,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     where: { senderWalletProfileId: session.walletProfileId, createdAt: { gte: new Date(Date.now() - INVITE_RATE_LIMIT_WINDOW_MS) } },
   });
   if (recentCount >= INVITE_RATE_LIMIT_MAX) {
-    return NextResponse.json({ error: "You're sending invitations too quickly — try again shortly." }, { status: 429 });
+    return NextResponse.json({ error: "You're sending invitations too quickly, try again shortly." }, { status: 429 });
   }
 
   const existingPending = await db.lobbyInvitation.findFirst({
