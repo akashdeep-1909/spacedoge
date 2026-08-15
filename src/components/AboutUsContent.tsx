@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type MouseEvent as ReactMouseEvent } from "react";
+import { type MouseEvent as ReactMouseEvent } from "react";
 import { motion, useMotionValue, useReducedMotion, useSpring } from "framer-motion";
 import {
   Rocket,
@@ -18,6 +18,9 @@ import {
   Users,
   ShieldCheck,
   ArrowRight,
+  Smartphone,
+  Link2,
+  Diamond,
 } from "lucide-react";
 import Link from "next/link";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
@@ -68,37 +71,21 @@ const STORY_POINTS = [
   { n: "3", titleKey: "aboutUs.storyPoint3Title" as const, bodyKey: "aboutUs.storyPoint3Body" as const },
 ] as const;
 
-const ROADMAP_PHASES = [
-  {
-    tabKey: "aboutUs.roadmapTabNow" as const,
-    milestones: [
-      { titleKey: "aboutUs.roadmapNow1Title" as const, bodyKey: "aboutUs.roadmapNow1Body" as const },
-      { titleKey: "aboutUs.roadmapNow2Title" as const, bodyKey: "aboutUs.roadmapNow2Body" as const },
-      { titleKey: "aboutUs.roadmapNow3Title" as const, bodyKey: "aboutUs.roadmapNow3Body" as const },
-    ],
-  },
-  {
-    tabKey: "aboutUs.roadmapTabNext" as const,
-    milestones: [
-      { titleKey: "aboutUs.roadmapNext1Title" as const, bodyKey: "aboutUs.roadmapNext1Body" as const },
-      { titleKey: "aboutUs.roadmapNext2Title" as const, bodyKey: "aboutUs.roadmapNext2Body" as const },
-      { titleKey: "aboutUs.roadmapNext3Title" as const, bodyKey: "aboutUs.roadmapNext3Body" as const },
-    ],
-  },
-  {
-    tabKey: "aboutUs.roadmapTabLater" as const,
-    milestones: [
-      { titleKey: "aboutUs.roadmapLater1Title" as const, bodyKey: "aboutUs.roadmapLater1Body" as const },
-      { titleKey: "aboutUs.roadmapLater2Title" as const, bodyKey: "aboutUs.roadmapLater2Body" as const },
-      { titleKey: "aboutUs.roadmapLater3Title" as const, bodyKey: "aboutUs.roadmapLater3Body" as const },
-    ],
-  },
+// A dated, quarter-by-quarter timeline (replacing the old undated
+// Now/Next/Later tabs) so the roadmap reads as a real production
+// schedule rather than a vague bucket of priorities.
+const ROADMAP_TIMELINE = [
+  { Icon: Rocket, color: "#ffb516", quarterKey: "aboutUs.roadmapPhase1Quarter" as const, titleKey: "aboutUs.roadmapPhase1Title" as const, bodyKey: "aboutUs.roadmapPhase1Body" as const },
+  { Icon: Gamepad2, color: "#a78bfa", quarterKey: "aboutUs.roadmapPhase2Quarter" as const, titleKey: "aboutUs.roadmapPhase2Title" as const, bodyKey: "aboutUs.roadmapPhase2Body" as const },
+  { Icon: Smartphone, color: "#22e193", quarterKey: "aboutUs.roadmapPhase3Quarter" as const, titleKey: "aboutUs.roadmapPhase3Title" as const, bodyKey: "aboutUs.roadmapPhase3Body" as const },
+  { Icon: Link2, color: "#5ea3ff", quarterKey: "aboutUs.roadmapPhase4Quarter" as const, titleKey: "aboutUs.roadmapPhase4Title" as const, bodyKey: "aboutUs.roadmapPhase4Body" as const },
+  { Icon: RefreshCw, color: "#ff8a45", quarterKey: "aboutUs.roadmapPhase5Quarter" as const, titleKey: "aboutUs.roadmapPhase5Title" as const, bodyKey: "aboutUs.roadmapPhase5Body" as const },
+  { Icon: Diamond, color: "#ff5b8f", quarterKey: "aboutUs.roadmapPhase6Quarter" as const, titleKey: "aboutUs.roadmapPhase6Title" as const, bodyKey: "aboutUs.roadmapPhase6Body" as const },
 ] as const;
 
 export function AboutUsContent() {
   const { t } = useLocale();
   const reduceMotion = useReducedMotion();
-  const [activePhase, setActivePhase] = useState(0);
 
   const heroTiltX = useMotionValue(0);
   const heroTiltY = useMotionValue(0);
@@ -390,35 +377,48 @@ export function AboutUsContent() {
 
         {/* -------------------------------------------------------- Roadmap */}
         <section className="border-t border-line bg-panel/40" id="roadmap">
-          <div className="ld-container py-9 text-center sm:py-[72px]">
-            <Reveal>
+          <div className="ld-container py-9 sm:py-[72px]">
+            <Reveal className="text-center">
               <span className="ld-eyebrow text-gold">{t("aboutUs.roadmapEyebrow")}</span>
               <h2 className="ld-h2 mt-2">{t("aboutUs.roadmapHeading")}</h2>
             </Reveal>
 
-            <Reveal delay={0.06} className="mt-8">
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                {ROADMAP_PHASES.map((phase, i) => (
-                  <button
-                    key={phase.tabKey}
-                    onClick={() => setActivePhase(i)}
-                    className={activePhase === i ? "btn-game hud-corner rounded-full px-4 py-1.5 text-xs" : "btn-game-outline rounded-full px-4 py-1.5 text-xs"}
-                  >
-                    {t(phase.tabKey)}
-                  </button>
+            <div className="relative mx-auto mt-10 max-w-3xl">
+              {/* Connecting spine behind the markers — hidden on very
+                  narrow screens where the cards stack tight enough that
+                  it reads as clutter rather than a timeline. */}
+              <div
+                aria-hidden
+                className="absolute top-2 bottom-2 left-5 hidden w-px bg-gradient-to-b from-gold/50 via-line to-transparent sm:block"
+              />
+              <div className="flex flex-col gap-5">
+                {ROADMAP_TIMELINE.map((phase, i) => (
+                  <Reveal key={phase.titleKey} delay={i * 0.07} y={16}>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-5">
+                      <div
+                        className="relative z-10 mx-auto grid h-10 w-10 shrink-0 place-items-center rounded-full border-2 bg-[#0a0d12] sm:mx-0"
+                        style={{ borderColor: phase.color, boxShadow: `0 0 16px ${phase.color}55` }}
+                      >
+                        <phase.Icon size={18} style={{ color: phase.color }} aria-hidden />
+                      </div>
+                      <TiltCard glow={`${phase.color}22`} className="flex-1 p-5" style={{ borderColor: `${phase.color}55` }}>
+                        <span
+                          className="inline-block rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider"
+                          style={{ borderColor: phase.color, color: phase.color }}
+                        >
+                          {t(phase.quarterKey)}
+                        </span>
+                        <h3 className="mt-2.5 text-base font-black">{t(phase.titleKey)}</h3>
+                        <p className="mt-1.5 text-xs leading-relaxed text-muted sm:text-sm">{t(phase.bodyKey)}</p>
+                      </TiltCard>
+                    </div>
+                  </Reveal>
                 ))}
               </div>
+            </div>
 
-              <div className="mt-6 grid gap-4 sm:grid-cols-3">
-                {ROADMAP_PHASES[activePhase].milestones.map((m) => (
-                  <div key={m.titleKey} className="ld-glass h-full p-6 text-left">
-                    <h3 className="text-sm font-black text-gold">{t(m.titleKey)}</h3>
-                    <p className="mt-1.5 text-xs leading-relaxed text-muted">{t(m.bodyKey)}</p>
-                  </div>
-                ))}
-              </div>
-
-              <p className="mx-auto mt-5 max-w-2xl text-center text-[11px] leading-relaxed text-muted/70">{t("aboutUs.roadmapNote")}</p>
+            <Reveal delay={0.1}>
+              <p className="mx-auto mt-8 max-w-2xl text-center text-[11px] leading-relaxed text-muted/70">{t("aboutUs.roadmapNote")}</p>
             </Reveal>
           </div>
         </section>
