@@ -1248,7 +1248,7 @@ const zh = {
     ourHashrateHeading: "我们的算力",
     ourHashrateLabel: "当前舰队总算力",
     dogeNetworkLabel: "狗狗币网络",
-    dogeNetworkTooltip: "狗狗币区块链当前的真实难度与24小时网络算力，实时从公开区块链数据源获取。这是真实的DOGE网络，，与旁边显示的本平台自身算力分开，且不受其影响，因为本平台并未向该网络提交运算工作。",
+    dogeNetworkTooltip: "狗狗币区块链当前的真实难度与24小时网络算力（以 PH/s 显示，这是真实 DOGE 网络算力惯用的单位），实时从公开区块链数据源获取。这是真实的DOGE网络，，与旁边显示的本平台自身算力分开，且不受其影响，因为本平台并未向该网络提交运算工作。",
     dogeNetworkDifficultyUnit: "难度",
     lifetimeDistributedLabel: "累计分配 DOGE",
     latestEpochLabel: "最新结算周期",

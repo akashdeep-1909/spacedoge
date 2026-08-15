@@ -251,7 +251,7 @@ export function PoolExplorer({
   treasuryBscAddress: string;
   live: LiveEstimate;
   reserveMerkle: ReserveMerkleSummary | null;
-  dogeNetworkStats: { difficulty: number; networkHashrateThs: number; fetchedAt: string } | null;
+  dogeNetworkStats: { difficulty: number; networkHashratePhs: number; fetchedAt: string } | null;
 }) {
   const { t } = useLocale();
 
@@ -644,8 +644,8 @@ export function PoolExplorer({
                   </div>
                   <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-0.5">
                     <p className="stat-value text-lg">
-                      {dogeNetworkStats.networkHashrateThs.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                      <span className="ml-1 text-xs font-normal text-muted">TH/s</span>
+                      {dogeNetworkStats.networkHashratePhs.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      <span className="ml-1 text-xs font-normal text-muted">PH/s</span>
                     </p>
                     <p className="stat-value text-lg">
                       {dogeNetworkStats.difficulty.toLocaleString(undefined, { maximumFractionDigits: 0 })}

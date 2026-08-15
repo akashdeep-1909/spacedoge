@@ -1248,7 +1248,7 @@ const id = {
     ourHashrateHeading: "Hashrate Kami",
     ourHashrateLabel: "Total hashrate armada saat ini",
     dogeNetworkLabel: "Jaringan Dogecoin",
-    dogeNetworkTooltip: "Difficulty saat ini dan hashrate jaringan 24 jam dari blockchain Dogecoin yang sebenarnya, diambil langsung dari sumber data blockchain publik. Ini adalah jaringan DOGE yang sebenarnya, terpisah dari, dan tidak dipengaruhi oleh, hashrate platform ini sendiri yang ditampilkan di sampingnya, karena platform ini tidak mengirimkan pekerjaan ke jaringan tersebut.",
+    dogeNetworkTooltip: "Difficulty saat ini dan hashrate jaringan 24 jam dari blockchain Dogecoin yang sebenarnya (ditampilkan dalam PH/s, satuan yang umum digunakan untuk hashrate jaringan DOGE yang sebenarnya), diambil langsung dari sumber data blockchain publik. Ini adalah jaringan DOGE yang sebenarnya, terpisah dari, dan tidak dipengaruhi oleh, hashrate platform ini sendiri yang ditampilkan di sampingnya, karena platform ini tidak mengirimkan pekerjaan ke jaringan tersebut.",
     dogeNetworkDifficultyUnit: "kesulitan",
     lifetimeDistributedLabel: "Total DOGE Terdistribusi",
     latestEpochLabel: "Epoch Terakhir Diselesaikan",

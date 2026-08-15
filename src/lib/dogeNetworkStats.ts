@@ -11,7 +11,12 @@ const STATS_CACHE_MS = 5 * 60_000; // real difficulty/hashrate only change every
 
 export interface DogeNetworkStats {
   difficulty: number;
-  networkHashrateThs: number;
+  // PH/s, not TH/s — the real Dogecoin network sits in the low
+  // single-digit PH/s range today, so PH/s is the unit every other
+  // reference (block explorers, pool sites) shows it in; a raw TH/s
+  // figure (e.g. "3,050.1") reads as implausibly large next to that
+  // convention even though the underlying number is the same.
+  networkHashratePhs: number;
   fetchedAt: string;
 }
 
@@ -34,7 +39,7 @@ export async function fetchDogeNetworkStats(): Promise<DogeNetworkStats | null> 
     }
     const stats: DogeNetworkStats = {
       difficulty,
-      networkHashrateThs: hashrateHs / 1e12,
+      networkHashratePhs: hashrateHs / 1e15,
       fetchedAt: new Date(now).toISOString(),
     };
     cachedStats = { stats, fetchedAt: now };
