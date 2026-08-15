@@ -143,7 +143,7 @@ const en = {
     faq1Q: "Is Space DOGE a game or a mining platform?",
     faq1A: "Both, and they're connected on purpose: Coin Rush is a skill-based game that earns Game USDT, and that balance is what activates a DOGE mining contract. Neither side runs without the other.",
     faq2Q: "Is the one-time mining activation fee charged again?",
-    faq2A: "No, the activation fee is charged once per mining contract, when you first activate. Renewing or extending a contract doesn't re-charge it.",
+    faq2A: "No, the activation fee is charged once per wallet, not per contract. Once your wallet's mining dashboard is activated, buying new hashrate, letting a contract expire, or starting another one never re-charges it.",
     faq3Q: "How are daily DOGE rewards calculated?",
     faq3A: "Each day's real mining output is split across every active contract in proportion to its allocated hashrate, after electricity deductions, the same math shown in the Proof of Hash numbers above.",
     faq4Q: "Can Game USDT be withdrawn without mining?",

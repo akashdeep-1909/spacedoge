@@ -127,7 +127,7 @@ const fil = {
     faq1Q: "Ang Space DOGE ba ay isang laro o mining platform?",
     faq1A: "Pareho, at sadyang magkakonekta ang mga ito: Ang Coin Rush ay isang larong nakabatay sa kasanayan na kumikita ng Game USDT, at ang balance na iyon ang nag-a-activate ng DOGE mining contract. Hindi tatakbo ang isa nang wala ang isa.",
     faq2Q: "Sisingilin pa ba ulit ang one-time na mining activation fee?",
-    faq2A: "Hindi, sisingilin lang ang activation fee nang isang beses kada mining contract, kapag unang na-activate. Ang pag-renew o pagpapahaba ng kontrata ay hindi na sisingilin ulit.",
+    faq2A: "Hindi, sisingilin lang ang activation fee nang isang beses kada wallet, hindi kada kontrata. Kapag na-activate na ang mining dashboard ng iyong wallet, ang pagbili ng bagong hashrate, hayaang mag-expire ang kontrata, o pagsisimula ng isa pa ay hindi na muling sisingilin.",
     faq3Q: "Paano kinakalkula ang araw-araw na gantimpalang DOGE?",
     faq3A: "Ang tunay na mining output kada araw ay hinahati sa lahat ng aktibong kontrata ayon sa proporsyon ng na-allocate na hashrate, pagkatapos bawasan ang kuryente, parehong pagkalkula na ipinapakita sa mga numero ng Proof of Hashrate sa itaas.",
     faq4Q: "Puwede bang i-withdraw ang Game USDT nang hindi nagmimina?",

@@ -127,7 +127,7 @@ const vi = {
     faq1Q: "Space DOGE là một trò chơi hay một nền tảng khai thác?",
     faq1A: "Cả hai, và chúng được kết nối có chủ đích: Coin Rush là trò chơi dựa trên kỹ năng giúp kiếm Game USDT, và số dư đó chính là thứ kích hoạt hợp đồng khai thác DOGE. Không bên nào hoạt động thiếu bên còn lại.",
     faq2Q: "Phí kích hoạt khai thác một lần có bị tính lại không?",
-    faq2A: "Không, phí kích hoạt chỉ được tính một lần cho mỗi hợp đồng khai thác, khi bạn kích hoạt lần đầu. Việc gia hạn hoặc kéo dài hợp đồng không bị tính phí lại.",
+    faq2A: "Không, phí kích hoạt chỉ được tính một lần cho mỗi ví, không phải mỗi hợp đồng. Sau khi bảng điều khiển khai thác của ví bạn được kích hoạt, việc mua hashrate mới, để hợp đồng hết hạn, hoặc bắt đầu hợp đồng khác sẽ không bao giờ bị tính phí lại.",
     faq3Q: "Phần thưởng DOGE hàng ngày được tính như thế nào?",
     faq3A: "Sản lượng khai thác thật mỗi ngày được chia cho mọi hợp đồng đang hoạt động theo tỷ lệ hashrate được phân bổ, sau khi khấu trừ tiền điện, cùng cách tính được thể hiện trong các con số Bằng Chứng Hashrate ở trên.",
     faq4Q: "Game USDT có thể được rút mà không cần khai thác không?",

@@ -127,7 +127,7 @@ const id = {
     faq1Q: "Apakah Space DOGE sebuah game atau platform penambangan?",
     faq1A: "Keduanya, dan sengaja saling terhubung: Coin Rush adalah game berbasis keterampilan yang menghasilkan Game USDT, dan saldo itulah yang mengaktifkan kontrak penambangan DOGE. Salah satu tidak bisa berjalan tanpa yang lain.",
     faq2Q: "Apakah biaya aktivasi penambangan sekali bayar akan dikenakan lagi?",
-    faq2A: "Tidak, biaya aktivasi dikenakan satu kali per kontrak penambangan, saat pertama kali diaktifkan. Memperbarui atau memperpanjang kontrak tidak mengenakan biaya lagi.",
+    faq2A: "Tidak, biaya aktivasi dikenakan satu kali per dompet, bukan per kontrak. Setelah dasbor penambangan dompet Anda diaktifkan, membeli hashrate baru, membiarkan kontrak kedaluwarsa, atau memulai kontrak lain tidak akan pernah dikenakan biaya lagi.",
     faq3Q: "Bagaimana hadiah DOGE harian dihitung?",
     faq3A: "Output penambangan nyata setiap hari dibagi ke semua kontrak aktif secara proporsional dengan hashrate yang dialokasikan, setelah dipotong biaya listrik, perhitungan yang sama seperti yang ditampilkan pada angka Bukti Hash di atas.",
     faq4Q: "Bisakah Game USDT ditarik tanpa menambang?",
