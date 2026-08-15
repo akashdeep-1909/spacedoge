@@ -23,6 +23,7 @@ import {
   useSubmitMatchResults,
   useRecentPlayers,
   useMatchRoster,
+  useLiveMatchState,
 } from "@/lib/hooks";
 
 function displayName(address: string, nickname?: string | null) {
@@ -80,12 +81,28 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   const disableLink = useDisableInviteLink(lobbyId);
   const { data: recentPlayersData } = useRecentPlayers();
   const { data: rosterData } = useMatchRoster(lobby?.finalMatchId ?? null);
+  // Fast-polled only while actually on the spectate screen (see the
+  // waitingForOthers render below) — this app has no push infra, so
+  // "watch the others' ships move live" comes from a dedicated,
+  // deliberately faster polling tier scoped away from the rest of the
+  // app's normal-cadence traffic. See useLiveMatchState's own doc-comment.
+  const { data: liveState } = useLiveMatchState(lobby?.finalMatchId ?? null, { enabled: !!waitingForOthers });
 
   // Derived, not synced via an effect: the arena shows exactly while
   // the match is live, this client hasn't submitted its own result yet,
   // and no result (or wait state) has landed.
   const showGame = lobby?.status === "STARTED" && !!lobby.finalMatchId && !submitted && !result && !waitingForOthers;
   const lastScore = useRef({ score: 0, durationPlayedSec: 0 });
+
+  // Shared by both the live-play render (showGame) and the post-finish
+  // spectate render (waitingForOthers) below — real identity + real
+  // slotNumber for the other 3 seats, ordered to match CoinRushArena's
+  // ship slots. slotNumber is what spectate mode needs to key into
+  // liveState.slots; showGame's own render never reads it.
+  const opponents = rosterData?.seats
+    .filter((s) => !s.isYou)
+    .sort((a, b) => (a.slotNumber ?? 0) - (b.slotNumber ?? 0))
+    .map((s) => ({ isBot: s.isBot, label: s.label, slotNumber: s.slotNumber }));
 
   // Memoized (not recomputed every render) on finalMatchId/startedAt —
   // CoinRushArena's own setup effect depends on this value, so
@@ -213,10 +230,6 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   if (showGame && lobby.finalMatchId) {
     const lobbyMode = lobby.mode as GameMode;
     const lobbyTheme = THEME_BY_MODE[lobbyMode] ?? THEME_BY_MODE.EXPLORER_RUSH;
-    const opponents = rosterData?.seats
-      .filter((s) => !s.isYou)
-      .sort((a, b) => (a.slotNumber ?? 0) - (b.slotNumber ?? 0))
-      .map((s) => ({ isBot: s.isBot, label: s.label }));
     return (
       <div
         className="fixed inset-0 z-50 flex items-center justify-center p-2.5"
@@ -243,6 +256,48 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
             nickname={session?.nickname}
             mode={lobbyMode}
             opponents={opponents}
+            matchId={lobby.finalMatchId}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Your own run is finished — instead of a static "waiting" screen,
+  // watch the other real racers' ships live until the match ends (bots
+  // keep running their usual local AI; only real opponents are driven
+  // by polled live-state — see CoinRushArena's `spectate` mode). Falls
+  // back to the plain status card only in the edge case finalMatchId
+  // somehow isn't available yet.
+  if (waitingForOthers && lobby.finalMatchId) {
+    const lobbyMode = lobby.mode as GameMode;
+    const lobbyTheme = THEME_BY_MODE[lobbyMode] ?? THEME_BY_MODE.EXPLORER_RUSH;
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-2.5"
+        style={{
+          background: `radial-gradient(circle at 12% 0%, ${lobbyTheme.modalGlow}, transparent 30%), radial-gradient(circle at 88% 8%, rgba(33,220,255,.18), transparent 34%), radial-gradient(circle at 45% 100%, rgba(255,209,102,.1), transparent 35%), linear-gradient(180deg,#020811,#09101d 62%,#020811)`,
+        }}
+      >
+        <div className="relative h-[min(930px,calc(100vh-20px))] w-[min(450px,calc(100vw-20px))] overflow-hidden rounded-[36px] border border-white/15 bg-[#06101a] shadow-2xl">
+          <div className="absolute right-3 top-3 z-10 rounded-full border border-white/20 bg-black/60 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white/70 backdrop-blur">
+            {waitingForOthers.submitted} of {waitingForOthers.total} in
+          </div>
+          <CoinRushArena
+            mapSeed={lobby.id}
+            durationSec={lobby.durationSec}
+            startElapsedSec={startElapsedSec}
+            onComplete={() => {}}
+            fullscreen
+            missionTitle={lobby.modeLabel}
+            prizePoolUsdt={lobby.nominalRoomPoolUsdt}
+            walletAddress={address}
+            nickname={session?.nickname}
+            mode={lobbyMode}
+            opponents={opponents}
+            matchId={lobby.finalMatchId}
+            spectate
+            liveOpponents={liveState?.slots}
           />
         </div>
       </div>

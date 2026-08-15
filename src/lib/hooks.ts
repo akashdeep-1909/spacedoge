@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { WalletBalances } from "@/lib/balances";
+import type { LiveShipSample } from "@/lib/liveMatchStateTypes";
 
 export function useBalances() {
   return useQuery({
@@ -1780,6 +1781,43 @@ export function useSubmitMatchResults() {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["balances"] }),
   });
+}
+
+// Live-position spectating ("watch the others' ships move" once your
+// own run is finished — see CoinRushArena's `spectate` mode). A much
+// faster poll tier than the rest of this app deliberately scoped to
+// only fire while a client is actually on the spectate screen (see the
+// `enabled` gate at the call site), not general app traffic.
+export function useLiveMatchState(matchId: string | null, opts: { enabled: boolean }) {
+  return useQuery({
+    queryKey: ["live-match-state", matchId],
+    queryFn: async (): Promise<{ slots: Record<number, LiveShipSample> }> => {
+      const res = await fetch(`/api/matches/${matchId}/live-state`);
+      if (!res.ok) throw new Error("Failed to load live match state");
+      return res.json();
+    },
+    enabled: opts.enabled && !!matchId,
+    refetchInterval: 350,
+    // A stale snapshot of a moving ship isn't "good enough" the way most
+    // of this app's other polled data is — always prefer a fresh fetch.
+    staleTime: 0,
+  });
+}
+
+// Imperative, not a useMutation hook — this is called several times a
+// second from inside CoinRushArena's non-reactive rAF game-loop closure
+// (the same closure that already reads joystickInputRef/onCompleteRef
+// via refs instead of component state), so routing it through
+// useMutation's render-cycle state would add overhead and a
+// stale-closure risk for zero benefit: nothing ever reads this call's
+// result, and a dropped report should never interrupt or even slow the
+// game loop itself.
+export function reportLiveMatchState(matchId: string, sample: Omit<LiveShipSample, "updatedAt">): void {
+  fetch(`/api/matches/${matchId}/live-state`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(sample),
+  }).catch(() => {});
 }
 
 export interface AdminLobbyRow {

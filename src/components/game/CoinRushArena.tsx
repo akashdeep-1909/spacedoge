@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useCallback, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { seededRandom, DIFFICULTY_BY_MODE, THEME_BY_MODE, pickBotNames, botScore } from "@/lib/game-config";
 import type { GameMode } from "@/generated/prisma/enums";
+import { reportLiveMatchState } from "@/lib/hooks";
+import type { LiveShipSample } from "@/lib/liveMatchStateTypes";
 
 // Coin Rush Arena — visuals ported from the "Orbital Extraction" 4-player
 // prototype (rockets, USDT coins, a bank vault that cycles open/closed,
@@ -59,6 +61,14 @@ interface ShipEntity {
   active: boolean; invuln: number; knockback: number;
   speed: number;
   magnet: number; shield: number; boost: number; fire: number;
+  // Spectate mode only (see the `spectate` prop): true for a ship that
+  // mirrors a real opponent's own client via polled live-state instead
+  // of running local bot AI — see the update() branch below and
+  // src/lib/liveMatchState.ts. oppSlot is that opponent's real
+  // MatchParticipant.slotNumber (the key live-state is reported/polled
+  // under), or null for "you" and for true local bots.
+  externallyDriven: boolean;
+  oppSlot: number | null;
 }
 
 const ITEM_STYLES: Record<ItemEntity["kind"], { r: number; value: number; rare: boolean; glyph: string }> = {
@@ -91,6 +101,11 @@ const BASE_HUNTER_CARRY_PENALTY = 5;
 const BASE_DASHER_CARRY_PENALTY = 8;
 const BASE_MINE_CARRY_PENALTY = 6;
 const BOT_COLORS = ["#3cc4ff", "#4af4af", "#ff7a7a"];
+// Both the reporting side (an actively-playing human) and the polling
+// side (useLiveMatchState's refetchInterval) use this same cadence —
+// keeping them equal is what makes the spectator's lerp window below
+// line up with how often a fresh sample can actually arrive.
+const LIVE_REPORT_INTERVAL_SEC = 0.35;
 
 function shortAddr(addr: string) {
   return addr.length > 10 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr;
@@ -249,6 +264,9 @@ export function CoinRushArena({
   nickname,
   mode,
   opponents,
+  matchId,
+  spectate = false,
+  liveOpponents,
 }: {
   mapSeed: string;
   durationSec: number;
@@ -268,14 +286,42 @@ export function CoinRushArena({
   // /api/matches/[id]/roster on a "Play with Friends" lobby match),
   // ordered to match the ship slots below. Omitted entirely for
   // solo/instant-play (always vs bots), which falls back to the
-  // seeded bot-pool name for every seat as before.
-  opponents?: { isBot: boolean; label: string }[];
+  // seeded bot-pool name for every seat as before. slotNumber is each
+  // seat's real MatchParticipant.slotNumber — needed in spectate mode
+  // to key into liveOpponents; unused otherwise.
+  opponents?: { isBot: boolean; label: string; slotNumber: number | null }[];
+  // The real Match id — present whenever this is a lobby multiplayer
+  // match (never for solo/instant-play, which has no one to report to
+  // or spectate). While actively playing (spectate false) a real human
+  // ship fire-and-forget reports its own live position here every
+  // ~350ms; see the reporting branch in update() below.
+  matchId?: string;
+  // True only for the post-finish "watch the others live" view (see
+  // the lobby page's waitingForOthers render). Ship 0 ("you") never
+  // takes input and stays parked; any of ships 1-3 that correspond to
+  // a real (non-bot) opponent are driven by liveOpponents instead of
+  // local bot AI. Bots need no live data — they're already deterministic
+  // from the shared mapSeed, so every spectator reproduces them locally.
+  spectate?: boolean;
+  // Polled snapshot (see useLiveMatchState), keyed by the real
+  // opponent's slotNumber — only read while spectate is true.
+  liveOpponents?: Record<number, LiveShipSample>;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const onCompleteRef = useRef(onComplete);
   useEffect(() => {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
+
+  // Polled every ~350ms (see useLiveMatchState) — mirrored into a ref,
+  // not read directly from the prop, so the setup effect below (whose
+  // closure drives the whole game loop) doesn't need this in its
+  // dependency array. Depending on it directly would re-run the entire
+  // match setup on every single poll tick.
+  const liveOpponentsRef = useRef(liveOpponents);
+  useEffect(() => {
+    liveOpponentsRef.current = liveOpponents;
+  }, [liveOpponents]);
 
   const youName = nickname || (walletAddress ? shortAddr(walletAddress) : "YOU");
   const diff = DIFFICULTY_BY_MODE[mode] ?? DIFFICULTY_BY_MODE.EXPLORER_RUSH;
@@ -336,6 +382,13 @@ export function CoinRushArena({
     fireShotCd: number;
     last: number;
     raf: number;
+    // Live-position spectate feature (see the `spectate`/`matchId` props
+    // above). liveReportCd: seconds until the next self-report while
+    // actively playing. liveBuffers: per-opponent (keyed by real
+    // slotNumber) last-two-samples buffer while spectating, used to lerp
+    // smooth motion between ~350ms polls instead of snapping every tick.
+    liveReportCd: number;
+    liveBuffers: Map<number, { from: LiveShipSample; to: LiveShipSample; toReceivedAt: number }>;
   } | null>(null);
 
   const spawnItem = useCallback((rand: () => number, W: number, H: number, dpr: number, topMargin: number, bottomMargin: number): ItemEntity => {
@@ -408,15 +461,29 @@ export function CoinRushArena({
       {
         x: SPAWN_X, y: SPAWN_Y, r: 13 * DPR, vx: 0, vy: 0, angle: -Math.PI / 2,
         color: theme.shipColor, name: youName, isYou: true,
-        lives: diff.startLives, carry: 0, banked: 0, active: true, invuln: 0, knockback: 0,
+        // Spectating: you already finished your own run, so "your" ship
+        // never plays — parked and excluded from every hazard/item/bank
+        // interaction below via the same `active` flag a dead ship uses.
+        lives: diff.startLives, carry: 0, banked: 0, active: !spectate, invuln: 0, knockback: 0,
         speed: 150 * diff.playerSpeedMult * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
+        externallyDriven: false, oppSlot: null,
       },
-      ...botNames.map((name, i) => ({
-        x: (W / 4) * (i + 1), y: 170 * DPR, r: 13 * DPR, vx: 0, vy: 0, angle: -Math.PI / 2,
-        color: BOT_COLORS[i], name: opponents?.[i]?.label ?? `@${name}`, isYou: false,
-        lives: diff.startLives, carry: 0, banked: 0, active: true, invuln: 0, knockback: 0,
-        speed: (95 + rand() * 20) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
-      })),
+      ...botNames.map((name, i) => {
+        const opp = opponents?.[i];
+        // Only while actually spectating does a real opponent's ship
+        // hand its movement over to polled live data — during normal
+        // play (spectate false) every non-you ship still runs local bot
+        // AI regardless of whether the seat is a real human or a bot,
+        // exactly as before this feature existed.
+        const externallyDriven = spectate && !!opp && !opp.isBot && opp.slotNumber != null;
+        return {
+          x: (W / 4) * (i + 1), y: 170 * DPR, r: 13 * DPR, vx: 0, vy: 0, angle: -Math.PI / 2,
+          color: BOT_COLORS[i], name: opp?.label ?? `@${name}`, isYou: false,
+          lives: diff.startLives, carry: 0, banked: 0, active: true, invuln: 0, knockback: 0,
+          speed: (95 + rand() * 20) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
+          externallyDriven, oppSlot: externallyDriven ? opp!.slotNumber : null,
+        };
+      }),
     ];
 
     // Server settlement (rankBotMatch, src/lib/game-config.ts) always
@@ -506,6 +573,8 @@ export function CoinRushArena({
       fireShotCd: 0,
       last: performance.now(),
       raf: 0,
+      liveReportCd: 0,
+      liveBuffers: new Map(),
     };
     gRef.current = g;
 
@@ -606,7 +675,10 @@ export function CoinRushArena({
       // what it's foreshadowing instead of a coin-flip that happens to
       // resolve one-sided — the whole point of this mechanic.
       const display = g.ships.map((s, i) => {
-        if (s.isYou || i - 1 === contestBotIndex) return s;
+        // A real opponent's ship (spectate mode) shows its true polled
+        // carry — no reason to run the bot bait-and-switch-foreshadowing
+        // logic below on a live human's honestly-reported number.
+        if (s.isYou || s.externallyDriven || i - 1 === contestBotIndex) return s;
         if (s.carry > you.carry * 1.15) return s;
         const bumpedCarry = Math.ceil(you.carry * 1.25) + 10;
         return { ...s, carry: bumpedCarry };
@@ -634,6 +706,29 @@ export function CoinRushArena({
       you.shield = Math.max(0, you.shield - dt);
       you.boost = Math.max(0, you.boost - dt);
       you.fire = Math.max(0, you.fire - dt);
+
+      // Live-position reporting (spectate feature) — an actively-racing
+      // human fire-and-forget reports its own ship's position/carry/
+      // lives every ~350ms so anyone who's already finished can watch
+      // this run live (see the externallyDriven branch below and
+      // src/lib/liveMatchState.ts). Gated on you.active: once this ship
+      // is out of lives there's nothing new worth reporting. Never
+      // fires in spectate mode itself (you.active is already false
+      // there) or for solo/instant-play (matchId is never passed).
+      if (matchId && you.active) {
+        g.liveReportCd -= dt;
+        if (g.liveReportCd <= 0) {
+          g.liveReportCd = LIVE_REPORT_INTERVAL_SEC;
+          reportLiveMatchState(matchId, {
+            xFrac: clamp(you.x / g.W, 0, 1),
+            yFrac: clamp((you.y - TOP_MARGIN) / (g.H - TOP_MARGIN - BOTTOM_MARGIN), 0, 1),
+            carry: Math.floor(you.carry),
+            banked: Math.floor(you.banked),
+            lives: Math.max(0, you.lives),
+            alive: you.active,
+          });
+        }
+      }
 
       // Vault — cycles open/closed and drifts around its home point,
       // exactly like the prototype's vault.phase/open/x/y update.
@@ -691,6 +786,37 @@ export function CoinRushArena({
           } else {
             s.vx *= 0.85; s.vy *= 0.85;
           }
+        } else if (s.externallyDriven) {
+          // Real opponent, spectate mode — driven by polled live-state
+          // instead of local AI. Buffer the last 2 samples and lerp
+          // between them over the poll interval so motion doesn't snap
+          // every ~350ms; carry/banked/lives/alive are just numbers on a
+          // HUD card, so those snap straight to the latest known sample
+          // rather than being interpolated too.
+          const sample = s.oppSlot != null ? liveOpponentsRef.current?.[s.oppSlot] : undefined;
+          const buf = g.liveBuffers.get(s.oppSlot!);
+          if (sample && (!buf || sample.updatedAt > buf.to.updatedAt)) {
+            g.liveBuffers.set(s.oppSlot!, { from: buf?.to ?? sample, to: sample, toReceivedAt: performance.now() });
+          }
+          const b = g.liveBuffers.get(s.oppSlot!);
+          if (b) {
+            const t = Math.min(1, (performance.now() - b.toReceivedAt) / (LIVE_REPORT_INTERVAL_SEC * 1000));
+            const xFrac = b.from.xFrac + (b.to.xFrac - b.from.xFrac) * t;
+            const yFrac = b.from.yFrac + (b.to.yFrac - b.from.yFrac) * t;
+            const nx = clamp(xFrac * g.W, s.r, g.W - s.r);
+            const ny = clamp(TOP_MARGIN + yFrac * (g.H - TOP_MARGIN - BOTTOM_MARGIN), TOP_MARGIN + s.r, g.H - BOTTOM_MARGIN - s.r);
+            if (Math.hypot(nx - s.x, ny - s.y) > 1 * DPR) s.angle = Math.atan2(ny - s.y, nx - s.x);
+            s.x = nx; s.y = ny;
+            s.carry = b.to.carry;
+            s.banked = b.to.banked;
+            s.lives = b.to.lives;
+            s.active = b.to.alive;
+          }
+          // Position/stats are set directly above (not integrated from
+          // vx/vy) — skip the generic velocity-based clamp and the local
+          // bank-zone check below, both of which would fight the polled
+          // truth for this ship.
+          continue;
         } else {
           const wantBank = s.carry >= 55 || (g.bankZone.open && s.carry >= 20 && dist(s, g.bankZone) < 220 * DPR);
           let tx = s.x, ty = s.y;
@@ -803,7 +929,10 @@ export function CoinRushArena({
       for (const it of g.items) {
         it.spin += dt * 2.2;
         for (const s of g.ships) {
-          if (!s.active) continue;
+          // A spectated real opponent's carry already comes verbatim
+          // from their own polled report — a local pickup here would
+          // double-count on top of that.
+          if (!s.active || s.externallyDriven) continue;
           if (dist(s, it) < s.r + it.r + 3 * DPR) {
             if (it.kind === "dogecore") {
               g.dogeCoreT = 6;
@@ -842,7 +971,11 @@ export function CoinRushArena({
         h.x += ((dx / d) * h.speed * speedFactor + wobbleX) * dt;
         h.y += ((dy / d) * h.speed * speedFactor + wobbleY) * dt;
         for (const s of g.ships) {
-          if (!s.active) continue;
+          // A spectated real opponent's lives/carry already come
+          // verbatim from their own polled report — this local hazard
+          // field isn't synced with theirs, so it must never independently
+          // apply its own hit to their ship (see Phase 6 scope notes).
+          if (!s.active || s.externallyDriven) continue;
           if (dist(s, h) < s.r + h.r + 2 * DPR) {
             hitShip(s, hunterCarryPenalty, (s.x - h.x) * 1.1, (s.y - h.y) * 1.1, "#ff6767");
             const p = randPointInPlay(); h.x = p.x; h.y = p.y;
@@ -878,7 +1011,7 @@ export function CoinRushArena({
           dsh.x = clamp(dsh.x, 18 * DPR, g.W - 18 * DPR);
           dsh.y = clamp(dsh.y, TOP_MARGIN, g.H - BOTTOM_MARGIN);
           for (const s of g.ships) {
-            if (!s.active) continue;
+            if (!s.active || s.externallyDriven) continue; // see the hunters loop's identical guard above
             if (dist(s, dsh) < s.r + dsh.r + 2 * DPR) {
               hitShip(s, dasherCarryPenalty, dsh.vx * 0.12, dsh.vy * 0.12, "#d8ecff");
               const p = randPointInPlay(); dsh.x = p.x; dsh.y = p.y;
@@ -899,7 +1032,7 @@ export function CoinRushArena({
         m.x = clamp(m.x, 24 * DPR, g.W - 24 * DPR);
         m.y = clamp(m.y, TOP_MARGIN, g.H - BOTTOM_MARGIN);
         for (const s of g.ships) {
-          if (!s.active) continue;
+          if (!s.active || s.externallyDriven) continue; // see the hunters loop's identical guard above
           if (dist(s, m) < s.r + m.r + 1 * DPR) {
             hitShip(s, mineCarryPenalty, (s.x - m.x) * 1.6, (s.y - m.y) * 1.6, "#f4c15d");
             addParticles(m.x, m.y, "#f4c15d", 20);
@@ -1321,7 +1454,7 @@ export function CoinRushArena({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [mapSeed, durationSec, startElapsedSec, spawnItem, youName, diff, theme, opponents]);
+  }, [mapSeed, durationSec, startElapsedSec, spawnItem, youName, diff, theme, opponents, matchId, spectate]);
 
   // Pre-match "3, 2, 1, Go" — purely a local visual pause layered in
   // front of the setup effect above; it never touches match timing.
@@ -1541,7 +1674,9 @@ export function CoinRushArena({
         >
           <div className="text-center">
             <p className="text-4xl font-black uppercase tracking-wide" style={{ color: "#89c7ff" }}>⏱ Time&apos;s Up</p>
-            <p className="mt-2 animate-pulse text-xs uppercase tracking-widest text-muted">Finalizing your run…</p>
+            <p className="mt-2 animate-pulse text-xs uppercase tracking-widest text-muted">
+              {spectate ? "Finalizing the match…" : "Finalizing your run…"}
+            </p>
           </div>
         </div>
       )}
@@ -1550,7 +1685,7 @@ export function CoinRushArena({
           the other, still-live ships) keeps running toward the real
           clock-based end — a light banner instead of the full-screen
           "ended" treatment above, since the race itself hasn't finished. */}
-      {!ended && hud.lives <= 0 && (
+      {!ended && !spectate && hud.lives <= 0 && (
         <div className="pointer-events-none absolute inset-x-0 top-[236px] z-20 flex justify-center">
           <div className="rounded-full border border-risk/40 bg-black/70 px-4 py-1.5 text-xs font-black uppercase tracking-wide text-risk backdrop-blur">
             💀 You Died, waiting for the match to end
@@ -1558,7 +1693,19 @@ export function CoinRushArena({
         </div>
       )}
 
-      {!ended && hud.lives > 0 && (
+      {/* Spectate mode — "your" ship never plays (see the ships[0]
+          construction above), so it can't ever trip the "You Died"
+          banner; this replaces it with an honest description of what's
+          actually on screen. */}
+      {!ended && spectate && (
+        <div className="pointer-events-none absolute inset-x-0 top-[236px] z-20 flex justify-center">
+          <div className="rounded-full border border-mint/40 bg-black/70 px-4 py-1.5 text-xs font-black uppercase tracking-wide text-mint backdrop-blur">
+            👀 Spectating — waiting for the match to end
+          </div>
+        </div>
+      )}
+
+      {!ended && !spectate && hud.lives > 0 && (
         <>
           <div className="pointer-events-auto absolute bottom-3 right-2.5 z-10 flex gap-1.5">
             <button
