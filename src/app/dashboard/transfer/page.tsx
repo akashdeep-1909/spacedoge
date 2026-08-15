@@ -128,23 +128,24 @@ function TransferContent() {
       <section className="game-panel hud-corner rounded-2xl p-5">
         <h3 className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-gold">▸ {t("transfer.sendHeading")}</h3>
         <div className="flex flex-col gap-3">
-          {/* From/To grouped in their own relative wrapper with the
-              swap button ABSOLUTELY positioned at its exact vertical
-              center, instead of living in its own flex row between
-              them — a plain flex-gap row put the button at the
-              midpoint between the two BLOCKS (label + dropdown each),
-              which read as off-center in practice: the "From" block
-              ends right at its dropdown's bottom edge, but the "To"
-              block starts with its own label above the dropdown, so
-              the button sat visibly closer to one box than the other
-              (confirmed live via a real screenshot). Centering on the
-              wrapper's own midpoint instead lands exactly on the seam
-              between the two — since both blocks share the identical
-              label+dropdown structure, that midpoint IS the seam,
-              regardless of exactly how wide/tall "From"/"To" render in
-              any given language. */}
-          <div className="relative flex flex-col gap-4">
-            <div>
+          {/* The swap button is anchored to the "From" block's own
+              bottom edge (that block is `relative`, the button is
+              `absolute bottom-0` inside it, nudged down by exactly
+              half its own height via `translate-y-1/2`) rather than
+              centered on some shared container's midpoint — the
+              previous attempt assumed the From and To blocks render at
+              equal heights so a container's 50% would land on the
+              seam between them, which didn't hold up in practice
+              (confirmed live via a real screenshot: the button still
+              rendered well below the To box instead of between the
+              two). Anchoring to one specific, unambiguous edge — the
+              bottom of the From dropdown — needs no such assumption:
+              the button's center lands exactly there regardless of
+              what the To block does. gap-8 between the two blocks
+              gives the 32px button room to sit in that gap without
+              overlapping either dropdown's own label. */}
+          <div className="flex flex-col gap-8">
+            <div className="relative">
               <label className="mb-1 block text-xs text-muted">{t("transfer.fromLabel")}</label>
               <Dropdown
                 value={fromBalanceType}
@@ -154,6 +155,15 @@ function TransferContent() {
                   label: `${BALANCE_LABEL[b]} (${fmtUsdt(balanceFor(b))} ${t("mining.availableSuffix")})`,
                 }))}
               />
+              <button
+                type="button"
+                onClick={swapFromTo}
+                aria-label={t("transfer.swapAria")}
+                title={t("transfer.swapAria")}
+                className="btn-game-outline absolute bottom-0 left-1/2 z-10 grid h-8 w-8 -translate-x-1/2 translate-y-1/2 place-items-center rounded-full bg-panel-2 p-0"
+              >
+                <ArrowUpDown size={15} />
+              </button>
             </div>
             <div>
               <label className="mb-1 block text-xs text-muted">{t("transfer.toLabel")}</label>
@@ -166,15 +176,6 @@ function TransferContent() {
                 }))}
               />
             </div>
-            <button
-              type="button"
-              onClick={swapFromTo}
-              aria-label={t("transfer.swapAria")}
-              title={t("transfer.swapAria")}
-              className="btn-game-outline absolute left-1/2 top-1/2 z-10 grid h-8 w-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-panel-2 p-0"
-            >
-              <ArrowUpDown size={15} />
-            </button>
           </div>
           <div>
             <label className="mb-1 block text-xs text-muted">
