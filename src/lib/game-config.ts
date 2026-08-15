@@ -431,14 +431,27 @@ export function rankByScore<T extends { score: number }>(participants: T[]): (T 
 // Only needs isBot/score from each participant; returns the same
 // objects with a `rank` field attached (unsorted — callers that need
 // leaderboard order should sort the result by .rank).
-export function rankBotMatch<T extends { isBot: boolean; score: number }>(
+export function rankBotMatch<T extends { isBot: boolean; score: number; noShow?: boolean }>(
   participants: T[],
   mapSeed: string
 ): (T & { rank: number })[] {
+  // A human who never submitted a result at all (see results/route.ts's
+  // no-show handling) ties at score 0 with everyone else who also
+  // scored 0 — without this, a plain score sort is *stable*, so it just
+  // preserves whatever order the DB query happened to return the tied
+  // rows in, letting someone who never actually finished the match rank
+  // (and get paid a guaranteed tier reward) above someone who genuinely
+  // played and reported honestly. A no-show always sorts below anyone
+  // who isn't one, regardless of score; among two of the same kind,
+  // score (then the seeded coin flip below) still decides exactly as
+  // before this existed.
+  function noShowRank(p: T) { return p.noShow ? 1 : 0; }
   const humans = participants.filter((p) => !p.isBot);
   const bots = [...participants.filter((p) => p.isBot)].sort((a, b) => b.score - a.score);
   if (bots.length === 0) {
-    return [...participants].sort((a, b) => b.score - a.score).map((p, i) => ({ ...p, rank: i + 1 }));
+    return [...participants]
+      .sort((a, b) => noShowRank(a) - noShowRank(b) || b.score - a.score)
+      .map((p, i) => ({ ...p, rank: i + 1 }));
   }
 
   const contestingBot = bots.length >= 2 ? bots[bots.length - 1] : null;
@@ -470,7 +483,7 @@ export function rankBotMatch<T extends { isBot: boolean; score: number }>(
   // than letting insertion order silently decide ties.
   const tieRand = seededRandom(`${mapSeed}:botRankTie`);
   const contestRanked = [...contestants]
-    .sort((a, b) => b.score - a.score || (tieRand() < 0.5 ? -1 : 1))
+    .sort((a, b) => noShowRank(a) - noShowRank(b) || b.score - a.score || (tieRand() < 0.5 ? -1 : 1))
     .map((p, i) => ({ ...p, rank: guaranteedBots.length + 1 + i }));
 
   return [...ranked, ...contestRanked];

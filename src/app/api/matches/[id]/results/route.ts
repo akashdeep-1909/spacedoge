@@ -130,9 +130,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           return { ...p, score: botScoreValue };
         }
         if (p.resultSubmittedAt === null) {
-          // No-show by the results deadline — scored 0, ranked last.
+          // No-show by the results deadline — scored 0, ranked last (see
+          // rankBotMatch's noShow handling), and never paid a rank-tier
+          // reward regardless of where it lands (see rewardBlocked
+          // below) — without that, a human who simply never finishes
+          // could still collect a guaranteed top-3 payout whenever the
+          // other real players also happened to score low or no-show,
+          // which is exactly backwards: not finishing should never beat
+          // someone who actually played, even if they played badly.
           await tx.matchParticipant.update({ where: { id: p.id }, data: { score: 0, resultSubmittedAt: new Date() } });
-          return { ...p, score: 0, resultBlockedReason: null };
+          return { ...p, score: 0, resultBlockedReason: null, noShow: true };
         }
         return p;
       })
@@ -148,14 +155,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     let unclaimedUsdt = 0;
     for (const p of ranked) {
       const result = rankTierResult(p.rank, p.score, targets);
-      const humanBlocked = !p.isBot && !!p.resultBlockedReason;
+      // A no-show is treated exactly like a blocked score for reward
+      // purposes (see the no-show branch above) — never paid, even if
+      // rankBotMatch's noShow-last ordering still left it landing on a
+      // rank 1-3 slot because too few real participants actually played.
+      const rewardBlocked = !p.isBot && (!!p.resultBlockedReason || !!("noShow" in p && p.noShow));
       // Display value (stored on the row, shown in the results UI):
       // everyone's actual tier reward, bots included — spec: "Bot
       // players can appear in the ranking table with their calculated
-      // PTS." Only a blocked human's own row shows 0.
-      const displayRewardUsdt = humanBlocked ? 0 : result.rewardUsdt;
-      // Ledger credit (real money): only ever a real, non-blocked human.
-      const creditable = !p.isBot && !humanBlocked;
+      // PTS." Only a blocked/no-show human's own row shows 0.
+      const displayRewardUsdt = rewardBlocked ? 0 : result.rewardUsdt;
+      // Ledger credit (real money): only ever a real, non-blocked,
+      // non-no-show human.
+      const creditable = !p.isBot && !rewardBlocked;
 
       // score may have been bumped by rankBotMatch (a guaranteed bot
       // displaying more PTS than it actually simulated) — persisted here
