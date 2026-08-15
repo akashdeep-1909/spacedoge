@@ -1263,7 +1263,7 @@ const en = {
     ourHashrateHeading: "Our Hashrate",
     ourHashrateLabel: "Total fleet hashrate right now",
     dogeNetworkLabel: "Dogecoin Network",
-    dogeNetworkTooltip: "Live difficulty and 24h hashrate of the real, global Dogecoin network, pulled from a public blockchain data source, not something this platform measures or produces. Shown for context next to our own fleet's hashrate above; this platform doesn't submit any work to the real network, so the two numbers are unrelated.",
+    dogeNetworkTooltip: "Live difficulty and 24h hashrate of the real, global Dogecoin network.",
     dogeNetworkDifficultyUnit: "difficulty",
     lifetimeDistributedLabel: "Lifetime DOGE Distributed",
     latestEpochLabel: "Latest Settled Epoch",

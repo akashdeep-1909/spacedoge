@@ -1248,7 +1248,7 @@ const ko = {
     ourHashrateHeading: "우리의 해시레이트",
     ourHashrateLabel: "현재 전체 함대 해시레이트",
     dogeNetworkLabel: "도지코인 네트워크",
-    dogeNetworkTooltip: "실제 전 세계 도지코인 네트워크의 실시간 난이도와 24시간 해시레이트로, 공개 블록체인 데이터 소스에서 가져온 것이며 이 플랫폼이 측정하거나 생성하는 값이 아닙니다. 위에 표시된 우리 자체 채굴 팜의 해시레이트 옆에 참고용으로 표시됩니다. 이 플랫폼은 실제 네트워크에 어떠한 작업도 제출하지 않으므로 두 수치는 서로 무관합니다.",
+    dogeNetworkTooltip: "실제 전 세계 도지코인 네트워크의 실시간 난이도와 24시간 해시레이트입니다.",
     dogeNetworkDifficultyUnit: "난이도",
     lifetimeDistributedLabel: "누적 분배된 DOGE",
     latestEpochLabel: "최근 정산 주기",

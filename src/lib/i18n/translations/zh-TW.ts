@@ -1248,7 +1248,7 @@ const zhTW = {
     ourHashrateHeading: "我們的算力",
     ourHashrateLabel: "目前艦隊總算力",
     dogeNetworkLabel: "狗狗幣網路",
-    dogeNetworkTooltip: "真實、全球 Dogecoin 網路的即時難度與24小時算力，取自公開區塊鏈資料來源，並非本平台測量或產生的數據。僅作為上方本平台自身艦隊算力旁的參考資訊；本平台並未向真實網路提交任何運算工作，因此這兩個數字彼此無關。",
+    dogeNetworkTooltip: "真實、全球 Dogecoin 網路的即時難度與24小時算力。",
     dogeNetworkDifficultyUnit: "難度",
     lifetimeDistributedLabel: "累計分配 DOGE",
     latestEpochLabel: "最新結算週期",

@@ -1248,7 +1248,7 @@ const fil = {
     ourHashrateHeading: "Ang Aming Hashrate",
     ourHashrateLabel: "Kabuuang hashrate ng fleet ngayon",
     dogeNetworkLabel: "Dogecoin Network",
-    dogeNetworkTooltip: "Live na difficulty at 24-oras na hashrate ng tunay, pandaigdigang Dogecoin network, direktang kinuha mula sa isang pampublikong blockchain data source, hindi isang bagay na sinusukat o ginagawa ng platform na ito. Ipinapakita bilang konteksto sa tabi ng hashrate ng sarili naming fleet sa itaas; hindi nagsusumite ang platform na ito ng anumang trabaho sa tunay na network, kaya walang kaugnayan ang dalawang numero.",
+    dogeNetworkTooltip: "Live na difficulty at 24-oras na hashrate ng tunay, pandaigdigang Dogecoin network.",
     dogeNetworkDifficultyUnit: "kahirapan",
     lifetimeDistributedLabel: "Kabuuang Naipamahaging DOGE",
     latestEpochLabel: "Pinakabagong Naisettle na Epoch",
