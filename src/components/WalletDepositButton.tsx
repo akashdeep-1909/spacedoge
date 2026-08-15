@@ -8,6 +8,7 @@ import { isUserRejectionError, useAuth } from "@/lib/auth-context";
 import { useVerifyDeposit } from "@/lib/hooks";
 import { markPendingDepositReturn, clearPendingDepositReturn } from "@/lib/depositReturn";
 import { DepositTimeline } from "@/components/DepositTimeline";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 // Wraps a wallet-prompting promise (network switch, transaction confirm)
 // with a hard ceiling — without this, a wallet that never shows/responds
@@ -78,6 +79,7 @@ export function WalletDepositButton({
   tokenContract: string;
   tokenDecimals: number;
 }) {
+  const { t } = useLocale();
   const { address, chainId: connectedChainId, isConnected, connector: activeConnector } = useAccount();
   const { connectAsync, connectors } = useConnect();
   const { markWalletAction } = useAuth();
@@ -309,7 +311,7 @@ export function WalletDepositButton({
       ? connectors.find((c) => c.type === "injected")
       : connectors.find((c) => c.type === "walletConnect");
     if (!targetConnector) {
-      setError(injectedAvailable ? "No wallet extension found." : "Mobile wallet connect isn't configured.");
+      setError(injectedAvailable ? t("walletDepositButton.noWalletExtension") : t("walletDepositButton.mobileWalletNotConfigured"));
       return;
     }
     setReconnecting(true);
@@ -326,10 +328,10 @@ export function WalletDepositButton({
       await withTimeout(
         connectAsync({ connector: targetConnector }),
         120_000,
-        "Wallet didn't respond in time. Please try again."
+        t("walletDepositButton.walletTimeoutError")
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not reconnect wallet.");
+      setError(err instanceof Error ? err.message : t("walletDepositButton.couldNotReconnect"));
     } finally {
       setReconnecting(false);
     }
@@ -340,7 +342,7 @@ export function WalletDepositButton({
     reset();
     const amountNum = Number(amount);
     if (!Number.isFinite(amountNum) || amountNum <= 0) {
-      setError("Enter a valid amount.");
+      setError(t("walletDepositButton.enterValidAmount"));
       return;
     }
     // See src/lib/depositReturn.ts's own doc-comment for the full "why"
@@ -377,12 +379,10 @@ export function WalletDepositButton({
       const freshAccounts = await activeConnector?.getAccounts?.().catch(() => []);
       const freshAddress = freshAccounts?.[0];
       if (!freshAddress) {
-        throw new Error("Your wallet isn't connected to this site right now, tap Reconnect Wallet above and try again.");
+        throw new Error(t("walletDepositButton.notConnectedError"));
       }
       if (address && freshAddress.toLowerCase() !== address.toLowerCase()) {
-        throw new Error(
-          "Your wallet's active account has changed since you signed in, switch back to the original account, or disconnect and reconnect with this one, then try again."
-        );
+        throw new Error(t("walletDepositButton.accountChangedError"));
       }
       // Deliberately no watchAsset ("add token to wallet") step here
       // anymore — it was a SEPARATE wallet prompt before the real
@@ -408,7 +408,7 @@ export function WalletDepositButton({
           account: freshAddress,
         }),
         120_000,
-        "Wallet didn't respond to the transaction request in time. Please try again."
+        t("walletDepositButton.transactionTimeoutError")
       );
       // Persisted immediately — not after also waiting for a receipt —
       // specifically so a mobile app-switch-triggered reload right after
@@ -433,7 +433,7 @@ export function WalletDepositButton({
   // after a short delay resolves it in practice far more often than
   // surfacing it straight to the user as a dead end.
   async function switchToChainWithRetry() {
-    const TIMEOUT_MSG = "Wallet didn't respond to the network switch request in time. Please try again.";
+    const TIMEOUT_MSG = t("walletDepositButton.networkSwitchTimeoutError");
     try {
       await withTimeout(switchChainAsync({ chainId: chainId as RegisteredChainId }), 60_000, TIMEOUT_MSG);
     } catch (err) {
@@ -454,7 +454,7 @@ export function WalletDepositButton({
 
   function explainError(err: unknown): string {
     if (isChainDisconnectedError(err)) {
-      return `Your wallet reported it isn't connected to ${chainLabel}. Open your wallet, switch networks manually, then try again.`;
+      return t("walletDepositButton.chainDisconnectedError", { chainLabel });
     }
     // Some wallets (Phantom in particular) have much more limited EVM
     // network support than MetaMask and reject an unfamiliar chain
@@ -463,12 +463,12 @@ export function WalletDepositButton({
     // settings change on the user's end.
     const message = err instanceof Error ? err.message : "";
     if (/unsupported network|does not currently support|does not support this chain/i.test(message)) {
-      return `Your wallet doesn't support ${chainLabel}. If you're using Phantom, switch to MetaMask for this deposit (or in Phantom, turn off Settings → Default App Wallet and set it to "Always Ask"), then try again.`;
+      return t("walletDepositButton.unsupportedChainError", { chainLabel });
     }
     if (isUserRejectionError(err)) {
-      return 'Transaction declined. If your wallet showed a "could not verify this site" warning, look past it for the actual transaction to approve, then try again.';
+      return t("walletDepositButton.transactionDeclinedError");
     }
-    return err instanceof Error ? err.message : "Transaction failed or was rejected.";
+    return err instanceof Error ? err.message : t("walletDepositButton.transactionFailedError");
   }
 
   // `step` (our own bounded state, cleared via finally/timeout) drives
@@ -482,10 +482,9 @@ export function WalletDepositButton({
 
   return (
     <div className="rounded-xl border border-line bg-panel-2 p-3">
-      <p className="text-xs font-bold uppercase tracking-widest text-mint">⚡ Deposit From Wallet</p>
+      <p className="text-xs font-bold uppercase tracking-widest text-mint">{t("walletDepositButton.heading")}</p>
       <p className="mt-1 text-xs text-muted">
-        Sends a real {chainLabel} USDT transfer from your connected wallet, your wallet will ask
-        you to confirm it, same as sending from any app.
+        {t("walletDepositButton.body", { chainLabel })}
       </p>
       {!isConnected ? (
         <div className="mt-3 flex flex-col items-start gap-1.5">
@@ -494,7 +493,7 @@ export function WalletDepositButton({
             disabled={reconnecting}
             className="btn-game rounded-full px-4 py-2 text-sm disabled:opacity-50"
           >
-            {reconnecting ? "Reconnecting…" : "Reconnect Wallet to Deposit"}
+            {reconnecting ? t("walletDepositButton.reconnectingButton") : t("walletDepositButton.reconnectButton")}
           </button>
         </div>
       ) : (
@@ -517,12 +516,12 @@ export function WalletDepositButton({
             className="btn-game shrink-0 rounded-full px-4 py-2 text-sm disabled:opacity-50"
           >
             {step === "switching"
-              ? "Switch network…"
+              ? t("walletDepositButton.switchNetworkButton")
               : step === "sending"
-                ? "Check wallet…"
+                ? t("walletDepositButton.checkWalletButton")
                 : isConfirming
-                  ? "Confirming…"
-                  : `Deposit $${amount || "0"}`}
+                  ? t("walletDepositButton.confirmingButton")
+                  : t("walletDepositButton.depositButton", { amount: amount || "0" })}
           </button>
         </div>
       )}

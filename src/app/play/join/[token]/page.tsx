@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { OnboardingGate } from "@/components/OnboardingGate";
 import { useAuth } from "@/lib/auth-context";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 interface LinkPreview {
   lobbyId: string;
@@ -29,6 +30,7 @@ export default function JoinLobbyPage({ params }: { params: Promise<{ token: str
   const { token } = use(params);
   const { session } = useAuth();
   const router = useRouter();
+  const { t } = useLocale();
   const [preview, setPreview] = useState<LinkPreview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
@@ -39,13 +41,14 @@ export default function JoinLobbyPage({ params }: { params: Promise<{ token: str
     fetch(`/api/invite-links/${token}`)
       .then(async (res) => {
         const body = await res.json();
-        if (!res.ok) throw new Error(body.error ?? "This invite link is no longer valid");
+        if (!res.ok) throw new Error(body.error ?? t("joinLobby.invalidLinkError"));
         if (!cancelled) setPreview(body);
       })
-      .catch((err) => !cancelled && setLoadError(err instanceof Error ? err.message : "This invite link is no longer valid"));
+      .catch((err) => !cancelled && setLoadError(err instanceof Error ? err.message : t("joinLobby.invalidLinkError")));
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   async function joinNow() {
@@ -54,10 +57,10 @@ export default function JoinLobbyPage({ params }: { params: Promise<{ token: str
     try {
       const res = await fetch(`/api/invite-links/${token}/join`, { method: "POST" });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Failed to join lobby");
+      if (!res.ok) throw new Error(body.error ?? t("joinLobby.joinFailedError"));
       router.push(`/dashboard/play/lobby/${body.id}`);
     } catch (err) {
-      setJoinError(err instanceof Error ? err.message : "Failed to join lobby");
+      setJoinError(err instanceof Error ? err.message : t("joinLobby.joinFailedError"));
     } finally {
       setJoining(false);
     }
@@ -71,13 +74,17 @@ export default function JoinLobbyPage({ params }: { params: Promise<{ token: str
 
       {preview && !loadError && (
         <div className="game-panel hud-corner w-full rounded-2xl p-5">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-gold">You&rsquo;re Invited</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gold">{t("joinLobby.invitedLabel")}</p>
           <h2 className="mt-1 text-xl font-black">{preview.modeLabel}</h2>
           <p className="mt-1 text-sm text-muted">
-            {preview.entryFeeUsdt} USDT entry · {preview.durationSec}s round
+            {t("joinLobby.entrySummary", { fee: preview.entryFeeUsdt, duration: preview.durationSec })}
           </p>
           <p className="mt-2 text-xs text-muted">
-            Host {preview.hostAddress.slice(0, 6)}…{preview.hostAddress.slice(-4)} · {preview.seatsTaken}/{preview.maxPlayers} joined
+            {t("joinLobby.hostSummary", {
+              host: `${preview.hostAddress.slice(0, 6)}…${preview.hostAddress.slice(-4)}`,
+              taken: preview.seatsTaken,
+              max: preview.maxPlayers,
+            })}
           </p>
 
           {session?.authenticated ? (
@@ -87,7 +94,7 @@ export default function JoinLobbyPage({ params }: { params: Promise<{ token: str
                 disabled={joining}
                 className="btn-game hud-corner mt-4 w-full rounded-full px-4 py-2 text-sm disabled:opacity-50"
               >
-                {joining ? "Joining…" : "Accept and Join"}
+                {joining ? t("joinLobby.joiningButton") : t("play.acceptAndJoinButton")}
               </button>
               {joinError && (
                 <div className="mt-3 rounded-xl border border-risk/25 bg-risk-soft p-3">
@@ -97,7 +104,7 @@ export default function JoinLobbyPage({ params }: { params: Promise<{ token: str
                       href="/dashboard/deposit"
                       className="btn-game hud-corner mt-2 inline-block rounded-full px-4 py-1.5 text-xs"
                     >
-                      Deposit USDT
+                      {t("deposit.depositUsdtLabel")}
                     </Link>
                   )}
                 </div>
@@ -105,14 +112,14 @@ export default function JoinLobbyPage({ params }: { params: Promise<{ token: str
             </OnboardingGate>
           ) : (
             <div className="mt-4">
-              <p className="mb-2 text-xs text-muted">Connect your wallet to join this match.</p>
+              <p className="mb-2 text-xs text-muted">{t("joinLobby.connectPrompt")}</p>
               <ConnectWalletButton />
             </div>
           )}
         </div>
       )}
 
-      {!preview && !loadError && <p className="text-sm text-muted">Loading invite…</p>}
+      {!preview && !loadError && <p className="text-sm text-muted">{t("joinLobby.loadingInvite")}</p>}
     </div>
   );
 }

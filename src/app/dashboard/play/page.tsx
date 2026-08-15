@@ -144,12 +144,12 @@ function PlayFlow() {
         body: JSON.stringify({ mode }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Could not start match.");
+      if (!res.ok) throw new Error(body.error ?? t("play.couldNotStartMatch"));
       const modeLabel = row?.label ?? (mode === "KOL_REFERRAL_BONUS" ? t("play.kolBonusCardLabel") : body.mode);
       setMatch({ ...body, modeLabel });
       setResult(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start match.");
+      setError(err instanceof Error ? err.message : t("play.couldNotStartMatch"));
     } finally {
       setStarting(null);
     }
@@ -164,7 +164,7 @@ function PlayFlow() {
       const lobby = await createLobby.mutateAsync(row.entryFeeUsdt);
       router.push(`/dashboard/play/lobby/${lobby.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create lobby.");
+      setError(err instanceof Error ? err.message : t("play.couldNotCreateLobby"));
     } finally {
       setCreatingLobby(null);
     }
@@ -488,7 +488,7 @@ function ErrorNotice({ message, onClose }: { message: string; onClose: () => voi
         <div className="game-panel hud-corner relative rounded-2xl border-risk/25 p-5 text-center">
           <button
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("common.closeButton")}
             className="absolute right-3 top-3 text-muted transition hover:text-foreground"
           >
             ✕
@@ -503,7 +503,7 @@ function ErrorNotice({ message, onClose }: { message: string; onClose: () => voi
             </Link>
           ) : (
             <button onClick={onClose} className="btn-game-outline mt-4 rounded-full px-5 py-2 text-sm">
-              Close
+              {t("common.closeButton")}
             </button>
           )}
         </div>
@@ -628,7 +628,7 @@ function IncomingInvitations({ onJoined }: { onJoined: (lobbyId: string) => void
                   const lobby = await accept.mutateAsync(inv.id);
                   onJoined(lobby.id);
                 } catch (err) {
-                  setError(err instanceof Error ? err.message : "Failed to accept invitation");
+                  setError(err instanceof Error ? err.message : t("play.failedToAcceptInvitation"));
                 }
               }}
               className="btn-game hud-corner flex-1 rounded-full px-3 py-1.5 text-xs"

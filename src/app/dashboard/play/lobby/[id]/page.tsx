@@ -10,6 +10,7 @@ import { CoinRushArena } from "@/components/game/CoinRushArena";
 import { copyToClipboard } from "@/lib/clipboard";
 import { getPublicOrigin } from "@/lib/publicUrl";
 import { NotificationsPrompt } from "@/components/NotificationsPrompt";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { THEME_BY_MODE } from "@/lib/game-config";
 import type { GameMode } from "@/generated/prisma/enums";
 import { MatchResultReveal, type MatchParticipantResult, type MatchPoolSummary } from "@/components/game/MatchResultReveal";
@@ -54,6 +55,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   const { address } = useAccount();
   const { session } = useAuth();
   const router = useRouter();
+  const { t } = useLocale();
   const queryClient = useQueryClient();
   const submitResults = useSubmitMatchResults();
 
@@ -181,7 +183,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
       await invite.mutateAsync(inviteAddress.trim());
       setInviteAddress("");
     } catch (err) {
-      setInviteError(err instanceof Error ? err.message : "Failed to send invitation");
+      setInviteError(err instanceof Error ? err.message : t("lobby.failedToSendInvitation"));
     }
   }
 
@@ -190,7 +192,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
     try {
       await invite.mutateAsync(playerAddress);
     } catch (err) {
-      setInviteError(err instanceof Error ? err.message : "Failed to send invitation");
+      setInviteError(err instanceof Error ? err.message : t("lobby.failedToSendInvitation"));
     }
   }
 
@@ -199,7 +201,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
       const { token } = await generateLink.mutateAsync();
       setInviteLink(`${origin}/play/join/${token}`);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Failed to generate invite link");
+      setActionError(err instanceof Error ? err.message : t("lobby.failedToGenerateLink"));
     }
   }
 
@@ -215,13 +217,13 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  if (isLoading) return <p className="mx-auto max-w-md text-sm text-muted">Loading lobby…</p>;
+  if (isLoading) return <p className="mx-auto max-w-md text-sm text-muted">{t("lobby.loading")}</p>;
   if (loadError || !lobby) {
     return (
       <div className="mx-auto max-w-md">
-        <p className="text-sm text-risk">{loadError instanceof Error ? loadError.message : "Lobby not found"}</p>
+        <p className="text-sm text-risk">{loadError instanceof Error ? loadError.message : t("lobby.notFound")}</p>
         <button onClick={() => router.push("/dashboard/play")} className="btn-game-outline mt-3 rounded-full px-4 py-2 text-sm">
-          Back to Game Modes
+          {t("lobby.backToGameModes")}
         </button>
       </div>
     );
@@ -242,7 +244,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
             onClick={quitMatch}
             className="absolute right-3 top-3 z-10 rounded-full border border-white/20 bg-black/50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white/70 backdrop-blur transition hover:border-risk/40 hover:text-risk"
           >
-            ✕ Quit
+            {t("lobby.quitButton")}
           </button>
           <CoinRushArena
             mapSeed={lobby.id}
@@ -281,7 +283,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
       >
         <div className="relative h-[min(930px,calc(100vh-20px))] w-[min(450px,calc(100vw-20px))] overflow-hidden rounded-[36px] border border-white/15 bg-[#06101a] shadow-2xl">
           <div className="absolute right-3 top-3 z-10 rounded-full border border-white/20 bg-black/60 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white/70 backdrop-blur">
-            {waitingForOthers.submitted} of {waitingForOthers.total} in
+            {t("lobby.spectateBadge", { submitted: waitingForOthers.submitted, total: waitingForOthers.total })}
           </div>
           <CoinRushArena
             mapSeed={lobby.id}
@@ -308,10 +310,10 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
     return (
       <div className="game-panel hud-corner mx-auto max-w-sm rounded-2xl p-6 text-center">
         <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-line border-t-gold" />
-        <h2 className="text-glow-gold text-2xl font-black">Waiting for other racers…</h2>
-        <p className="mt-2 text-sm text-muted">Your run is finished, hang tight while everyone else finishes theirs.</p>
+        <h2 className="text-glow-gold text-2xl font-black">{t("lobby.waitingHeading")}</h2>
+        <p className="mt-2 text-sm text-muted">{t("lobby.waitingBody")}</p>
         <p className="mt-1 text-sm font-bold text-foreground">
-          {waitingForOthers.submitted} of {waitingForOthers.total} results in.
+          {t("lobby.waitingCount", { submitted: waitingForOthers.submitted, total: waitingForOthers.total })}
         </p>
       </div>
     );
@@ -331,9 +333,9 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   if (lobby.status === "CANCELLED") {
     return (
       <div className="mx-auto max-w-md text-center">
-        <p className="text-sm text-muted">This lobby was cancelled. Any held entry fee has been returned to your Deposit USDT.</p>
+        <p className="text-sm text-muted">{t("lobby.cancelledNotice")}</p>
         <button onClick={() => router.push("/dashboard/play")} className="btn-game-outline mt-3 rounded-full px-4 py-2 text-sm">
-          Back to Game Modes
+          {t("lobby.backToGameModes")}
         </button>
       </div>
     );
@@ -357,9 +359,9 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
     <div className="mx-auto max-w-md">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-glow-gold text-2xl font-black uppercase tracking-wide">👥 Play with Friends</h2>
+          <h2 className="text-glow-gold text-2xl font-black uppercase tracking-wide">{t("lobby.heading")}</h2>
           <p className="mt-1 text-sm text-muted">
-            {lobby.modeLabel} · {lobby.entryFeeUsdt} USDT entry · Room {lobby.roomCode}
+            {t("lobby.summaryLine", { mode: lobby.modeLabel, fee: lobby.entryFeeUsdt, code: lobby.roomCode })}
           </p>
         </div>
         {lobby.status === "WAITING" && (
@@ -381,33 +383,33 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
               <span className="font-bold">{slot.slotNumber}.</span>
               {slot.state === "HUMAN" ? (
                 <span className="flex-1 px-2">
-                  {slot.address && displayName(slot.address, slot.nickname)} {slot.isHost ? "(Host)" : "(Joined)"}
+                  {slot.address && displayName(slot.address, slot.nickname)} {slot.isHost ? t("lobby.hostTag") : t("lobby.joinedTag")}
                 </span>
               ) : (
-                <span className="flex-1 px-2">Waiting for player…</span>
+                <span className="flex-1 px-2">{t("lobby.waitingForPlayer")}</span>
               )}
             </div>
           ))}
         </div>
 
         {lobby.status !== "WAITING" && lobby.status !== "FULL" && (
-          <p className="mt-3 text-center text-xs text-gold">Starting match…</p>
+          <p className="mt-3 text-center text-xs text-gold">{t("lobby.startingMatch")}</p>
         )}
       </div>
 
       {lobby.isHost && (lobby.status === "WAITING" || lobby.status === "FULL") && (
         <>
           <div className="game-panel hud-corner mt-4 rounded-2xl p-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gold">Invite Players</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gold">{t("lobby.invitePlayersHeading")}</p>
             <div className="mt-2 flex gap-2">
               <input
                 value={inviteAddress}
                 onChange={(e) => setInviteAddress(e.target.value)}
-                placeholder="0x wallet address"
+                placeholder={t("lobby.walletAddressPlaceholder")}
                 className="flex-1 rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm"
               />
               <button onClick={sendInvite} disabled={invite.isPending || !inviteAddress.trim()} className="btn-game-outline rounded-lg px-4 py-2 text-sm disabled:opacity-50">
-                Invite
+                {t("lobby.inviteButton")}
               </button>
             </div>
             {inviteError && <p className="mt-2 text-xs text-risk">{inviteError}</p>}
@@ -415,7 +417,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
               <ul className="mt-2 space-y-1 text-xs text-muted">
                 {lobby.pendingInvitations.map((inv) => (
                   <li key={inv.id}>
-                    {displayName(inv.recipientAddress, inv.recipientNickname)} (pending)
+                    {displayName(inv.recipientAddress, inv.recipientNickname)} {t("lobby.pendingTag")}
                   </li>
                 ))}
               </ul>
@@ -423,14 +425,14 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
 
             {recentPlayers.length > 0 && (
               <div className="mt-3 border-t border-line pt-3">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Recent Players</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("lobby.recentPlayersHeading")}</p>
                 <div className="mt-2 flex flex-col gap-1.5">
                   {recentPlayers.map((p) => (
                     <div key={p.address} className="flex items-center justify-between rounded-lg border border-line bg-panel-2 px-3 py-2 text-xs">
                       <span>
                         {displayName(p.address, p.nickname)}
                         <span className="ml-1.5 text-muted">
-                          · {p.gamesTogether} game{p.gamesTogether > 1 ? "s" : ""} together
+                          · {t(p.gamesTogether > 1 ? "lobby.gamesTogetherPlural" : "lobby.gamesTogetherSingular", { count: p.gamesTogether })}
                         </span>
                       </span>
                       <button
@@ -438,7 +440,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
                         disabled={invite.isPending}
                         className="btn-game-outline rounded-full px-3 py-1 text-[11px] disabled:opacity-50"
                       >
-                        Invite
+                        {t("lobby.inviteButton")}
                       </button>
                     </div>
                   ))}
@@ -449,7 +451,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
             <div className="mt-3 border-t border-line pt-3">
               {!lobby.hasInviteLink && !inviteLink ? (
                 <button onClick={getOrCreateLink} className="btn-game-outline w-full rounded-full px-4 py-2 text-sm">
-                  Generate Invite Link
+                  {t("lobby.generateInviteLink")}
                 </button>
               ) : (
                 <div className="flex gap-2">
@@ -458,11 +460,11 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
                   )}
                   {inviteLink && (
                     <button onClick={copyLink} className="btn-game-outline rounded-lg px-3 py-2 text-xs">
-                      {copied ? "Copied" : "Copy"}
+                      {copied ? t("lobby.copiedLabel") : t("lobby.copyLabel")}
                     </button>
                   )}
                   <button onClick={disableLinkNow} className="btn-game-outline rounded-lg px-3 py-2 text-xs">
-                    Disable
+                    {t("lobby.disableLabel")}
                   </button>
                 </div>
               )}
@@ -471,18 +473,18 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
 
           <div className="mt-4 flex flex-col gap-2">
             <button
-              onClick={() => start.mutateAsync().catch((e) => setActionError(e instanceof Error ? e.message : "Failed to start"))}
+              onClick={() => start.mutateAsync().catch((e) => setActionError(e instanceof Error ? e.message : t("lobby.failedToStart")))}
               disabled={start.isPending}
               className="btn-game hud-corner w-full whitespace-nowrap rounded-full px-4 py-2 text-sm disabled:opacity-50"
             >
-              {emptySeats > 0 ? "Start with Random Players" : "Start Match"}
+              {emptySeats > 0 ? t("lobby.startWithRandomPlayers") : t("lobby.startMatchButton")}
             </button>
             <button
-              onClick={() => cancel.mutateAsync().catch((e) => setActionError(e instanceof Error ? e.message : "Failed to cancel"))}
+              onClick={() => cancel.mutateAsync().catch((e) => setActionError(e instanceof Error ? e.message : t("lobby.failedToCancel")))}
               disabled={cancel.isPending}
               className="btn-game-outline w-full rounded-full px-4 py-2 text-sm disabled:opacity-50"
             >
-              Cancel
+              {t("lobby.cancelButton")}
             </button>
           </div>
           {actionError && <p className="mt-2 text-xs text-risk">{actionError}</p>}

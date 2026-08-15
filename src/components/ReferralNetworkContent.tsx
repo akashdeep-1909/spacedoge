@@ -771,7 +771,7 @@ export function ReferralNetworkContent({
                       <span className="font-black text-gold">{miningExampleL2Doge.toFixed(4)} DOGE / day</span>
                     </div>
                     <div className="flex items-center justify-between rounded-[10px] border border-line bg-panel-2 px-3 py-2.5 text-xs">
-                      <span className="text-muted">DOGE/USDT rate used</span>
+                      <span className="text-muted">{t("referralNetwork.dogeUsdtRateUsedLabel")}</span>
                       <span className="font-bold text-foreground">{dogeUsdtRate.toFixed(5)}</span>
                     </div>
                   </div>

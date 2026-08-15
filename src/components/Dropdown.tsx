@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 // A plain <select> pops up the browser/OS's own native picker on
 // mobile — a plain white system list that clashes with the rest of
@@ -18,6 +19,7 @@ export function Dropdown<T extends string>({
   options: { value: T; label: ReactNode }[];
   onChange: (value: T) => void;
 }) {
+  const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const selected = options.find((o) => o.value === value);
@@ -45,7 +47,7 @@ export function Dropdown<T extends string>({
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between rounded-lg border border-line bg-panel-2 px-3 py-2 text-left text-sm"
       >
-        <span className="truncate">{selected?.label ?? "Select…"}</span>
+        <span className="truncate">{selected?.label ?? t("dropdown.selectPlaceholder")}</span>
         <svg
           viewBox="0 0 24 24"
           width="14"

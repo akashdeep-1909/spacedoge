@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth-context";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 // Shown once signed in, right alongside the header's own connected
 // state (address pill + Disconnect) — landing on "/" (e.g. clicking the
@@ -9,6 +10,7 @@ import { useAuth } from "@/lib/auth-context";
 // sees the page. Only navigates on an actual click.
 export function EnterDashboard() {
   const { session } = useAuth();
+  const { t } = useLocale();
 
   if (!session?.authenticated) return null;
 
@@ -17,7 +19,7 @@ export function EnterDashboard() {
       href="/dashboard"
       className="btn-game hud-corner text-sm font-bold uppercase tracking-wide"
     >
-      Enter Dashboard
+      {t("enterDashboard.buttonLabel")}
     </a>
   );
 }

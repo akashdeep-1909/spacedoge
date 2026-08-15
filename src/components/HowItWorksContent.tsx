@@ -182,7 +182,7 @@ export function HowItWorksContent({ platformStats }: { platformStats: PlatformSt
                 transition={{ duration: 0.5, ease: EASE }}
                 className="ld-eyebrow text-mint"
               >
-                How
+                {t("howItWorks.heroEyebrowWord")}
               </motion.span>
               <motion.h1
                 initial={{ clipPath: "inset(0 100% 0 0)", opacity: 0 }}

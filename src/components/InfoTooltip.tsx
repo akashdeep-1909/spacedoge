@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Info } from "lucide-react";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 const TOOLTIP_WIDTH = 256; // px, matches w-64
 const VIEWPORT_MARGIN = 8;
@@ -20,6 +21,7 @@ const GAP_ABOVE_TRIGGER = 10;
 // keeps the pointer arrow aimed at the trigger even when the box
 // itself had to shift to avoid spilling off-screen.
 export function InfoTooltip({ text, className = "" }: { text: string; className?: string }) {
+  const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; left: number; arrowLeft: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -54,7 +56,7 @@ export function InfoTooltip({ text, className = "" }: { text: string; className?
       <button
         ref={triggerRef}
         type="button"
-        aria-label="More info"
+        aria-label={t("infoTooltip.moreInfoAria")}
         onMouseEnter={show}
         onMouseLeave={() => setOpen(false)}
         onFocus={show}

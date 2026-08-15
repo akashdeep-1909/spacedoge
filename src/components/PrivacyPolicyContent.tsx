@@ -1,6 +1,7 @@
 "use client";
 
 import { LegalPageLayout, type LegalSection } from "@/components/LegalPageLayout";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 const SECTIONS: LegalSection[] = [
   {
@@ -182,24 +183,25 @@ const SECTIONS: LegalSection[] = [
 ];
 
 export function PrivacyPolicyContent() {
+  const { t } = useLocale();
   return (
     <LegalPageLayout
-      eyebrow="Privacy"
-      titlePrefix="Read the"
-      titleHighlight="Privacy Policy"
+      eyebrow={t("privacyPolicy.eyebrow")}
+      titlePrefix={t("legalPageLayout.readThePrefix")}
+      titleHighlight={t("privacyPolicy.titleHighlight")}
       highlightColor="purple"
-      lead="Learn what information Space DOGE may collect, how it may be used, how public blockchain data works, and what users should expect from a wallet-first platform."
-      summaryBody="This page helps Space DOGE users understand the key legal and privacy expectations of using a wallet-first GameFi and mining platform."
+      lead={t("privacyPolicy.lead")}
+      summaryBody={t("privacyPolicy.summaryBody")}
       highlights={[
-        { title: "Wallet data", body: "We may process public wallet addresses and wallet-connection data." },
-        { title: "On-chain visibility", body: "Blockchain activity may be visible publicly and may not be erasable." },
-        { title: "Operational use", body: "Data helps us operate gameplay, mining, security and withdrawals." },
-        { title: "Counsel review", body: "This privacy template should be reviewed before public launch." },
+        { title: t("privacyPolicy.highlight1Title"), body: t("privacyPolicy.highlight1Body") },
+        { title: t("privacyPolicy.highlight2Title"), body: t("privacyPolicy.highlight2Body") },
+        { title: t("privacyPolicy.highlight3Title"), body: t("privacyPolicy.highlight3Body") },
+        { title: t("privacyPolicy.highlight4Title"), body: t("privacyPolicy.highlight4Body") },
       ]}
       sections={SECTIONS}
-      ctaHeading="Need privacy-related support or compliance review?"
-      ctaBody="Have questions about how your data is collected, used or protected? Reach out to our privacy team below."
-      ctaButtonLabel="Contact privacy support"
+      ctaHeading={t("privacyPolicy.ctaHeading")}
+      ctaBody={t("privacyPolicy.ctaBody")}
+      ctaButtonLabel={t("privacyPolicy.ctaButtonLabel")}
     />
   );
 }

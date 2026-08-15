@@ -724,7 +724,7 @@ export function DogeMiningContent({
                   <div className="absolute inset-0 grid place-items-center">
                     <Image
                       src="/dogemine-badge.png"
-                      alt="Space DOGE mining pool"
+                      alt={t("dogeMining.poolBadgeAlt")}
                       width={220}
                       height={220}
                       className="relative shrink-0 rounded-full drop-shadow-2xl"

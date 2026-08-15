@@ -2,6 +2,7 @@
 
 import { Check, Loader2, X, Clock } from "lucide-react";
 import type { VerifyDepositResult } from "@/lib/hooks";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 // Shared step-by-step status display for a single deposit being
 // verified — used by BOTH the auto-verify path (WalletDepositButton's
@@ -10,34 +11,36 @@ import type { VerifyDepositResult } from "@/lib/hooks";
 // feedback regardless of which one they're using. Requested explicitly:
 // "Show proper Timeline step by step what's going now like Deposited
 // Amount, Coin and Chain, Pending, Verification, Passed, Credit or
-// Failed Try Verify Hash Manually." Plain English throughout, matching
-// WalletDepositButton.tsx's own established convention (that file
-// isn't wired into the i18n system at all, unlike dashboard/deposit/
-// page.tsx's surrounding chrome).
+// Failed Try Verify Hash Manually."
 type Stage = "pending" | "verifying" | "passed" | "credited" | "failed";
 
-const STEPS: { key: Stage; label: string }[] = [
-  { key: "pending", label: "Pending" },
-  { key: "verifying", label: "Verification" },
-  { key: "passed", label: "Passed" },
-  { key: "credited", label: "Credited" },
-];
+type T = ReturnType<typeof useLocale>["t"];
+
+function steps(t: T): { key: Stage; label: string }[] {
+  return [
+    { key: "pending", label: t("depositTimeline.stepPending") },
+    { key: "verifying", label: t("depositTimeline.stepVerification") },
+    { key: "passed", label: t("depositTimeline.stepPassed") },
+    { key: "credited", label: t("depositTimeline.stepCredited") },
+  ];
+}
 
 function resolveStage(
+  t: T,
   result: VerifyDepositResult | undefined,
   isPending: boolean,
   gaveUp: boolean
 ): { stage: Stage; note: string; failed: boolean } {
   if (!result || isPending) {
-    return { stage: "verifying", note: "Checking this transaction against the blockchain…", failed: false };
+    return { stage: "verifying", note: t("depositTimeline.checkingNote"), failed: false };
   }
   if (!("error" in result)) {
     if (result.status === "credited") {
-      return { stage: "credited", note: `Credited: $${result.amount.toFixed(2)} added to your balance.`, failed: false };
+      return { stage: "credited", note: t("depositTimeline.creditedNote", { amount: result.amount.toFixed(2) }), failed: false };
     }
     return {
       stage: "passed",
-      note: `Found on-chain: ${result.confirmations}/${result.minConfirmations} confirmations. Credits automatically once confirmed.`,
+      note: t("depositTimeline.foundOnChainNote", { confirmations: result.confirmations, minConfirmations: result.minConfirmations }),
       failed: false,
     };
   }
@@ -48,7 +51,7 @@ function resolveStage(
   // jumping straight to a scary "failed" for something that's likely
   // to resolve fine on its own.
   if ((result.status === "not_found" || result.status === "rpc_error") && !gaveUp) {
-    return { stage: "verifying", note: "Still confirming, this can take a couple of minutes on a busy network…", failed: false };
+    return { stage: "verifying", note: t("depositTimeline.stillConfirmingNote"), failed: false };
   }
   return { stage: "failed", note: result.error, failed: true };
 }
@@ -83,8 +86,10 @@ export function DepositTimeline({
   // just asks them to double-check the hash.
   mode: "auto" | "manual";
 }) {
-  const { stage, note, failed } = resolveStage(result, isPending, gaveUp);
+  const { t } = useLocale();
+  const { stage, note, failed } = resolveStage(t, result, isPending, gaveUp);
   const amount = knownAmount ?? (result && !("error" in result) ? result.amount : undefined);
+  const STEPS = steps(t);
   const stepIndex = STEPS.findIndex((s) => s.key === stage);
   const shortHash = `${txHash.slice(0, 10)}…${txHash.slice(-6)}`;
 
@@ -93,7 +98,7 @@ export function DepositTimeline({
       <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-line pb-2 text-xs">
         <span className="text-muted">
           {amount !== undefined ? <span className="font-semibold text-foreground">${amount.toFixed(2)} {coinSymbol}</span> : <span className="font-semibold text-foreground">{coinSymbol}</span>}
-          {" "}via <span className="text-foreground">{chainLabel}</span>
+          {" "}{t("depositTimeline.viaLabel")} <span className="text-foreground">{chainLabel}</span>
         </span>
         <span className="font-mono text-muted">{shortHash}</span>
       </div>
@@ -104,12 +109,12 @@ export function DepositTimeline({
             <X size={12} strokeWidth={3} />
           </span>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-risk">Failed</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-risk">{t("depositTimeline.failedLabel")}</p>
             <p className="mt-0.5 text-xs text-risk">{note}</p>
             <p className="mt-1.5 text-xs text-muted">
               {mode === "auto"
-                ? "Paste this transaction hash into the box below to try verifying it manually."
-                : "Double-check the transaction hash you pasted, then try again."}
+                ? t("depositTimeline.autoFailedGuidance")
+                : t("depositTimeline.manualFailedGuidance")}
             </p>
           </div>
         </div>

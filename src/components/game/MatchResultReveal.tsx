@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { playBoxOpenSound, playCoinSound } from "@/lib/rewardSound";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 export interface MatchParticipantResult {
   rank: number;
@@ -70,6 +71,7 @@ function RewardBoxStage({
   participant: MatchParticipantResult;
   onDone: () => void;
 }) {
+  const { t } = useLocale();
   const [phase, setPhase] = useState<"appear" | "shake" | "glow" | "open" | "count" | "hold">("appear");
   const timers = STAGE_MS[rank];
   const size = rank === 1 ? 132 : rank === 2 ? 100 : 82;
@@ -105,7 +107,7 @@ function RewardBoxStage({
   return (
     <div className="flex flex-col items-center gap-3 py-4">
       <p className="text-[11px] font-black uppercase tracking-[0.2em]" style={{ color: accent }}>
-        {RANK_MEDAL[rank]} Rank {rank} Reward
+        {t("matchResult.rankRewardLabel", { medal: RANK_MEDAL[rank], rank })}
       </p>
       <div className="relative flex items-center justify-center" style={{ width: size * 2, height: size * 1.7 }}>
         <div
@@ -169,17 +171,17 @@ function RewardBoxStage({
       </div>
 
       <div className="text-center">
-        <p className="text-[11px] uppercase tracking-widest text-muted">{participant.isYou ? "You" : participant.displayAddress}</p>
+        <p className="text-[11px] uppercase tracking-widest text-muted">{participant.isYou ? t("matchResult.youLabel") : participant.displayAddress}</p>
         {/* Hidden until the box actually opens, then flies up out of
             where the box sits and settles into place — reads as the
             number itself being what came out of the box, not a static
             label that happened to appear underneath it. */}
         <div className={opened ? "mrr-number-flow" : "opacity-0"}>
           <p className="mt-0.5 text-4xl font-black tabular-nums" style={{ color: accent }}>
-            {displayValue.toLocaleString()} <span className="text-lg">PTS</span>
+            {displayValue.toLocaleString()} <span className="text-lg">{t("matchResult.ptsUnit")}</span>
           </p>
           {counting && participant.bonusPts > 0 && (
-            <p className="mt-0.5 text-sm font-bold text-mint">+{participant.bonusPts.toLocaleString()} bonus</p>
+            <p className="mt-0.5 text-sm font-bold text-mint">{t("matchResult.bonusInline", { amount: participant.bonusPts.toLocaleString() })}</p>
           )}
         </div>
       </div>
@@ -196,6 +198,7 @@ function LeaderboardRow({
   highlighted: boolean;
   revealed: boolean;
 }) {
+  const { t } = useLocale();
   const accent = RANK_ACCENT[p.rank] ?? "#7a8a9a";
   return (
     <div
@@ -211,15 +214,15 @@ function LeaderboardRow({
         <span className="w-5 shrink-0 text-center text-base leading-none">{RANK_MEDAL[p.rank] ?? p.rank}</span>
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 truncate text-xs font-bold">
-            {p.isYou ? "YOU" : p.displayAddress}
+            {p.isYou ? t("matchResult.youAllCaps") : p.displayAddress}
             {p.rank === 4 && (
               <span className="shrink-0 rounded-full border border-risk/40 bg-risk/10 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-risk">
-                Loss
+                {t("matchResult.lossBadge")}
               </span>
             )}
           </p>
           <p className={`text-[10px] ${p.rank === 4 ? "font-bold text-foreground" : "text-muted"}`}>
-            Collected {p.gameplayPts.toLocaleString()} PTS
+            {t("matchResult.collectedPts", { count: p.gameplayPts.toLocaleString() })}
           </p>
         </div>
       </div>
@@ -227,16 +230,16 @@ function LeaderboardRow({
         {p.rank === 4 || revealed ? (
           <>
             <p className="text-sm font-black tabular-nums" style={{ color: p.rewardPts > 0 ? accent : undefined }}>
-              {p.rewardPts.toLocaleString()} PTS
+              {p.rewardPts.toLocaleString()} {t("matchResult.ptsUnit")}
             </p>
             {p.rank === 4 ? (
-              <p className="text-[9px] text-muted">to wallet</p>
+              <p className="text-[9px] text-muted">{t("matchResult.toWalletLabel")}</p>
             ) : (
-              p.bonusPts > 0 && <p className="text-[10px] text-mint">+{p.bonusPts.toLocaleString()} bonus</p>
+              p.bonusPts > 0 && <p className="text-[10px] text-mint">{t("matchResult.bonusInline", { amount: p.bonusPts.toLocaleString() })}</p>
             )}
           </>
         ) : (
-          <p className="animate-pulse text-xs text-muted">revealing…</p>
+          <p className="animate-pulse text-xs text-muted">{t("matchResult.revealingLabel")}</p>
         )}
       </div>
     </div>
@@ -261,6 +264,7 @@ export function MatchResultReveal({
   onPlayAgain: () => void;
   dashboardHref?: string;
 }) {
+  const { t } = useLocale();
   const sorted = useMemo(() => [...participants].sort((a, b) => a.rank - b.rank), [participants]);
   const [stage, setStage] = useState<"intro" | 1 | 2 | 3 | "summary">("intro");
   const [revealed, setRevealed] = useState<Set<number>>(() => new Set([4]));
@@ -290,10 +294,10 @@ export function MatchResultReveal({
       <style>{MRR_STYLES}</style>
 
       <div className="flex items-center justify-between">
-        <h2 className="text-glow-gold text-lg font-black uppercase tracking-wide">Match Results</h2>
+        <h2 className="text-glow-gold text-lg font-black uppercase tracking-wide">{t("matchResult.heading")}</h2>
         {stage !== "summary" && (
           <button onClick={skip} className="text-[10px] uppercase tracking-widest text-muted underline">
-            Skip
+            {t("matchResult.skipButton")}
           </button>
         )}
       </div>
@@ -313,10 +317,10 @@ export function MatchResultReveal({
         <>
           <div className="mt-4 flex gap-2">
             <button onClick={onPlayAgain} className="btn-game hud-corner flex-1 rounded-full px-4 py-2 text-sm">
-              Play Again
+              {t("play.playAgainButton")}
             </button>
             <Link href={dashboardHref} className="btn-game-outline flex-1 rounded-full px-4 py-2 text-center text-sm">
-              Dashboard
+              {t("play.dashboardButton")}
             </Link>
           </div>
         </>

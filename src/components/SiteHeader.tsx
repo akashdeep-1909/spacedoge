@@ -93,7 +93,7 @@ export function SiteHeader() {
             <button
               type="button"
               onClick={() => setMobileNavOpen((v) => !v)}
-              aria-label={mobileNavOpen ? "Close menu" : "Open menu"}
+              aria-label={mobileNavOpen ? t("nav.closeMenu") : t("nav.openMenu")}
               aria-expanded={mobileNavOpen}
               className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-line bg-panel text-foreground transition hover:border-gold/40 lg:hidden"
             >

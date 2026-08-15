@@ -5,6 +5,7 @@ import { seededRandom, DIFFICULTY_BY_MODE, THEME_BY_MODE, pickBotNames, botScore
 import type { GameMode } from "@/generated/prisma/enums";
 import { reportLiveMatchState } from "@/lib/hooks";
 import type { LiveShipSample } from "@/lib/liveMatchStateTypes";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 // Coin Rush Arena — visuals ported from the "Orbital Extraction" 4-player
 // prototype (rockets, USDT coins, a bank vault that cycles open/closed,
@@ -307,6 +308,7 @@ export function CoinRushArena({
   // opponent's slotNumber — only read while spectate is true.
   liveOpponents?: Record<number, LiveShipSample>;
 }) {
+  const { t } = useLocale();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const onCompleteRef = useRef(onComplete);
   useEffect(() => {
@@ -1537,7 +1539,7 @@ export function CoinRushArena({
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 8 }}>
           <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", color: "#f7fbff" }}>
-            Coin Rush Arena
+            {t("gameArena.title")}
             <small style={{ display: "block", fontSize: 10, fontWeight: 600, letterSpacing: ".03em", textTransform: "none", color: "#b7c4d3", marginTop: 2 }}>
               {missionTitle}
             </small>
@@ -1552,7 +1554,7 @@ export function CoinRushArena({
               onClick={() => setJoystickEnabled((v) => !v)}
               className="pointer-events-auto"
               aria-pressed={joystickEnabled}
-              aria-label="Toggle on-screen joystick"
+              aria-label={t("gameArena.toggleJoystickAria")}
               style={{
                 padding: "5px 8px", borderRadius: 999, fontSize: 11, lineHeight: 1,
                 border: `1px solid ${joystickEnabled ? "rgba(137,199,255,.5)" : "rgba(255,255,255,.14)"}`,
@@ -1569,23 +1571,23 @@ export function CoinRushArena({
                 color: hud.vaultOpen ? "#77f2c7" : "#ff6767",
               }}
             >
-              Vault {hud.vaultOpen ? "Open" : "Locked"}
+              {hud.vaultOpen ? t("gameArena.vaultOpenLabel") : t("gameArena.vaultLockedLabel")}
             </span>
           </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 5 }}>
-          <StatCard accent="#89c7ff" label="Mission Time" value={String(hud.time)} />
-          <StatCard accent="#f4c15d" label="Prize Pool" value={`$${prizePoolUsdt.toFixed(2)}`} sub="USDT pool" />
+          <StatCard accent="#89c7ff" label={t("gameArena.missionTimeLabel")} value={String(hud.time)} />
+          <StatCard accent="#f4c15d" label={t("gameArena.prizePoolLabel")} value={`$${prizePoolUsdt.toFixed(2)}`} sub={t("gameArena.usdtPoolSub")} />
           <StatCard
             accent={theme.accent}
-            label="Your Rank"
+            label={t("gameArena.yourRankLabel")}
             value={`#${hud.rank}`}
-            sub={`${hud.youBanked + hud.youCarry} PTS collected`}
+            sub={t("gameArena.ptsCollectedSub", { count: hud.youBanked + hud.youCarry })}
           />
           <StatCard
             accent="#ff6767"
-            label="Your Rocket"
+            label={t("gameArena.yourRocketLabel")}
             value={youName}
             sub={<LifeBar lives={hud.lives} total={diff.startLives} />}
           />
@@ -1603,7 +1605,7 @@ export function CoinRushArena({
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, fontSize: 9.5, letterSpacing: ".05em", textTransform: "uppercase", color: "#b7c4d3", fontWeight: 600 }}>
-          <span>Live Leaderboard</span>
+          <span>{t("gameArena.liveLeaderboardLabel")}</span>
           <b style={{ color: "#fff", fontWeight: 800 }}>{missionTitle}</b>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 5 }}>
@@ -1621,7 +1623,7 @@ export function CoinRushArena({
               <span style={{ width: 10, height: 10, borderRadius: "50%", background: s.color, boxShadow: `0 0 8px ${s.color}` }} />
               <div style={{ minWidth: 0 }}>
                 <strong style={{ display: "block", fontSize: 9.5, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#fff" }}>
-                  #{idx + 1} {s.isYou ? "YOU" : s.name}
+                  #{idx + 1} {s.isYou ? t("gameArena.youLeaderboardLabel") : s.name}
                 </strong>
               </div>
               {/* "Carry" (live, currently held, lost on a hit) is the
@@ -1633,10 +1635,10 @@ export function CoinRushArena({
                   making real coin pickups look like they weren't
                   registering anywhere. */}
               <div style={{ gridColumn: "1 / -1", textAlign: "left", marginTop: 1 }}>
-                <span style={{ fontSize: 10.5, fontWeight: 800, color: "#fff", whiteSpace: "nowrap" }}>{s.carry} PTS</span>
-                <span style={{ marginLeft: 4, fontSize: 7, fontWeight: 600, color: "#a9bccb", textTransform: "uppercase", letterSpacing: ".01em" }}>carrying</span>
+                <span style={{ fontSize: 10.5, fontWeight: 800, color: "#fff", whiteSpace: "nowrap" }}>{t("gameArena.ptsCarryValue", { count: s.carry })}</span>
+                <span style={{ marginLeft: 4, fontSize: 7, fontWeight: 600, color: "#a9bccb", textTransform: "uppercase", letterSpacing: ".01em" }}>{t("gameArena.carryingLabel")}</span>
                 <span style={{ display: "block", fontSize: 7.5, color: "#a9bccb", letterSpacing: ".01em", textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {s.banked} PTS banked
+                  {t("gameArena.bankedLine", { count: s.banked })}
                 </span>
               </div>
             </div>
@@ -1662,7 +1664,7 @@ export function CoinRushArena({
               textShadow: `0 0 24px ${countdown === "GO" ? "#33f2a4" : "#89c7ff"}`,
             }}
           >
-            {countdown === "GO" ? "GO!" : countdown}
+            {countdown === "GO" ? t("gameArena.goLabel") : countdown}
           </p>
         </div>
       )}
@@ -1673,9 +1675,9 @@ export function CoinRushArena({
           style={{ background: "rgba(2,5,9,.55)", backdropFilter: "blur(2px)" }}
         >
           <div className="text-center">
-            <p className="text-4xl font-black uppercase tracking-wide" style={{ color: "#89c7ff" }}>⏱ Time&apos;s Up</p>
+            <p className="text-4xl font-black uppercase tracking-wide" style={{ color: "#89c7ff" }}>{t("gameArena.timesUp")}</p>
             <p className="mt-2 animate-pulse text-xs uppercase tracking-widest text-muted">
-              {spectate ? "Finalizing the match…" : "Finalizing your run…"}
+              {spectate ? t("gameArena.finalizingMatch") : t("gameArena.finalizingRun")}
             </p>
           </div>
         </div>
@@ -1688,7 +1690,7 @@ export function CoinRushArena({
       {!ended && !spectate && hud.lives <= 0 && (
         <div className="pointer-events-none absolute inset-x-0 top-[236px] z-20 flex justify-center">
           <div className="rounded-full border border-risk/40 bg-black/70 px-4 py-1.5 text-xs font-black uppercase tracking-wide text-risk backdrop-blur">
-            💀 You Died, waiting for the match to end
+            {t("gameArena.youDied")}
           </div>
         </div>
       )}
@@ -1700,7 +1702,7 @@ export function CoinRushArena({
       {!ended && spectate && (
         <div className="pointer-events-none absolute inset-x-0 top-[236px] z-20 flex justify-center">
           <div className="rounded-full border border-mint/40 bg-black/70 px-4 py-1.5 text-xs font-black uppercase tracking-wide text-mint backdrop-blur">
-            👀 Spectating — waiting for the match to end
+            {t("gameArena.spectatingBanner")}
           </div>
         </div>
       )}
@@ -1716,7 +1718,7 @@ export function CoinRushArena({
                 border: "1px solid rgba(192,132,252,.5)", color: "#f0e0ff", backdropFilter: "blur(12px)",
               }}
             >
-              <span aria-hidden>🧲</span> Mag
+              <span aria-hidden>🧲</span> {t("gameArena.magButton")}
             </button>
             <button
               onClick={useOverclock}
@@ -1726,7 +1728,7 @@ export function CoinRushArena({
                 border: "1px solid rgba(245,158,11,.5)", color: "#ffe8c9", backdropFilter: "blur(12px)",
               }}
             >
-              <span aria-hidden>⚡</span> Boost
+              <span aria-hidden>⚡</span> {t("gameArena.boostButton")}
             </button>
             <button
               onClick={useShield}
@@ -1736,7 +1738,7 @@ export function CoinRushArena({
                 border: "1px solid rgba(119,242,199,.5)", color: "#d3fff0", backdropFilter: "blur(12px)",
               }}
             >
-              <span aria-hidden>🛡</span> Shield
+              <span aria-hidden>🛡</span> {t("gameArena.shieldButton")}
             </button>
             <button
               onClick={useFire}
@@ -1746,7 +1748,7 @@ export function CoinRushArena({
                 border: "1px solid rgba(255,122,60,.5)", color: "#ffdcc9", backdropFilter: "blur(12px)",
               }}
             >
-              <span aria-hidden>🔥</span> Fire
+              <span aria-hidden>🔥</span> {t("gameArena.fireButton")}
             </button>
           </div>
           {joystickEnabled && (

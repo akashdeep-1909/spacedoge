@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 // Client-side QR generation (no third-party image API) — the deposit
 // address never leaves the browser just to render a scannable code.
 export function DepositQrCode({ value, size = 160 }: { value: string; size?: number }) {
+  const { t } = useLocale();
   const [dataUrl, setDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,11 +30,11 @@ export function DepositQrCode({ value, size = 160 }: { value: string; size?: num
         className="grid shrink-0 place-items-center rounded-xl bg-white/5 text-[10px] text-muted"
         style={{ width: size, height: size }}
       >
-        Generating…
+        {t("depositQrCode.generatingLabel")}
       </div>
     );
   }
 
   // eslint-disable-next-line @next/next/no-img-element -- a locally-generated data: URL, not a remote image next/image would need to optimize
-  return <img src={dataUrl} alt="Deposit address QR code" width={size} height={size} className="shrink-0 rounded-xl" />;
+  return <img src={dataUrl} alt={t("depositQrCode.qrCodeAlt")} width={size} height={size} className="shrink-0 rounded-xl" />;
 }

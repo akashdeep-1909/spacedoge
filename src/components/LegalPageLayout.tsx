@@ -7,6 +7,7 @@ import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Reveal, Starfield } from "@/components/motionPrimitives";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 // Deliberately NOT routed through the site's i18n system (unlike every
 // other marketing page) — this is genuine legal/policy text, not UI
@@ -50,7 +51,7 @@ export function LegalPageLayout({
   ctaBody,
   ctaButtonLabel,
   ctaSecondaryHref = "/about-us",
-  ctaSecondaryLabel = "Learn about Space DOGE",
+  ctaSecondaryLabel,
 }: {
   eyebrow: string;
   titlePrefix: string;
@@ -73,7 +74,9 @@ export function LegalPageLayout({
   ctaSecondaryHref?: string;
   ctaSecondaryLabel?: string;
 }) {
+  const { t } = useLocale();
   const accent = highlightColor === "gold" ? "#ffb516" : "#a78bfa";
+  const resolvedCtaSecondaryLabel = ctaSecondaryLabel ?? t("legalPageLayout.defaultSecondaryCtaLabel");
 
   return (
     <div className="ld-root flex min-h-full flex-1 flex-col bg-background text-foreground">
@@ -98,11 +101,11 @@ export function LegalPageLayout({
                 <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted">{lead}</p>
                 <div className="mt-6 flex flex-wrap gap-3">
                   <a href="#content" className="btn-game hud-corner inline-flex items-center gap-1.5 text-sm">
-                    Read the page
+                    {t("legalPageLayout.readThePageButton")}
                     <ArrowRight size={15} className="shrink-0" />
                   </a>
                   <Link href="/" className="btn-game-outline hud-corner text-sm font-bold uppercase tracking-wide">
-                    Back to homepage
+                    {t("legalPageLayout.backToHomepageButton")}
                   </Link>
                 </div>
               </div>
@@ -110,7 +113,7 @@ export function LegalPageLayout({
 
             <Reveal delay={0.08}>
               <div className="ld-glass flex h-full flex-col gap-4 p-7 sm:p-8">
-                <h3 className="text-lg font-black">Quick Summary</h3>
+                <h3 className="text-lg font-black">{t("legalPageLayout.quickSummaryHeading")}</h3>
                 <p className="text-sm leading-relaxed text-muted">{summaryBody}</p>
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   {highlights.map((h) => (
@@ -136,9 +139,9 @@ export function LegalPageLayout({
         <section className="border-b border-line" id="content">
           <div className="ld-container grid gap-[22px] py-9 sm:py-[56px] lg:grid-cols-[280px_1fr] lg:items-start">
             <aside className="ld-glass lg:sticky lg:top-24 p-5">
-              <h3 className="text-base font-black">On this page</h3>
-              <p className="mt-1.5 text-xs text-muted">Jump to any section.</p>
-              <nav aria-label="On this page" className="mt-3.5 grid gap-2">
+              <h3 className="text-base font-black">{t("legalPageLayout.onThisPageHeading")}</h3>
+              <p className="mt-1.5 text-xs text-muted">{t("legalPageLayout.jumpToSectionSub")}</p>
+              <nav aria-label={t("legalPageLayout.onThisPageHeading")} className="mt-3.5 grid gap-2">
                 {sections.map((s) => (
                   <a
                     key={s.id}
@@ -157,7 +160,7 @@ export function LegalPageLayout({
             <article className="ld-glass p-5 sm:p-7">
               {effectiveDate && contactEmail && (
                 <div className="border-b border-line px-1 pb-5 text-xs text-muted">
-                  Effective date: <strong className="text-foreground">{effectiveDate}</strong> · Contact:{" "}
+                  {t("legalPageLayout.effectiveDateLabel")} <strong className="text-foreground">{effectiveDate}</strong> · {t("legalPageLayout.contactLabel")}{" "}
                   <strong className="text-foreground">{contactEmail}</strong>
                 </div>
               )}
@@ -165,7 +168,7 @@ export function LegalPageLayout({
               {sections.map((s) => (
                 <section key={s.id} id={s.id} className="scroll-mt-24 border-b border-line px-1 py-6 last:border-b-0">
                   <div className="text-[11px] font-black uppercase tracking-[0.11em]" style={{ color: "#a78bfa" }}>
-                    Section {s.num}
+                    {t("legalPageLayout.sectionPrefix", { num: s.num })}
                   </div>
                   <h2 className="ld-h2 mt-1.5">{s.title}</h2>
                   <LegalBlocks blocks={s.blocks} />
@@ -180,7 +183,7 @@ export function LegalPageLayout({
           <div className="ld-container">
             <Reveal>
               <div className="ld-glass glow-gold flex flex-col gap-4 p-8 sm:p-10">
-                <span className="ld-eyebrow text-mint">Need more help?</span>
+                <span className="ld-eyebrow text-mint">{t("legalPageLayout.needMoreHelpEyebrow")}</span>
                 <h2 className="text-glow-gold ld-h2 max-w-2xl">{ctaHeading}</h2>
                 <p className="max-w-2xl text-sm text-muted">{ctaBody}</p>
                 <div className="mt-1 flex flex-wrap items-center gap-3">
@@ -192,7 +195,7 @@ export function LegalPageLayout({
                     {ctaButtonLabel}
                   </a>
                   <Link href={ctaSecondaryHref} className="btn-game-outline rounded-full px-4 py-2 text-sm font-bold uppercase tracking-wide">
-                    {ctaSecondaryLabel}
+                    {resolvedCtaSecondaryLabel}
                   </Link>
                   <ConnectWalletButton />
                 </div>

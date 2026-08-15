@@ -105,7 +105,7 @@ export function MobileNav() {
       <button
         ref={buttonRef}
         onClick={() => setOpen((v) => !v)}
-        aria-label={open ? "Close menu" : "Open menu"}
+        aria-label={open ? t("nav.closeMenu") : t("nav.openMenu")}
         aria-expanded={open}
         className="btn-game-outline hud-corner grid h-9 w-9 place-items-center rounded-lg text-base"
       >

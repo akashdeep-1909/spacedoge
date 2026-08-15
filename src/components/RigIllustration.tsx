@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 // A small vector mining-rig chassis, scaling in GPU-slot count and glow
 // speed with package tier (src/lib/mining-shared.ts's MINING_PACKAGES)
@@ -33,6 +34,7 @@ const PAD_BOTTOM = 16;
 const MIN_WIDTH = 210;
 
 export function RigIllustration({ level }: { level: string }) {
+  const { t } = useLocale();
   const tier = RIG_TIERS[level] ?? RIG_TIERS.Launch;
   const { chips, colorClass, speedSec } = tier;
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
@@ -50,7 +52,7 @@ export function RigIllustration({ level }: { level: string }) {
         viewBox={`0 0 ${width} ${height}`}
         className="w-full max-w-[260px]"
         role="img"
-        aria-label={`${level} mining rig, ${chips} GPU slots running`}
+        aria-label={t("rigIllustration.ariaLabel", { level, chips })}
       >
         <defs>
           <filter id={`glow-${uid}`} x="-80%" y="-80%" width="260%" height="260%">
@@ -135,7 +137,7 @@ export function RigIllustration({ level }: { level: string }) {
 
         <rect x={startX - 4} y={height - 7} width={chipsBlockWidth + 8} height="3" rx="1.5" fill="currentColor" fillOpacity="0.3" />
       </svg>
-      <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Running</p>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{t("rigIllustration.runningLabel")}</p>
     </div>
   );
 }

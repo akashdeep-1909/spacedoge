@@ -1,5 +1,8 @@
+"use client";
+
 import type { CSSProperties } from "react";
 import Image from "next/image";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 // Floating coins and sparkles drift on staggered loops behind the
 // banner, matching the Neon Arcade treatment used across the dashboard.
@@ -11,6 +14,7 @@ const FLOATERS: { icon: string; className: string; style: CSSProperties }[] = [
 ];
 
 export function DashboardHero() {
+  const { t } = useLocale();
   return (
     <div className="game-panel hud-corner glow-gold relative overflow-hidden rounded-2xl p-6 sm:p-8">
       {FLOATERS.map((f, i) => (
@@ -28,7 +32,7 @@ export function DashboardHero() {
         <div className="h-16 w-24 shrink-0 sm:h-20 sm:w-28">
           <Image
             src="/dogemine-banner.png"
-            alt="SPACE DOGE, mine real DOGE from verified game wins"
+            alt={t("dashboardHero.bannerAlt")}
             width={1536}
             height={1024}
             priority
@@ -37,10 +41,10 @@ export function DashboardHero() {
         </div>
         <div>
           <h2 className="text-glow-gold text-lg font-black uppercase tracking-wide sm:text-2xl">
-            Play. Mine. Earn.
+            {t("dashboardHero.heading")}
           </h2>
           <p className="mt-1 text-xs text-muted sm:text-sm">
-            Every coin collected in Coin Rush can become real Scrypt Mining Power.
+            {t("dashboardHero.body")}
           </p>
         </div>
       </div>

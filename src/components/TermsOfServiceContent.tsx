@@ -1,6 +1,7 @@
 "use client";
 
 import { LegalPageLayout, type LegalSection } from "@/components/LegalPageLayout";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 const SECTIONS: LegalSection[] = [
   {
@@ -218,25 +219,26 @@ const SECTIONS: LegalSection[] = [
 ];
 
 export function TermsOfServiceContent() {
+  const { t } = useLocale();
   return (
     <LegalPageLayout
-      eyebrow="Legal"
-      titlePrefix="Read the"
-      titleHighlight="Terms of Service"
+      eyebrow={t("termsOfService.eyebrow")}
+      titlePrefix={t("legalPageLayout.readThePrefix")}
+      titleHighlight={t("termsOfService.titleHighlight")}
       highlightColor="gold"
-      lead="Understand the core rules that govern access to Space DOGE, including wallet use, gameplay, mining packages, rewards, referrals, withdrawals and platform conduct."
-      summaryBody="This page helps Space DOGE users understand the key legal and privacy expectations of using a wallet-first GameFi and mining platform."
+      lead={t("termsOfService.lead")}
+      summaryBody={t("termsOfService.summaryBody")}
       highlights={[
-        { title: "Wallet-first", body: "Access is based on a connected wallet rather than a conventional password account." },
-        { title: "Variable rewards", body: "Mining outputs and some platform rewards are not fixed or guaranteed." },
-        { title: "Separate balances", body: "Deposits, game rewards, mining rewards and referral balances may have different rules." },
-        { title: "Review required", body: "This template should be reviewed by legal counsel before launch." },
+        { title: t("termsOfService.highlight1Title"), body: t("termsOfService.highlight1Body") },
+        { title: t("termsOfService.highlight2Title"), body: t("termsOfService.highlight2Body") },
+        { title: t("termsOfService.highlight3Title"), body: t("termsOfService.highlight3Body") },
+        { title: t("termsOfService.highlight4Title"), body: t("termsOfService.highlight4Body") },
       ]}
       contactEmail="legal@spacedoge.games"
       sections={SECTIONS}
-      ctaHeading="Questions about platform rules or legal language?"
-      ctaBody="If you need help interpreting a section of these Terms, reach out to the Space DOGE legal team below."
-      ctaButtonLabel="Contact legal support"
+      ctaHeading={t("termsOfService.ctaHeading")}
+      ctaBody={t("termsOfService.ctaBody")}
+      ctaButtonLabel={t("termsOfService.ctaButtonLabel")}
     />
   );
 }

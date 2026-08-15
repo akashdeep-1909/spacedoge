@@ -66,7 +66,7 @@ export function DesktopMoreNav() {
         ref={buttonRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-label={open ? t("common.closeButton") : "More"}
+        aria-label={open ? t("common.closeButton") : t("nav.more")}
         aria-expanded={open}
         className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-semibold uppercase transition hover:bg-panel-2 hover:text-gold ${
           isMoreActive ? "bg-gold-soft text-gold" : "text-muted"

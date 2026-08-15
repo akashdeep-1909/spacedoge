@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { copyToClipboard } from "@/lib/clipboard";
 import { TelegramIcon as SharedTelegramIcon, DiscordIcon as SharedDiscordIcon } from "@/components/icons/SocialIcons";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 // Simple, safe geometric icon marks (no external icon library) — kept
 // deliberately minimal (rects/circles/polygons/short paths) rather than
@@ -73,7 +74,7 @@ interface ShareTarget {
   copyFallback?: boolean; // platforms with no web share intent — copy + hint instead
 }
 
-function targets(link: string, message: string): ShareTarget[] {
+function targets(link: string, message: string, emailSubject: string): ShareTarget[] {
   const encodedLink = encodeURIComponent(link);
   const encodedMsg = encodeURIComponent(message);
   return [
@@ -105,7 +106,7 @@ function targets(link: string, message: string): ShareTarget[] {
       label: "Email",
       bg: "bg-slate-500",
       content: <EmailIcon />,
-      href: `mailto:?subject=${encodeURIComponent("Join me on Space DOGE")}&body=${encodeURIComponent(`${message} ${link}`)}`,
+      href: `mailto:?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(`${message} ${link}`)}`,
     },
   ];
 }
@@ -119,6 +120,7 @@ export function ShareSheet({
   message: string;
   onClose: () => void;
 }) {
+  const { t: translate } = useLocale();
   const [visible, setVisible] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
 
@@ -132,20 +134,20 @@ export function ShareSheet({
     setTimeout(onClose, 200);
   }
 
-  async function handleClick(t: ShareTarget) {
-    if (t.copyFallback) {
+  async function handleClick(target: ShareTarget) {
+    if (target.copyFallback) {
       const ok = await copyToClipboard(link);
-      setHint(ok ? `Link copied, paste it in ${t.label}.` : `Couldn't copy automatically: ${link}`);
+      setHint(ok ? translate("shareSheet.copiedPasteHint", { label: target.label }) : translate("shareSheet.copyFailedHint", { link }));
       if (ok) setTimeout(close, 900);
       return;
     }
-    window.open(t.href, "_blank", "noopener,noreferrer");
+    window.open(target.href, "_blank", "noopener,noreferrer");
     close();
   }
 
   async function copyLink() {
     const ok = await copyToClipboard(link);
-    setHint(ok ? "Link copied." : `Couldn't copy automatically: ${link}`);
+    setHint(ok ? translate("shareSheet.copiedHint") : translate("shareSheet.copyFailedHint", { link }));
     if (ok) setTimeout(close, 700);
   }
 
@@ -164,10 +166,10 @@ export function ShareSheet({
       >
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-slate-300 sm:hidden" />
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-900">Share your referral link</h3>
+          <h3 className="text-sm font-semibold text-slate-900">{translate("shareSheet.heading")}</h3>
           <button
             onClick={close}
-            aria-label="Close"
+            aria-label={translate("common.closeButton")}
             className="rounded-full p-1 text-slate-400 transition hover:text-slate-700"
           >
             ✕
@@ -175,18 +177,18 @@ export function ShareSheet({
         </div>
 
         <div className="mt-4 grid grid-cols-4 gap-x-2 gap-y-4">
-          {targets(link, message).map((t) => (
+          {targets(link, message, translate("shareSheet.emailSubject")).map((target) => (
             <button
-              key={t.label}
-              onClick={() => handleClick(t)}
+              key={target.label}
+              onClick={() => handleClick(target)}
               className="flex flex-col items-center gap-1.5 rounded-xl p-1 text-center transition hover:bg-slate-100"
             >
               <span
-                className={`grid h-14 w-14 place-items-center rounded-full text-xl font-bold text-white shadow-md ${t.bg}`}
+                className={`grid h-14 w-14 place-items-center rounded-full text-xl font-bold text-white shadow-md ${target.bg}`}
               >
-                {t.content}
+                {target.content}
               </span>
-              <span className="text-[11px] text-slate-600">{t.label}</span>
+              <span className="text-[11px] text-slate-600">{target.label}</span>
             </button>
           ))}
           <button
@@ -196,7 +198,7 @@ export function ShareSheet({
             <span className="grid h-14 w-14 place-items-center rounded-full bg-slate-700 shadow-md">
               <LinkIcon />
             </span>
-            <span className="text-[11px] text-slate-600">Copy Link</span>
+            <span className="text-[11px] text-slate-600">{translate("shareSheet.copyLinkButton")}</span>
           </button>
         </div>
 

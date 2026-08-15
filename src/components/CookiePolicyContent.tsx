@@ -1,6 +1,7 @@
 "use client";
 
 import { LegalPageLayout, type LegalSection } from "@/components/LegalPageLayout";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 const SECTIONS: LegalSection[] = [
   {
@@ -158,26 +159,27 @@ const SECTIONS: LegalSection[] = [
 ];
 
 export function CookiePolicyContent() {
+  const { t } = useLocale();
   return (
     <LegalPageLayout
-      eyebrow="Cookies"
-      titlePrefix="Read the"
-      titleHighlight="Cookie Policy"
+      eyebrow={t("cookiePolicy.eyebrow")}
+      titlePrefix={t("legalPageLayout.readThePrefix")}
+      titleHighlight={t("cookiePolicy.titleHighlight")}
       highlightColor="gold"
-      lead="Understand how Space DOGE may use cookies and similar technologies to support site functionality, analytics, security and user preferences."
-      summaryBody="This page explains how Space DOGE may use cookies and similar technologies to support website functionality, analytics, security and user experience."
+      lead={t("cookiePolicy.lead")}
+      summaryBody={t("cookiePolicy.summaryBody")}
       highlights={[
-        { title: "Essential first", body: "Some cookies support basic site functionality and security." },
-        { title: "Consent matters", body: "Non-essential cookies may require consent depending on jurisdiction." },
-        { title: "Third-party tools", body: "Analytics or campaign providers may place or support certain cookies." },
-        { title: "Template status", body: "This policy should be aligned with your real cookie banner and stack." },
+        { title: t("cookiePolicy.highlight1Title"), body: t("cookiePolicy.highlight1Body") },
+        { title: t("cookiePolicy.highlight2Title"), body: t("cookiePolicy.highlight2Body") },
+        { title: t("cookiePolicy.highlight3Title"), body: t("cookiePolicy.highlight3Body") },
+        { title: t("cookiePolicy.highlight4Title"), body: t("cookiePolicy.highlight4Body") },
       ]}
       sections={SECTIONS}
-      ctaHeading="Need help with cookie preferences or consent setup?"
-      ctaBody="Have questions about the cookies and similar technologies used on this site? Reach out to our privacy team below."
-      ctaButtonLabel="Contact privacy support"
+      ctaHeading={t("cookiePolicy.ctaHeading")}
+      ctaBody={t("cookiePolicy.ctaBody")}
+      ctaButtonLabel={t("cookiePolicy.ctaButtonLabel")}
       ctaSecondaryHref="/privacy-policy"
-      ctaSecondaryLabel="Read Privacy Policy"
+      ctaSecondaryLabel={t("cookiePolicy.ctaSecondaryLabel")}
     />
   );
 }

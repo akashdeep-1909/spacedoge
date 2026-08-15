@@ -16,6 +16,7 @@ function shortenAddress(address: string) {
 // weekly leaderboard (falls back to the shortened address wherever
 // nothing's been set, exactly like before this existed).
 function NicknameEditor({ address, nickname, onSaved }: { address: string; nickname: string | null | undefined; onSaved: () => void }) {
+  const { t } = useLocale();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(nickname ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +31,7 @@ function NicknameEditor({ address, nickname, onSaved }: { address: string; nickn
           setError(null);
           setEditing(true);
         }}
-        title="Add or update your nickname"
+        title={t("connectWalletButton.editNicknameTitle")}
         className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-mint/25 bg-mint-soft px-3 py-1.5 text-xs font-semibold text-mint transition hover:border-mint/50"
         style={{ animation: "pulse-glow-mint 2.4s ease-in-out infinite" }}
       >
@@ -48,7 +49,7 @@ function NicknameEditor({ address, nickname, onSaved }: { address: string; nickn
       setEditing(false);
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save nickname");
+      setError(err instanceof Error ? err.message : t("connectWalletButton.failedToSaveNickname"));
     }
   }
 
@@ -63,7 +64,7 @@ function NicknameEditor({ address, nickname, onSaved }: { address: string; nickn
             if (e.key === "Enter") save();
             if (e.key === "Escape") setEditing(false);
           }}
-          placeholder="Nickname"
+          placeholder={t("connectWalletButton.nicknamePlaceholder")}
           maxLength={24}
           disabled={setNickname.isPending}
           className="w-28 rounded-full border border-mint/40 bg-panel px-3 py-1.5 text-xs outline-none focus:border-mint"
@@ -73,7 +74,7 @@ function NicknameEditor({ address, nickname, onSaved }: { address: string; nickn
           disabled={setNickname.isPending}
           className="btn-game btn-game-sm whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs disabled:opacity-50"
         >
-          {setNickname.isPending ? "…" : "Save"}
+          {setNickname.isPending ? "…" : t("connectWalletButton.saveButton")}
         </button>
         <button
           onClick={() => setEditing(false)}
@@ -197,7 +198,7 @@ export function ConnectWalletButton() {
           {attempting && (
             <button
               onClick={cancelConnect}
-              title="Cancel and try again"
+              title={t("connectWalletButton.cancelConnectTitle")}
               className="whitespace-nowrap rounded-full border border-line bg-panel px-2.5 py-2 text-xs text-muted transition hover:text-foreground"
             >
               ✕
@@ -249,7 +250,7 @@ export function ConnectWalletButton() {
               cancelSignIn();
               disconnect();
             }}
-            title="Disconnect this wallet"
+            title={t("connectWalletButton.disconnectWalletTitle")}
             className="whitespace-nowrap rounded-full border border-line bg-panel px-2.5 py-1.5 text-xs text-muted transition hover:text-foreground"
           >
             ✕
