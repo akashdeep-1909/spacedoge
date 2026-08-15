@@ -39,6 +39,7 @@ function WithdrawalDetailContent({ id }: { id: string }) {
   const { t } = useLocale();
   const SOURCE_LABEL: Record<string, string> = {
     PLAY_USDT: t("dashboardHome.playUsdt"),
+    GAME_REWARD_USDT: t("dashboardHome.gameRewardUsdt"),
     RECYCLED_USDT: t("wallet.recycledUsdtLabel"),
     REFERRAL_USDT: t("dashboardHome.referralUsdt"),
     AVAILABLE_DOGE: t("dashboardHome.availableDoge"),

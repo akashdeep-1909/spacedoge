@@ -1,10 +1,11 @@
 // Real minimum-withdrawal figures (one per coin) are admin-editable at
 // runtime — see src/lib/settings.ts (getMinUsdtWithdrawal/
 // getMinDogeWithdrawal, backed by PlatformSettings) and
-// /admin/settings. USDT withdrawals only ever come from Recycled USDT
-// (cashed-out DOGE) or Referral USDT — Play USDT funds game entries
-// only and Game Reward USDT/PTS are locked to mining spend, so neither
-// is a withdrawal source. The DOGE withdrawal chain instead debits
+// /admin/settings. USDT withdrawals come from Recycled USDT (cashed-out
+// DOGE), Referral USDT, or Game Reward USDT — Play USDT is the one
+// exception, it funds game entries/mining spend only and is never a
+// withdrawal source; PTS is still locked (it has to be converted to
+// Game Reward USDT first). The DOGE withdrawal chain instead debits
 // AVAILABLE_DOGE directly, no source picker needed (see /api/wallet/
 // withdraw and the withdraw page).
 //

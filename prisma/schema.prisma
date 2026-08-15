@@ -127,8 +127,9 @@ enum BalanceType {
   // v3 economy: a settled paid room credits PTS (below), not this
   // directly anymore — PTS is manually converted into Game Reward
   // USDT at a fixed 1000:1 rate (src/app/api/wallet/convert-pts).
-  // Locked to game-economy spending (mining activation/hashrate), never
-  // withdrawable directly (see src/app/api/wallet/withdraw/route.ts).
+  // Still spendable on mining (activation/hashrate purchases), and also
+  // directly withdrawable (see src/app/api/wallet/withdraw/route.ts) —
+  // it isn't locked to the mining-only path anymore.
   GAME_REWARD_USDT
   // v3 economy: a settled paid room's score (capped at that match's
   // prize pool, same self-funding guarantee the old direct-USDT credit

@@ -15,12 +15,17 @@ export function DataTable({
   columns,
   rows,
   empty,
+  pageSize,
 }: {
   columns: string[];
   rows: ReactNode[][];
   empty: string;
+  // Overrides the shared DEFAULT_PAGE_SIZE (usePagination.ts) for
+  // tables that want a smaller/larger page than the app-wide default —
+  // e.g. the Transfer page's own history table asks for 10.
+  pageSize?: number;
 }) {
-  const { pageItems, page, pageCount, setPage, start, pageSize, total } = usePagination(rows);
+  const { pageItems, page, pageCount, setPage, start, pageSize: effectivePageSize, total } = usePagination(rows, pageSize);
 
   if (rows.length === 0) {
     return <p className="text-sm text-muted">{empty}</p>;
@@ -52,7 +57,7 @@ export function DataTable({
           </tbody>
         </table>
       </div>
-      <PaginationControls page={page} pageCount={pageCount} start={start} pageSize={pageSize} total={total} onChange={setPage} />
+      <PaginationControls page={page} pageCount={pageCount} start={start} pageSize={effectivePageSize} total={total} onChange={setPage} />
     </div>
   );
 }

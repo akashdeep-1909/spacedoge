@@ -91,18 +91,24 @@ function WalletContent() {
           ▸ {t("wallet.usdtBalancesHeading")}
           <InfoTooltip text={t("wallet.usdtBalancesTooltip")} />
         </h3>
+        {/* Mining Earnings and PTS deliberately swapped from a strict
+            "USDT here, points/DOGE there" split — Mining Earnings sits
+            as the lead card of the Mining & DOGE row below instead of
+            closing out this one, and PTS closes out this row instead of
+            leading the other — matches the dashboard home page's own
+            layout for the same two cards. */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <BalanceCard label={t("dashboardHome.playUsdt")} value={isLoading ? "…" : fmtUsdt(balances?.playUsdt ?? 0)} hint={t("dashboardHome.playUsdtHint")} />
-          <BalanceCard label={t("dashboardHome.gameRewardUsdt")} value={isLoading ? "…" : fmtUsdt(balances?.gameRewardUsdt ?? 0)} hint={t("dashboardHome.gameRewardUsdtHint")} />
+          <BalanceCard label={t("dashboardHome.gameRewardUsdt")} value={isLoading ? "…" : fmtUsdt(balances?.gameRewardUsdt ?? 0)} tone="mint" hint={t("dashboardHome.gameRewardUsdtHint")} />
           <BalanceCard label={t("dashboardHome.referralUsdt")} value={isLoading ? "…" : fmtUsdt(balances?.referralUsdt ?? 0)} tone="mint" hint={t("dashboardHome.referralUsdtHint")} />
-          <BalanceCard label={t("wallet.recycledUsdtLabel")} value={isLoading ? "…" : fmtUsdt(balances?.recycledUsdt ?? 0)} tone="mint" hint={t("dashboardHome.recycledUsdtHint")} />
+          <BalanceCard label={t("wallet.ptsLabel")} value={isLoading ? "…" : (balances?.pts ?? 0).toLocaleString()} hint={t("wallet.ptsHint")} />
         </div>
       </section>
 
       <section>
         <h3 className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-mint">▸ {t("wallet.miningDogeHeading")}</h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <BalanceCard label={t("wallet.ptsLabel")} value={isLoading ? "…" : (balances?.pts ?? 0).toLocaleString()} hint={t("wallet.ptsHint")} />
+          <BalanceCard label={t("wallet.recycledUsdtLabel")} value={isLoading ? "…" : fmtUsdt(balances?.recycledUsdt ?? 0)} tone="mint" hint={t("dashboardHome.recycledUsdtHint")} />
           {/* tone="mint" — Available DOGE is withdrawable/convertible,
               same as every other mint-toned card in this section (the
               system's own "mint = withdrawable" convention, see

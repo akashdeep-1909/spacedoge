@@ -59,6 +59,7 @@ const STATUS_STYLE: Record<string, string> = {
 const BALANCE_TYPE_LABEL: Record<string, string> = {
   RECYCLED_USDT: "Mining Earnings",
   REFERRAL_USDT: "Referral USDT",
+  GAME_REWARD_USDT: "Game Reward USDT",
   AVAILABLE_DOGE: "Available DOGE",
 };
 

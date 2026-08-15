@@ -15,7 +15,7 @@ export function EnterDashboard() {
   return (
     <a
       href="/dashboard"
-      className="mt-2 inline-block rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-black transition hover:brightness-110"
+      className="btn-game hud-corner text-sm font-bold uppercase tracking-wide"
     >
       Enter Dashboard
     </a>

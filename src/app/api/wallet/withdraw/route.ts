@@ -12,7 +12,7 @@ const bodySchema = z.object({
   // valid source and this is ignored/overridden server-side — see
   // below). Optional here so a DOGE withdrawal request doesn't need to
   // send a meaningless value.
-  source: z.enum(["RECYCLED_USDT", "REFERRAL_USDT"]).optional(),
+  source: z.enum(["RECYCLED_USDT", "REFERRAL_USDT", "GAME_REWARD_USDT"]).optional(),
   amount: z.number().positive(),
   destinationAddress: z.string().min(1),
   chain: z.string().min(1),
@@ -27,12 +27,13 @@ const bodySchema = z.object({
 // Which chains are offered and which coin each one sends is
 // admin-configurable (WithdrawChainConfig, see src/lib/settings.ts) —
 // this route looks up the selected chain to find its coin, then:
-//   - USDT chains: debit whichever of Recycled/Referral USDT the
-//     client selected as `source` — Play USDT funds gameplay only, and
-//     Game Reward USDT is locked to game-economy spending (mining
-//     activation/hashrate) — its cash-out path is Game Reward USDT ->
-//     mining hashrate -> DOGE output -> convert to Recycled USDT ->
-//     withdraw (see /api/wallet/convert).
+//   - USDT chains: debit whichever of Recycled/Referral/Game Reward
+//     USDT the client selected as `source` — Play USDT is still the
+//     one exception, it funds gameplay/mining spend only and is never
+//     withdrawable. Game Reward USDT is withdrawable directly (subject
+//     to the same admin-configured minimum every USDT withdrawal uses,
+//     see getMinUsdtWithdrawal below) as well as still spendable on
+//     mining activation/hashrate — it isn't locked to one path anymore.
 //   - The DOGE chain: always debits AVAILABLE_DOGE — there's no
 //     picker, `source` is ignored entirely for this coin.
 //
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
   }
 
   const isDoge = chainConfig.coinSymbol === "DOGE";
-  let source: "RECYCLED_USDT" | "REFERRAL_USDT" | "AVAILABLE_DOGE";
+  let source: "RECYCLED_USDT" | "REFERRAL_USDT" | "GAME_REWARD_USDT" | "AVAILABLE_DOGE";
   if (isDoge) {
     source = "AVAILABLE_DOGE";
   } else {
@@ -80,7 +81,13 @@ export async function POST(request: NextRequest) {
 
   const balances = await getWalletBalances(session.walletProfileId);
   const available =
-    source === "RECYCLED_USDT" ? balances.recycledUsdt : source === "REFERRAL_USDT" ? balances.referralUsdt : balances.availableDoge;
+    source === "RECYCLED_USDT"
+      ? balances.recycledUsdt
+      : source === "REFERRAL_USDT"
+        ? balances.referralUsdt
+        : source === "GAME_REWARD_USDT"
+          ? balances.gameRewardUsdt
+          : balances.availableDoge;
   if (available < amount) {
     return NextResponse.json({ error: "Not enough balance for that withdrawal." }, { status: 402 });
   }

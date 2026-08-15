@@ -112,7 +112,7 @@ export async function GET() {
     : [];
   const transferById = new Map(internalTransfers.map((t) => [t.id, t]));
 
-  const rows: { id: string; label: string; balanceType: string; amount: number; createdAt: Date }[] = [];
+  const rows: { id: string; label: string; balanceType: string; amount: number; createdAt: Date; reason: string }[] = [];
   const emittedSameWalletRefIds = new Set<string>();
 
   for (const e of entries) {
@@ -129,6 +129,7 @@ export async function GET() {
           balanceType: credit.balanceType,
           amount: Number(credit.amount),
           createdAt: e.createdAt,
+          reason: BALANCE_TRANSFER_REASON,
         });
         continue;
       }
@@ -151,6 +152,7 @@ export async function GET() {
           balanceType: e.balanceType,
           amount: Number(e.amount),
           createdAt: e.createdAt,
+          reason: e.reason,
         });
         continue;
       }
@@ -163,6 +165,7 @@ export async function GET() {
       balanceType: e.balanceType,
       amount: Number(e.amount),
       createdAt: e.createdAt,
+      reason: e.reason,
     });
   }
 

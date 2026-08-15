@@ -32,6 +32,7 @@ function WithdrawContent() {
   const SOURCE_LABEL: Record<WithdrawSource, string> = {
     RECYCLED_USDT: t("wallet.recycledUsdtLabel"),
     REFERRAL_USDT: t("dashboardHome.referralUsdt"),
+    GAME_REWARD_USDT: t("dashboardHome.gameRewardUsdt"),
   };
   const { data: balances } = useBalances();
   const { data: publicSettings } = usePublicSettings();
@@ -89,7 +90,8 @@ function WithdrawContent() {
     if (!amountTouched) setAmount(minWithdrawal);
   }, [minWithdrawal, amountTouched]);
 
-  const balanceFor = (s: WithdrawSource) => (s === "RECYCLED_USDT" ? balances?.recycledUsdt ?? 0 : balances?.referralUsdt ?? 0);
+  const balanceFor = (s: WithdrawSource) =>
+    s === "RECYCLED_USDT" ? balances?.recycledUsdt ?? 0 : s === "REFERRAL_USDT" ? balances?.referralUsdt ?? 0 : balances?.gameRewardUsdt ?? 0;
   const available = isDoge ? balances?.availableDoge ?? 0 : balanceFor(source);
   const addressLooksValid =
     destinationAddress.trim().length > 0 && !!selectedChain && isValidAddressForRegex(destinationAddress, selectedChain.addressRegex);
@@ -124,10 +126,6 @@ function WithdrawContent() {
     <div className="flex flex-col gap-6">
       <div className="rounded-2xl border border-gold/25 bg-gold-soft px-4 py-3 text-xs text-gold">
         {t("withdraw.manualNoticeBody")}
-      </div>
-
-      <div className="rounded-2xl border border-mint/25 bg-mint-soft px-4 py-3 text-xs text-mint">
-        {t("withdraw.gameRewardLockedNotice")}
       </div>
 
       <div className="game-panel hud-corner rounded-2xl p-5">

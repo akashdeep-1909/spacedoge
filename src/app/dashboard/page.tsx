@@ -42,9 +42,14 @@ function DashboardContent() {
             Earnings entirely, so a wallet holding either saw no trace of
             it here despite both showing up on the full Wallet page.
             Grouped and toned to match that page exactly: USDT balances
-            first (mint = withdrawable, plain = restricted — Game Reward
-            USDT is locked to mining spend, so it's plain here too, not
-            mint), then points/DOGE. */}
+            first (mint = withdrawable, plain = restricted — Play USDT is
+            the only one still plain now that Game Reward USDT is
+            withdrawable too, see /api/wallet/withdraw), then points/DOGE.
+            Mining Earnings and PTS deliberately sit in the position
+            adjacent to the OTHER section (Mining Earnings last in the
+            USDT row, PTS first in the points/DOGE row) rather than each
+            grouped strictly with its own balance-type row — matches the
+            Wallet page's own layout. */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <BalanceCard
             label={t("dashboardHome.playUsdt")}
@@ -54,6 +59,7 @@ function DashboardContent() {
           <BalanceCard
             label={t("dashboardHome.gameRewardUsdt")}
             value={isLoading ? "…" : fmtUsdt(balances?.gameRewardUsdt ?? 0)}
+            tone="mint"
             hint={t("dashboardHome.gameRewardUsdtHint")}
           />
           <BalanceCard
@@ -63,15 +69,15 @@ function DashboardContent() {
             hint={t("dashboardHome.referralUsdtHint")}
           />
           <BalanceCard
+            label={t("wallet.ptsLabel")}
+            value={isLoading ? "…" : (balances?.pts ?? 0).toLocaleString()}
+            hint={t("wallet.ptsHint")}
+          />
+          <BalanceCard
             label={t("wallet.recycledUsdtLabel")}
             value={isLoading ? "…" : fmtUsdt(balances?.recycledUsdt ?? 0)}
             tone="mint"
             hint={t("dashboardHome.recycledUsdtHint")}
-          />
-          <BalanceCard
-            label={t("wallet.ptsLabel")}
-            value={isLoading ? "…" : (balances?.pts ?? 0).toLocaleString()}
-            hint={t("wallet.ptsHint")}
           />
           <BalanceCard
             label={t("dashboardHome.availableDoge")}

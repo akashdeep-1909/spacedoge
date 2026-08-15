@@ -160,11 +160,12 @@ export async function GET(request: NextRequest) {
       treasuryUsdt: balances.PLATFORM_FEE_USDT ?? 0,
     },
     // The platform's user-withdrawable USDT liability — sum of the
-    // exact two balance types /api/wallet/withdraw currently accepts
-    // as a source. Play USDT funds game entries only and Game Reward
-    // USDT/PTS/DOGE balances aren't directly cash-out-able either, see
-    // that route's own comments — keep this in sync with its z.enum.
-    availableUsdt: (balances.RECYCLED_USDT ?? 0) + (balances.REFERRAL_USDT ?? 0),
+    // exact three balance types /api/wallet/withdraw currently accepts
+    // as a source. Play USDT is the one exception, it funds game
+    // entries/mining spend only and is never withdrawable; PTS/DOGE
+    // balances aren't directly cash-out-able either — keep this in
+    // sync with that route's own z.enum.
+    availableUsdt: (balances.RECYCLED_USDT ?? 0) + (balances.REFERRAL_USDT ?? 0) + (balances.GAME_REWARD_USDT ?? 0),
     deposits: {
       totals: {
         unmatched: depositByStatus.UNMATCHED ?? { count: 0, amount: 0 },

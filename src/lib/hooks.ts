@@ -343,16 +343,18 @@ export function usePtsConvert() {
 // spends) can draw from.
 export type FundingSource = "PLAY_USDT" | "GAME_REWARD_USDT" | "RECYCLED_USDT" | "REFERRAL_USDT";
 
-// Recycled USDT (cashed-out DOGE) and Referral USDT are the two
-// withdrawable USDT sources — Play USDT funds gameplay only, and Game
-// Reward USDT is locked to game-economy spending (mining activation/
-// hashrate). The cash-out path for a match win is Game Reward USDT ->
-// mining hashrate -> DOGE output -> convert to Recycled USDT ->
-// withdraw, matching the app's own "Play, Mine, Earn" loop. The DOGE
-// chain instead always debits AVAILABLE_DOGE directly (see
-// /api/wallet/withdraw) — `source` is only meaningful/required for
-// USDT-coin chains.
-export type WithdrawSource = "RECYCLED_USDT" | "REFERRAL_USDT";
+// Recycled USDT (cashed-out DOGE), Referral USDT, and Game Reward USDT
+// are the three withdrawable USDT sources — Play USDT is the one
+// balance that's never withdrawable, since it exists purely to fund
+// gameplay/mining spend (see WalletDepositButton's own "Deposit USDT"
+// hint). Game Reward USDT can also still fund mining activation/
+// hashrate directly (Game Reward USDT -> mining hashrate -> DOGE
+// output -> convert to Recycled USDT -> withdraw is a real alternative
+// path, matching the app's own "Play, Mine, Earn" loop), it just isn't
+// the ONLY path anymore. The DOGE chain instead always debits
+// AVAILABLE_DOGE directly (see /api/wallet/withdraw) — `source` is
+// only meaningful/required for USDT-coin chains.
+export type WithdrawSource = "RECYCLED_USDT" | "REFERRAL_USDT" | "GAME_REWARD_USDT";
 // Which chains exist is now admin-configurable (WithdrawChainConfig) —
 // this is just whichever chainKey the user picked from the dynamic
 // list returned by usePublicSettings().withdrawChains.
@@ -479,6 +481,11 @@ export interface WalletTransaction {
   balanceType: string;
   amount: number;
   createdAt: string;
+  // The raw ledger reason code (e.g. "balance_transfer") — lets a
+  // caller filter this one combined feed down to a specific kind of
+  // transaction (see the Transfer page's own history table) without
+  // re-deriving it from `label`, which is free-text meant for display.
+  reason: string;
 }
 
 export function useTransactions() {
@@ -1934,7 +1941,7 @@ export function useRecentPlayers() {
 // Kept as a plain string union here (not imported from src/lib/transfers.ts,
 // which is server-only and pulls in the Prisma/pg driver) — must stay
 // byte-identical to TRANSFERABLE_BALANCE_TYPES there.
-export type TransferableBalanceType = "PLAY_USDT" | "RECYCLED_USDT" | "REFERRAL_USDT";
+export type TransferableBalanceType = "PLAY_USDT" | "GAME_REWARD_USDT" | "RECYCLED_USDT" | "REFERRAL_USDT";
 
 export function useSendTransfer() {
   const queryClient = useQueryClient();

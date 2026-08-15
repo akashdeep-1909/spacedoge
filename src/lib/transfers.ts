@@ -3,18 +3,21 @@ import { db } from "@/lib/db";
 import { BalanceType } from "@/generated/prisma/enums";
 
 // Only a subset of BalanceType can move between a wallet's own buckets.
-// Deliberately excludes:
-//   - GAME_REWARD_USDT: locked to game-economy spending (mining
-//     activation/hashrate), meant to be earned by winning — letting it
-//     move into a withdrawable bucket would defeat that lock.
-//   - PTS: an intermediate, not-yet-converted match score — same
-//     "earned by playing" reasoning as above.
+// GAME_REWARD_USDT is included here (unlike TRANSFERABLE_TO_OTHER_USER
+// below, which deliberately still excludes it) — it's a real,
+// withdrawable USDT balance now (see /api/wallet/withdraw), so moving
+// it into another of the wallet's OWN buckets is no more sensitive than
+// moving Play/Recycled/Referral USDT already was. Deliberately still
+// excludes:
+//   - PTS: an intermediate, not-yet-converted match score — meant to be
+//     earned by playing, not moved before it's even been converted.
 //   - PENDING_DOGE / AVAILABLE_DOGE: DOGE-denominated, not USDT.
 //   - PLATFORM_FEE_USDT / MINING_PROTECTION_RESERVE_USDT: platform-
 //     internal balances on the synthetic treasury profile, never a
 //     real user's to move.
 export const TRANSFERABLE_BALANCE_TYPES = [
   BalanceType.PLAY_USDT,
+  BalanceType.GAME_REWARD_USDT,
   BalanceType.RECYCLED_USDT,
   BalanceType.REFERRAL_USDT,
 ] as const;

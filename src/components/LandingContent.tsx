@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { EnterDashboard } from "@/components/EnterDashboard";
+import { useAuth } from "@/lib/auth-context";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { WaitlistModal } from "@/components/WaitlistModal";
@@ -77,6 +78,14 @@ const FAQ_KEYS = [
 
 export function LandingContent({ mining, platformStats }: { mining: MiningStats; platformStats: PlatformStats }) {
   const { t } = useLocale();
+  // Once connected, Enter Dashboard (only ever rendered when
+  // session.authenticated — see EnterDashboard's own doc-comment) is
+  // the more relevant of the two hero CTAs, so it takes over the solid
+  // gold "primary action" styling and Explore the Ecosystem steps back
+  // to outline — swapped from the signed-out state, where there's no
+  // dashboard to enter yet and Explore is the only real next step.
+  const { session } = useAuth();
+  const connected = Boolean(session?.authenticated);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [waitlistSource, setWaitlistSource] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
@@ -172,12 +181,12 @@ export function LandingContent({ mining, platformStats }: { mining: MiningStats;
                     (confirmed live). */}
                 <a
                   href="#coin-rush"
-                  className="btn-game hud-corner text-sm font-bold uppercase tracking-wide"
+                  className={`${connected ? "btn-game-outline" : "btn-game"} hud-corner text-sm font-bold uppercase tracking-wide`}
                 >
                   {t("landing.exploreEcosystemButton")}
                 </a>
+                <EnterDashboard />
               </motion.div>
-              <EnterDashboard />
               <motion.div
                 initial="hidden"
                 animate="show"
