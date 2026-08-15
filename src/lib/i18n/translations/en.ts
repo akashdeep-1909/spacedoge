@@ -231,6 +231,7 @@ const en = {
     navProofOfHash: "Proof of Hash",
     navReferralNetwork: "Referral Network",
     navFaq: "FAQ",
+    navDocs: "Docs",
     heroEyebrow: "Play. Earn. Activate. Mine.",
     exploreEcosystemButton: "Explore the Ecosystem",
     joinWaitlistButton: "Subscribe Newsletter",

@@ -48,6 +48,7 @@ export async function updatePlatformSettings(
     androidApkVersionLabel?: string | null;
     androidApkFileSizeBytes?: number | null;
     androidApkUploadedAt?: Date | null;
+    docsMenuEnabled?: boolean;
   },
   updatedByAddress: string
 ) {

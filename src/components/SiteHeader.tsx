@@ -6,6 +6,7 @@ import Link from "next/link";
 import { motion, AnimatePresence, useScroll } from "framer-motion";
 import { Menu, X, Languages } from "lucide-react";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
+import { DocsDesktopDropdown, DocsMobileList } from "@/components/DocsNavMenu";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { NAV_LINKS } from "@/lib/siteNav";
@@ -79,6 +80,7 @@ export function SiteHeader() {
                 {t(l.key)}
               </Link>
             ))}
+            <DocsDesktopDropdown />
           </nav>
 
           <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
@@ -127,6 +129,7 @@ export function SiteHeader() {
                       </Link>
                     </motion.div>
                   ))}
+                  <DocsMobileList onNavigate={() => setMobileNavOpen(false)} />
                   <div className="my-1 border-t border-line" />
                   <LanguageSwitcher
                     className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-muted transition hover:bg-panel-2 hover:text-gold"

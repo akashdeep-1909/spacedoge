@@ -70,6 +70,7 @@ const fil = {
     navProofOfHash: "Proof of Hashrate",
     navReferralNetwork: "Referral Network",
     navFaq: "Mga Madalas Itanong",
+    navDocs: "Dokumento",
     heroEyebrow: "Maglaro. Kumita. I-activate. Mag-mine.",
     exploreEcosystemButton: "Tuklasin ang Ecosystem",
     joinWaitlistButton: "Mag-subscribe sa Newsletter",

@@ -70,6 +70,7 @@ const zhTW = {
     navProofOfHash: "算力證明",
     navReferralNetwork: "推薦網路",
     navFaq: "常見問題",
+    navDocs: "文件",
     heroEyebrow: "遊戲。賺取。啟動。挖礦。",
     exploreEcosystemButton: "探索生態系統",
     joinWaitlistButton: "訂閱電子報",

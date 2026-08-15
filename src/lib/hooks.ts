@@ -1096,6 +1096,7 @@ export interface AdminPlatformSettings {
   walletConnectProjectId: string | null;
   weeklyLeaderboardEnabled: boolean;
   weeklyLeaderboardPoolUsdt: number | null;
+  docsMenuEnabled: boolean;
   updatedAt: string;
   updatedByAddress: string | null;
   defaults: { minUsdtWithdrawal: number; minDogeWithdrawal: number };
@@ -1171,6 +1172,112 @@ export function useUploadApk() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "apk"] });
       queryClient.invalidateQueries({ queryKey: ["settings", "public"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------
+// Docs nav dropdown — public list (src/app/api/docs) + admin CRUD
+// (src/app/api/admin/docs). The master on/off toggle itself is just
+// another AdminPlatformSettings field (docsMenuEnabled above), saved
+// through useUpdateAdminSettings like weeklyLeaderboardEnabled.
+// ---------------------------------------------------------------------
+
+export interface PublicSiteDoc {
+  id: string;
+  title: string;
+  fileExt: string;
+}
+
+// Used by the site nav (every public page) — deliberately its own
+// query key/endpoint rather than folded into usePublicSettings, since
+// that's a flat settings object and this is a list.
+export function useSiteDocs() {
+  return useQuery({
+    queryKey: ["docs", "public"],
+    queryFn: async (): Promise<{ docs: PublicSiteDoc[] }> => {
+      const res = await fetch("/api/docs");
+      if (!res.ok) throw new Error("Failed to load docs");
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+}
+
+export interface AdminSiteDocRow {
+  id: string;
+  title: string;
+  fileExt: string;
+  originalName: string;
+  fileSizeBytes: number;
+  enabled: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function useAdminDocs() {
+  return useQuery({
+    queryKey: ["admin", "docs"],
+    queryFn: async (): Promise<{ rows: AdminSiteDocRow[] }> => {
+      const res = await fetch("/api/admin/docs");
+      if (!res.ok) throw new Error("Failed to load documents");
+      return res.json();
+    },
+  });
+}
+
+export function useCreateDoc() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { title: string; file: File }) => {
+      const form = new FormData();
+      form.append("title", input.title);
+      form.append("file", input.file);
+      const res = await fetch("/api/admin/docs", { method: "POST", body: form });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to add document");
+      return body as { ok: true; row: AdminSiteDocRow };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "docs"] });
+      queryClient.invalidateQueries({ queryKey: ["docs", "public"] });
+    },
+  });
+}
+
+export function useUpdateDoc() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...patch }: { id: string } & Partial<Pick<AdminSiteDocRow, "title" | "enabled" | "sortOrder">>) => {
+      const res = await fetch(`/api/admin/docs/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to update document");
+      return body;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "docs"] });
+      queryClient.invalidateQueries({ queryKey: ["docs", "public"] });
+    },
+  });
+}
+
+export function useDeleteDoc() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/docs/${id}`, { method: "DELETE" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to delete document");
+      return body;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "docs"] });
+      queryClient.invalidateQueries({ queryKey: ["docs", "public"] });
     },
   });
 }

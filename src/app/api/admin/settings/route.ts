@@ -30,6 +30,7 @@ export async function GET() {
     walletConnectProjectId: settings.walletConnectProjectId,
     weeklyLeaderboardEnabled: settings.weeklyLeaderboardEnabled,
     weeklyLeaderboardPoolUsdt: settings.weeklyLeaderboardPoolUsdt !== null ? Number(settings.weeklyLeaderboardPoolUsdt) : null,
+    docsMenuEnabled: settings.docsMenuEnabled,
     updatedAt: settings.updatedAt,
     updatedByAddress: settings.updatedByAddress,
     defaults: {
@@ -63,6 +64,7 @@ const bodySchema = z.object({
   walletConnectProjectId: z.string().nullable().optional(),
   weeklyLeaderboardEnabled: z.boolean().optional(),
   weeklyLeaderboardPoolUsdt: z.number().positive().nullable().optional(),
+  docsMenuEnabled: z.boolean().optional(),
 });
 
 function normalize(value: string | null | undefined): string | null | undefined {
@@ -96,6 +98,7 @@ export async function PATCH(request: NextRequest) {
       walletConnectProjectId: normalize(body.walletConnectProjectId),
       weeklyLeaderboardEnabled: body.weeklyLeaderboardEnabled,
       weeklyLeaderboardPoolUsdt: body.weeklyLeaderboardPoolUsdt,
+      docsMenuEnabled: body.docsMenuEnabled,
     },
     session.address.toLowerCase()
   );

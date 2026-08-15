@@ -70,6 +70,7 @@ const km = {
     navProofOfHash: "ភស្តុតាងហ្សាស់រេត",
     navReferralNetwork: "បណ្តាញណែនាំមិត្តភក្តិ",
     navFaq: "សំណួរញឹកញាប់",
+    navDocs: "ឯកសារ",
     heroEyebrow: "លេង។ រកចំណូល។ ធ្វើឱ្យសកម្ម។ ជីកយក។",
     exploreEcosystemButton: "រុករកប្រព័ន្ធអេកូឡូស៊ី",
     joinWaitlistButton: "ជាវព័ត៌មាន",

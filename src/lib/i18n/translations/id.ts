@@ -70,6 +70,7 @@ const id = {
     navProofOfHash: "Bukti Hash",
     navReferralNetwork: "Jaringan Rujukan",
     navFaq: "Pertanyaan Umum",
+    navDocs: "Dokumen",
     heroEyebrow: "Main. Hasilkan. Aktifkan. Tambang.",
     exploreEcosystemButton: "Jelajahi Ekosistem",
     joinWaitlistButton: "Berlangganan Newsletter",

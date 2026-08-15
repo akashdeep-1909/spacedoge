@@ -70,6 +70,7 @@ const zh = {
     navProofOfHash: "算力证明",
     navReferralNetwork: "推荐网络",
     navFaq: "常见问题",
+    navDocs: "文档",
     heroEyebrow: "游戏。赚取。激活。挖矿。",
     exploreEcosystemButton: "探索生态系统",
     joinWaitlistButton: "订阅资讯",

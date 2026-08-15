@@ -70,6 +70,7 @@ const th = {
     navProofOfHash: "หลักฐานแฮชเรต",
     navReferralNetwork: "เครือข่ายแนะนำเพื่อน",
     navFaq: "คำถามที่พบบ่อย",
+    navDocs: "เอกสาร",
     heroEyebrow: "เล่น สร้างรายได้ เปิดใช้งาน ขุด",
     exploreEcosystemButton: "สำรวจระบบนิเวศ",
     joinWaitlistButton: "สมัครรับข่าวสาร",

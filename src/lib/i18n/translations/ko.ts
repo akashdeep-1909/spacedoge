@@ -70,6 +70,7 @@ const ko = {
     navProofOfHash: "해시레이트 증명",
     navReferralNetwork: "추천 네트워크",
     navFaq: "자주 묻는 질문",
+    navDocs: "문서",
     heroEyebrow: "플레이. 수익. 활성화. 채굴.",
     exploreEcosystemButton: "생태계 살펴보기",
     joinWaitlistButton: "뉴스레터 구독",

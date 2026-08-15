@@ -998,8 +998,35 @@ model PlatformSettings {
   androidApkVersionLabel  String?
   androidApkFileSizeBytes Int?
   androidApkUploadedAt    DateTime?
+  // Whole "Docs" nav dropdown is OFF by default — an admin turns it on
+  // explicitly once there's something worth linking (see SiteDocument
+  // below and src/components/DocsNavMenu.tsx). Kept separate from each
+  // document's own `enabled` so the entire menu can be hidden in one
+  // toggle without touching individual rows.
+  docsMenuEnabled        Boolean  @default(false)
   updatedAt              DateTime @updatedAt
   updatedByAddress       String? // lowercased EVM address of the admin who last saved
+}
+
+// Admin-uploaded downloadable documents (whitepaper, pitch deck, etc.)
+// surfaced as the "Docs" dropdown in the site nav once
+// PlatformSettings.docsMenuEnabled is on. Each row also has its own
+// `enabled` so a single stale document can be hidden without touching
+// the rest or the master switch. The file itself lives on disk
+// (storage/uploads/docs/<id>.<fileExt>, gitignored, outside .next/ —
+// same reasoning as the Android APK, see src/lib/docsStorage.ts),
+// named after this row's own id so no separate "stored filename"
+// column is needed.
+model SiteDocument {
+  id            String   @id @default(cuid())
+  title         String
+  fileExt       String // lowercased, no dot — e.g. "pdf", "pptx" — drives both the stored filename and the download Content-Type
+  originalName  String // original uploaded filename, used for the download's Content-Disposition
+  fileSizeBytes Int
+  enabled       Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 // DB-backed admin allowlist, additive to the ADMIN_ADDRESSES env var

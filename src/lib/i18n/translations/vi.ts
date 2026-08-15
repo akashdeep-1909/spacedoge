@@ -70,6 +70,7 @@ const vi = {
     navProofOfHash: "Bằng Chứng Hashrate",
     navReferralNetwork: "Mạng Lưới Giới Thiệu",
     navFaq: "Câu Hỏi Thường Gặp",
+    navDocs: "Tài Liệu",
     heroEyebrow: "Chơi. Kiếm Tiền. Kích Hoạt. Khai Thác.",
     exploreEcosystemButton: "Khám Phá Hệ Sinh Thái",
     joinWaitlistButton: "Đăng Ký Nhận Bản Tin",

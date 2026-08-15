@@ -70,6 +70,7 @@ const ru = {
     navProofOfHash: "Доказательство хешрейта",
     navReferralNetwork: "Реферальная сеть",
     navFaq: "Вопросы и ответы",
+    navDocs: "Документы",
     heroEyebrow: "Играй. Зарабатывай. Активируй. Добывай.",
     exploreEcosystemButton: "Изучить экосистему",
     joinWaitlistButton: "Подписаться на рассылку",

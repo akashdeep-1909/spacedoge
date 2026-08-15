@@ -21,9 +21,14 @@ import {
   useUpdateGameModeConfig,
   useAdminApkInfo,
   useUploadApk,
+  useAdminDocs,
+  useCreateDoc,
+  useUpdateDoc,
+  useDeleteDoc,
   type AdminDepositChainRow,
   type AdminWithdrawChainRow,
   type AdminGameModeRow,
+  type AdminSiteDocRow,
 } from "@/lib/hooks";
 import { chainIcon, coinIcon } from "@/components/icons/CoinIcons";
 
@@ -45,6 +50,7 @@ export default function AdminSettingsPage() {
       <WeeklyLeaderboardSection />
       <WalletConnectSection />
       <AndroidApkSection />
+      <DocsSection />
       <AdminUsersSection />
       <SocialSection />
     </div>
@@ -1087,6 +1093,182 @@ function AndroidApkSection() {
         {uploaded && !upload.isPending && <span className="text-xs text-mint">✓ Uploaded — live immediately, no redeploy needed</span>}
         {error && <span className="text-xs text-risk">{error}</span>}
       </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Docs Menu — the "Docs" dropdown in the site nav is off by default
+// (PlatformSettings.docsMenuEnabled), same "hidden until an admin
+// explicitly turns it on" convention as the weekly leaderboard reward
+// and the Android APK badge. Each document also has its own enabled
+// flag so one stale file can be hidden without touching the master
+// switch or deleting anything.
+// ---------------------------------------------------------------------
+
+function DocsSection() {
+  const { data: settingsData, isLoading: settingsLoading } = useAdminSettings();
+  const updateSettings = useUpdateAdminSettings();
+  const { data, isLoading } = useAdminDocs();
+  const create = useCreateDoc();
+  const update = useUpdateDoc();
+  const del = useDeleteDoc();
+
+  const [menuEnabled, setMenuEnabled] = useState(false);
+  const [menuSaved, setMenuSaved] = useState(false);
+  const [menuError, setMenuError] = useState<string | null>(null);
+  const initialized = useRef(false);
+  useEffect(() => {
+    if (!settingsData || initialized.current) return;
+    initialized.current = true;
+    setMenuEnabled(settingsData.docsMenuEnabled);
+  }, [settingsData]);
+
+  async function saveMenuToggle() {
+    setMenuError(null);
+    setMenuSaved(false);
+    try {
+      await updateSettings.mutateAsync({ docsMenuEnabled: menuEnabled });
+      setMenuSaved(true);
+    } catch (err) {
+      setMenuError(err instanceof Error ? err.message : "Failed to save");
+    }
+  }
+
+  const [title, setTitle] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function doAdd() {
+    if (!title.trim() || !file) return;
+    setAddError(null);
+    try {
+      await create.mutateAsync({ title: title.trim(), file });
+      setTitle("");
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : "Failed to add document");
+    }
+  }
+
+  const [rowError, setRowError] = useState<string | null>(null);
+
+  async function toggleDocEnabled(row: AdminSiteDocRow) {
+    setRowError(null);
+    try {
+      await update.mutateAsync({ id: row.id, enabled: !row.enabled });
+    } catch (err) {
+      setRowError(err instanceof Error ? err.message : "Failed");
+    }
+  }
+
+  async function doDelete(row: AdminSiteDocRow) {
+    if (!confirm(`Remove "${row.title}"? This deletes the uploaded file too.`)) return;
+    setRowError(null);
+    try {
+      await del.mutateAsync(row.id);
+    } catch (err) {
+      setRowError(err instanceof Error ? err.message : "Failed to delete");
+    }
+  }
+
+  return (
+    <section className="game-panel hud-corner rounded-2xl p-5">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-gold">Docs Menu</p>
+      <p className="mt-1 text-xs text-muted">
+        A &quot;Docs&quot; dropdown in the site nav linking to whatever files you upload here —
+        whitepaper, pitch deck, etc. The whole dropdown stays hidden until you turn it on below,
+        and each document can also be hidden individually without deleting it.
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={menuEnabled}
+            onChange={(e) => setMenuEnabled(e.target.checked)}
+            disabled={settingsLoading}
+            className="h-4 w-4 accent-mint"
+          />
+          <span>Show &quot;Docs&quot; in the site nav</span>
+        </label>
+        <button onClick={saveMenuToggle} disabled={updateSettings.isPending} className="btn-game-outline rounded-full px-4 py-1.5 text-xs disabled:opacity-50">
+          {updateSettings.isPending ? "Saving…" : "Save"}
+        </button>
+        {menuSaved && !updateSettings.isPending && <span className="text-xs text-mint">✓ Saved</span>}
+        {menuError && <span className="text-xs text-risk">{menuError}</span>}
+      </div>
+
+      <div className="my-4 border-t border-line" />
+
+      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+        <Field label="Title">
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Whitepaper" className={plainInputClass} />
+        </Field>
+        <Field label="File" hint="PDF, PPT/PPTX, DOC/DOCX, XLS/XLSX, TXT, ZIP — max 50MB">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            className={plainInputClass}
+          />
+        </Field>
+        <div className="flex items-end">
+          <button
+            onClick={doAdd}
+            disabled={!title.trim() || !file || create.isPending}
+            className="btn-game-outline w-full rounded-full px-4 py-2 text-xs disabled:opacity-50 sm:w-auto"
+          >
+            {create.isPending ? "Adding…" : "Add Document"}
+          </button>
+        </div>
+      </div>
+      {addError && <p className="mt-2 text-xs text-risk">{addError}</p>}
+
+      <div className="mt-4 divide-y divide-line rounded-xl border border-line">
+        {isLoading ? (
+          <p className="p-3 text-sm text-muted">Loading…</p>
+        ) : !data?.rows.length ? (
+          <p className="p-3 text-sm text-muted">No documents uploaded yet.</p>
+        ) : (
+          data.rows.map((row) => (
+            <div key={row.id} className="flex items-center justify-between gap-3 p-3 text-sm">
+              <div className="min-w-0">
+                <p className="flex items-center gap-2 font-semibold">
+                  <span className="truncate">{row.title}</span>
+                  <span className="rounded-full border border-line px-1.5 py-0.5 text-[10px] font-bold uppercase text-muted">{row.fileExt}</span>
+                  {!row.enabled && (
+                    <span className="rounded-full border border-risk/40 bg-risk-soft px-1.5 py-0.5 text-[10px] font-bold uppercase text-risk">Hidden</span>
+                  )}
+                </p>
+                <p className="mt-0.5 truncate text-[11px] text-muted">
+                  {row.originalName} · {formatBytes(row.fileSizeBytes)} · added {new Date(row.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  onClick={() => toggleDocEnabled(row)}
+                  disabled={update.isPending}
+                  className="rounded-full border border-line px-3 py-1 text-[11px] font-semibold text-muted transition hover:border-gold/40 hover:text-foreground disabled:opacity-50"
+                >
+                  {row.enabled ? "Hide" : "Show"}
+                </button>
+                <button
+                  onClick={() => doDelete(row)}
+                  disabled={del.isPending}
+                  className="rounded-full border border-risk/40 px-3 py-1 text-[11px] font-semibold text-risk transition hover:bg-risk-soft disabled:opacity-50"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+      {rowError && <p className="mt-2 text-xs text-risk">{rowError}</p>}
     </section>
   );
 }
