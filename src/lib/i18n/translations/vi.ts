@@ -163,8 +163,10 @@ const vi = {
     footerRisk: "Công Bố Rủi Ro",
     footerRefund: "Hoàn Tiền & Hủy Bỏ",
     footerCookie: "Chính Sách Cookie",
-    footerAndroidBadge: "Tải Xuống Cho Android",
-    footerIosBadge: "Cài Đặt Trên iPhone/iPad",
+    footerAndroidBadgeEyebrow: "Tải Trực Tiếp",
+    footerAndroidBadge: "Android APK",
+    footerIosBadgeEyebrow: "Thêm Vào Màn Hình Chính",
+    footerIosBadge: "iPhone & iPad",
     footerCopyright: "© 2026 Space DOGE. Bảo lưu mọi quyền.",
   },
   howItWorks: {

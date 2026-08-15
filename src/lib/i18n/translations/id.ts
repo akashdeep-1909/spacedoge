@@ -163,8 +163,10 @@ const id = {
     footerRisk: "Pengungkapan Risiko",
     footerRefund: "Pengembalian Dana & Pembatalan",
     footerCookie: "Kebijakan Cookie",
-    footerAndroidBadge: "Unduh untuk Android",
-    footerIosBadge: "Pasang di iPhone/iPad",
+    footerAndroidBadgeEyebrow: "Unduhan Langsung",
+    footerAndroidBadge: "Android APK",
+    footerIosBadgeEyebrow: "Tambahkan ke Layar Utama",
+    footerIosBadge: "iPhone & iPad",
     footerCopyright: "© 2026 Space DOGE. Seluruh hak cipta dilindungi.",
   },
   howItWorks: {

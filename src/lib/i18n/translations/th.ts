@@ -163,8 +163,10 @@ const th = {
     footerRisk: "การเปิดเผยความเสี่ยง",
     footerRefund: "การคืนเงินและการยกเลิก",
     footerCookie: "นโยบายคุกกี้",
-    footerAndroidBadge: "ดาวน์โหลดสำหรับ Android",
-    footerIosBadge: "ติดตั้งบน iPhone/iPad",
+    footerAndroidBadgeEyebrow: "ดาวน์โหลดโดยตรง",
+    footerAndroidBadge: "Android APK",
+    footerIosBadgeEyebrow: "เพิ่มไปยังหน้าจอโฮม",
+    footerIosBadge: "iPhone และ iPad",
     footerCopyright: "© 2026 Space DOGE สงวนลิขสิทธิ์",
   },
   howItWorks: {

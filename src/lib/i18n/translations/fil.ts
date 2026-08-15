@@ -163,8 +163,10 @@ const fil = {
     footerRisk: "Pagsisiwalat ng Risk",
     footerRefund: "Refund at Pagkansela",
     footerCookie: "Patakaran sa Cookie",
-    footerAndroidBadge: "I-download para sa Android",
-    footerIosBadge: "I-install sa iPhone/iPad",
+    footerAndroidBadgeEyebrow: "Direktang Download",
+    footerAndroidBadge: "Android APK",
+    footerIosBadgeEyebrow: "Idagdag sa Home Screen",
+    footerIosBadge: "iPhone at iPad",
     footerCopyright: "© 2026 Space DOGE. Nakalaan ang lahat ng karapatan.",
   },
   howItWorks: {

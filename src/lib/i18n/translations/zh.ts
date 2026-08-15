@@ -163,8 +163,10 @@ const zh = {
     footerRisk: "风险披露",
     footerRefund: "退款与取消政策",
     footerCookie: "Cookie 政策",
-    footerAndroidBadge: "下载 Android 版",
-    footerIosBadge: "安装至 iPhone/iPad",
+    footerAndroidBadgeEyebrow: "直接下载",
+    footerAndroidBadge: "Android APK",
+    footerIosBadgeEyebrow: "添加到主屏幕",
+    footerIosBadge: "iPhone 与 iPad",
     footerCopyright: "© 2026 Space DOGE。保留所有权利。",
   },
   howItWorks: {

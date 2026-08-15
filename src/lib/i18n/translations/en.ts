@@ -324,8 +324,10 @@ const en = {
     footerRisk: "Risk Disclosure",
     footerRefund: "Refund & Cancellation",
     footerCookie: "Cookie Policy",
-    footerAndroidBadge: "Download for Android",
-    footerIosBadge: "Install on iPhone/iPad",
+    footerAndroidBadgeEyebrow: "Direct Download",
+    footerAndroidBadge: "Android APK",
+    footerIosBadgeEyebrow: "Add to Home Screen",
+    footerIosBadge: "iPhone & iPad",
     footerCopyright: "© 2026 Space DOGE. All rights reserved.",
   },
   howItWorks: {

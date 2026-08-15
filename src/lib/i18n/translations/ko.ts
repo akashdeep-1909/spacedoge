@@ -163,8 +163,10 @@ const ko = {
     footerRisk: "위험 고지",
     footerRefund: "환불 및 취소",
     footerCookie: "쿠키 정책",
-    footerAndroidBadge: "Android용 다운로드",
-    footerIosBadge: "iPhone/iPad에 설치",
+    footerAndroidBadgeEyebrow: "직접 다운로드",
+    footerAndroidBadge: "Android APK",
+    footerIosBadgeEyebrow: "홈 화면에 추가",
+    footerIosBadge: "iPhone 및 iPad",
     footerCopyright: "© 2026 Space DOGE. 모든 권리 보유.",
   },
   howItWorks: {

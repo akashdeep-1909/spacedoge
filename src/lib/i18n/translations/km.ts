@@ -163,8 +163,10 @@ const km = {
     footerRisk: "ការបង្ហាញហានិភ័យ",
     footerRefund: "ការសងប្រាក់ និងការលុបចោល",
     footerCookie: "គោលការណ៍ខូគី",
-    footerAndroidBadge: "ទាញយកសម្រាប់ Android",
-    footerIosBadge: "ដំឡើងលើ iPhone/iPad",
+    footerAndroidBadgeEyebrow: "ទាញយកផ្ទាល់",
+    footerAndroidBadge: "Android APK",
+    footerIosBadgeEyebrow: "បន្ថែមទៅអេក្រង់ដើម",
+    footerIosBadge: "iPhone និង iPad",
     footerCopyright: "© 2026 Space DOGE។ រក្សាសិទ្ធិគ្រប់យ៉ាង។",
   },
   howItWorks: {

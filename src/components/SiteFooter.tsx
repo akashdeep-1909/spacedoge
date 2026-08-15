@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Download, Smartphone } from "lucide-react";
+import { Download, Share } from "lucide-react";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { SocialLinks } from "@/components/SocialLinks";
 import { usePublicSettings } from "@/lib/hooks";
@@ -100,24 +100,37 @@ export function SiteFooter() {
             a dead 404. iOS has no installable file at all (Safari has
             no install prompt), so that badge always links to a real
             page walking through the manual Share -> Add to Home Screen
-            steps instead of a download. */}
+            steps instead of a download.
+            These are deliberately NOT the real "Get it on Google Play"
+            / "Download on the App Store" badge graphics — this app isn't
+            listed on either store (Android is sideloaded, iOS is a
+            home-screen web app), so those badges would both misuse a
+            trademarked asset and claim a store listing that doesn't
+            exist. Styled to read as a store-badge at a glance (dark
+            pill, icon, two-line label) using only our own wordmarks. */}
         <div className="flex flex-wrap items-center justify-center gap-3 border-t border-line pt-6">
           {publicSettings?.androidApk && (
             <a
               href="/api/download-apk"
               download
-              className="btn-game-outline hud-corner inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide"
+              className="hud-corner group flex items-center gap-2.5 rounded-xl border border-line bg-[#0a0d12] px-4 py-2 transition hover:border-mint/60"
             >
-              <Download size={14} className="shrink-0" aria-hidden />
-              {t("landing.footerAndroidBadge")}
+              <Download size={20} className="shrink-0 text-mint" aria-hidden />
+              <span className="flex flex-col items-start leading-tight">
+                <span className="text-[9px] font-semibold uppercase tracking-wider text-muted">{t("landing.footerAndroidBadgeEyebrow")}</span>
+                <span className="text-sm font-black text-foreground">{t("landing.footerAndroidBadge")}</span>
+              </span>
             </a>
           )}
           <Link
             href="/install-ios"
-            className="btn-game-outline hud-corner inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide"
+            className="hud-corner group flex items-center gap-2.5 rounded-xl border border-line bg-[#0a0d12] px-4 py-2 transition hover:border-gold/60"
           >
-            <Smartphone size={14} className="shrink-0" aria-hidden />
-            {t("landing.footerIosBadge")}
+            <Share size={20} className="shrink-0 text-gold" aria-hidden />
+            <span className="flex flex-col items-start leading-tight">
+              <span className="text-[9px] font-semibold uppercase tracking-wider text-muted">{t("landing.footerIosBadgeEyebrow")}</span>
+              <span className="text-sm font-black text-foreground">{t("landing.footerIosBadge")}</span>
+            </span>
           </Link>
         </div>
 

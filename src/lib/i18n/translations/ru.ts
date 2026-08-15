@@ -163,8 +163,10 @@ const ru = {
     footerRisk: "Раскрытие рисков",
     footerRefund: "Возврат и отмена",
     footerCookie: "Политика использования файлов cookie",
-    footerAndroidBadge: "Скачать для Android",
-    footerIosBadge: "Установить на iPhone/iPad",
+    footerAndroidBadgeEyebrow: "Прямая загрузка",
+    footerAndroidBadge: "Android APK",
+    footerIosBadgeEyebrow: "На экран Домой",
+    footerIosBadge: "iPhone и iPad",
     footerCopyright: "© 2026 Space DOGE. Все права защищены.",
   },
   howItWorks: {
