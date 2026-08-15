@@ -1248,7 +1248,7 @@ const vi = {
     ourHashrateHeading: "Hashrate Của Chúng Tôi",
     ourHashrateLabel: "Tổng hashrate của đội hiện tại",
     dogeNetworkLabel: "Mạng Dogecoin",
-    dogeNetworkTooltip: "Độ khó hiện tại và hashrate mạng 24 giờ thực của blockchain Dogecoin (hiển thị bằng PH/s, đơn vị thường dùng để biểu thị hashrate mạng DOGE thực), được lấy trực tiếp từ nguồn dữ liệu blockchain công khai. Đây là mạng DOGE thực sự, tách biệt và không bị ảnh hưởng bởi hashrate riêng của nền tảng này hiển thị bên cạnh, vì nền tảng này không gửi công việc đến mạng đó.",
+    dogeNetworkTooltip: "Độ khó và hashrate 24 giờ theo thời gian thực của mạng Dogecoin thực, toàn cầu, được lấy từ nguồn dữ liệu blockchain công khai, không phải thứ nền tảng này đo lường hay tạo ra. Hiển thị để tham khảo bên cạnh hashrate của đội máy chúng tôi ở trên; nền tảng này không gửi bất kỳ công việc nào đến mạng thực, vì vậy hai con số này không liên quan đến nhau.",
     dogeNetworkDifficultyUnit: "độ khó",
     lifetimeDistributedLabel: "Tổng DOGE Đã Phân Phối",
     latestEpochLabel: "Kỳ Quyết Toán Gần Nhất",
