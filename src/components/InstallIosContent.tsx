@@ -1,6 +1,7 @@
 "use client";
 
-import { Compass, Share, SquarePlus, Check, Smartphone } from "lucide-react";
+import Image from "next/image";
+import { Compass, Share, SquarePlus, Check } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Reveal, TiltCard, Starfield } from "@/components/motionPrimitives";
@@ -14,13 +15,16 @@ const STEPS: { n: string; Icon: typeof Compass; color: string; titleKey: Transla
   { n: "04", Icon: Check, color: "#ffb516", titleKey: "installIos.step4Title", bodyKey: "installIos.step4Body", step: 4 },
 ];
 
-// A schematic, on-brand mockup of an iOS Safari tab — NOT a real Apple
-// screenshot (this app has no access to one, and reproducing Apple's
-// exact UI pixel-for-pixel would misrepresent an illustration as an
-// official capture). Good enough to show WHERE to tap at each step:
-// the Share icon lights up at step 2, the share-sheet's "Add to Home
-// Screen" row lights up at step 3, and the confirm button appears at
-// step 4.
+// The browser chrome here (status bar, Safari toolbar, share sheet) is a
+// schematic, on-brand illustration — NOT a real Apple screenshot, since
+// reproducing Apple's exact UI pixel-for-pixel would misrepresent an
+// illustration as an official capture. The page content underneath it,
+// though, is a real screenshot of spacedoge.games itself (see
+// public/install-ios/homepage-preview.png), so a user recognizes what
+// they'll actually be looking at rather than a generic mockup. Good
+// enough to show WHERE to tap at each step: the Share icon lights up at
+// step 2, the share-sheet's "Add to Home Screen" row lights up at step
+// 3, and the confirm button appears at step 4.
 function PhoneMockup({ step }: { step: 1 | 2 | 3 | 4 }) {
   const { t } = useLocale();
   return (
@@ -30,8 +34,15 @@ function PhoneMockup({ step }: { step: 1 | 2 | 3 | 4 }) {
         <Compass size={10} className="shrink-0 text-muted" aria-hidden />
         <div className="flex-1 truncate rounded bg-panel-2 px-1.5 py-0.5 text-center text-[6.5px] text-muted">spacedoge.games</div>
       </div>
-      <div className="flex h-[52%] items-center justify-center bg-gradient-to-b from-[#0a0f16] to-[#06101a]">
-        <Smartphone size={22} className="text-line" aria-hidden />
+      <div className="relative h-[52%] overflow-hidden bg-[#06101a]">
+        <Image
+          src="/install-ios/homepage-preview.png"
+          alt=""
+          fill
+          sizes="220px"
+          className="object-cover object-top"
+          aria-hidden
+        />
       </div>
       <div className="flex items-center justify-around border-t border-line/60 bg-[#0d1720] px-1.5 py-2">
         <span className="h-2 w-2 rounded-sm border border-muted/40" aria-hidden />
