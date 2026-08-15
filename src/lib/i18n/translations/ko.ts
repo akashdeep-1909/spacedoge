@@ -1595,7 +1595,6 @@ const ko = {
   installIos: {
     eyebrow: "iPhone 및 iPad",
     heroTitle: "Space DOGE를 홈 화면에 설치하기",
-    heroBody: "iOS에서는 Space DOGE를 앱 스토어로 설치할 수 없지만, Safari에서 네 번의 탭만으로 홈 화면에 고정하여 실제 앱처럼 전체 화면으로 열 수 있습니다.",
     step1Title: "Safari에서 열기",
     step1Body: "Safari에서 spacedoge.games에 접속하세요. 이 기능은 Safari에서만 작동하며, iOS의 다른 브라우저는 홈 화면 추가를 지원하지 않습니다.",
     step2Title: "공유 아이콘 탭하기",

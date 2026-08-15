@@ -1595,7 +1595,6 @@ const ru = {
   installIos: {
     eyebrow: "iPhone и iPad",
     heroTitle: "Установите Space DOGE на главный экран",
-    heroBody: "На iOS нет установки Space DOGE через App Store, но Safari может закрепить его на главном экране всего за четыре касания, чтобы он открывался на весь экран, как настоящее приложение.",
     step1Title: "Откройте в Safari",
     step1Body: "Перейдите на spacedoge.games в Safari. Это работает только в Safari, другие браузеры на iOS не поддерживают добавление на главный экран.",
     step2Title: "Нажмите значок «Поделиться»",

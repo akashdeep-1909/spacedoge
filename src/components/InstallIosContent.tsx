@@ -94,7 +94,6 @@ export function InstallIosContent() {
               <h1 className="text-glow-gold mt-2 text-[clamp(1.8rem,5vw,3rem)] font-extrabold leading-[1.05] tracking-[-0.02em]">
                 {t("installIos.heroTitle")}
               </h1>
-              <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-muted sm:text-base">{t("installIos.heroBody")}</p>
             </Reveal>
           </div>
         </section>

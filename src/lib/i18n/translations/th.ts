@@ -1595,7 +1595,6 @@ const th = {
   installIos: {
     eyebrow: "iPhone และ iPad",
     heroTitle: "ติดตั้ง Space DOGE บนหน้าจอโฮมของคุณ",
-    heroBody: "iOS ไม่มีการติดตั้งผ่าน App Store สำหรับ Space DOGE แต่ Safari สามารถปักหมุดไว้ที่หน้าจอโฮมได้เพียงสี่แตะ เพื่อให้เปิดแบบเต็มหน้าจอเหมือนแอปจริง",
     step1Title: "เปิดใน Safari",
     step1Body: "เข้า spacedoge.games ผ่าน Safari วิธีนี้ใช้ได้เฉพาะใน Safari เท่านั้น เบราว์เซอร์อื่นบน iOS ไม่รองรับการเพิ่มไปยังหน้าจอโฮม",
     step2Title: "แตะไอคอนแชร์",

@@ -1595,7 +1595,6 @@ const zhTW = {
   installIos: {
     eyebrow: "iPhone 與 iPad",
     heroTitle: "將 Space DOGE 安裝到主畫面",
-    heroBody: "iOS 沒有提供 App Store 安裝 Space DOGE 的方式，但 Safari 只需四個步驟就能將其釘選到主畫面，讓它像真正的應用程式一樣全螢幕開啟。",
     step1Title: "在 Safari 中開啟",
     step1Body: "在 Safari 中造訪 spacedoge.games。此功能僅適用於 Safari，iOS 上的其他瀏覽器不支援加入主畫面。",
     step2Title: "點按分享圖示",

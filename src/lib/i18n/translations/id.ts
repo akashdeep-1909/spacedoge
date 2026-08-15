@@ -1595,7 +1595,6 @@ const id = {
   installIos: {
     eyebrow: "iPhone & iPad",
     heroTitle: "Pasang Space DOGE di Layar Utama Anda",
-    heroBody: "iOS tidak menawarkan instalasi dari app store untuk Space DOGE, tetapi Safari dapat menyematkannya ke Layar Utama hanya dengan empat ketukan sehingga terbuka layar penuh, seperti aplikasi sungguhan.",
     step1Title: "Buka di Safari",
     step1Body: "Kunjungi spacedoge.games di Safari. Ini hanya berfungsi di Safari, browser lain di iOS tidak mendukung penambahan ke Layar Utama.",
     step2Title: "Ketuk Ikon Bagikan",

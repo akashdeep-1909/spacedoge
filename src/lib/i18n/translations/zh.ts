@@ -1595,7 +1595,6 @@ const zh = {
   installIos: {
     eyebrow: "iPhone 与 iPad",
     heroTitle: "将 Space DOGE 安装到主屏幕",
-    heroBody: "iOS 没有提供通过 App Store 安装 Space DOGE 的方式，但 Safari 只需四步就能将其固定到主屏幕，让它像真正的应用一样全屏打开。",
     step1Title: "在 Safari 中打开",
     step1Body: "在 Safari 中访问 spacedoge.games。此功能仅适用于 Safari，iOS 上的其他浏览器不支持添加到主屏幕。",
     step2Title: "点按分享图标",

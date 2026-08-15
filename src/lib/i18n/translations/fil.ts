@@ -1595,7 +1595,6 @@ const fil = {
   installIos: {
     eyebrow: "iPhone at iPad",
     heroTitle: "I-install ang Space DOGE sa Iyong Home Screen",
-    heroBody: "Walang app store install ang Space DOGE sa iOS, pero maaaring i-pin ito ng Safari sa iyong Home Screen sa apat na tap para bumukas itong full-screen, tulad ng tunay na app.",
     step1Title: "Buksan sa Safari",
     step1Body: "Bisitahin ang spacedoge.games gamit ang Safari. Gumagana lang ito sa Safari, hindi suportado ng ibang browser sa iOS ang pagdagdag sa Home Screen.",
     step2Title: "I-tap ang Share Icon",

@@ -1595,7 +1595,6 @@ const vi = {
   installIos: {
     eyebrow: "iPhone & iPad",
     heroTitle: "Cài Đặt Space DOGE Vào Màn Hình Chính",
-    heroBody: "iOS không hỗ trợ cài đặt Space DOGE qua App Store, nhưng Safari có thể ghim vào Màn Hình Chính chỉ với bốn lần chạm để mở toàn màn hình như một ứng dụng thật.",
     step1Title: "Mở Bằng Safari",
     step1Body: "Truy cập spacedoge.games bằng Safari. Cách này chỉ hoạt động trên Safari, các trình duyệt khác trên iOS không hỗ trợ thêm vào Màn Hình Chính.",
     step2Title: "Chạm Biểu Tượng Chia Sẻ",
