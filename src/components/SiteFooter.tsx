@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Download, Share } from "lucide-react";
 import { InfoTooltip } from "@/components/InfoTooltip";
+import { AndroidIcon, DeviceDuoIcon } from "@/components/icons/PlatformIcons";
 import { SocialLinks } from "@/components/SocialLinks";
 import { usePublicSettings } from "@/lib/hooks";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
@@ -101,13 +101,15 @@ export function SiteFooter() {
             no install prompt), so that badge always links to a real
             page walking through the manual Share -> Add to Home Screen
             steps instead of a download.
-            These are deliberately NOT the real "Get it on Google Play"
-            / "Download on the App Store" badge graphics — this app isn't
-            listed on either store (Android is sideloaded, iOS is a
-            home-screen web app), so those badges would both misuse a
-            trademarked asset and claim a store listing that doesn't
-            exist. Styled to read as a store-badge at a glance (dark
-            pill, icon, two-line label) using only our own wordmarks. */}
+            The Android mark is the real, CC-BY-licensed Android robot
+            (see PlatformIcons.tsx) — Google explicitly permits reusing
+            it to indicate Android compatibility. The iOS side uses a
+            generic device glyph rather than Apple's logo: Apple doesn't
+            license its mark the way Google does, and this app has no
+            App Store listing, so an Apple mark here would misuse a
+            trademark and imply a listing that doesn't exist. Neither
+            badge reuses the real "Get it on Google Play" / "Download on
+            the App Store" artwork, for the same reason. */}
         <div className="flex flex-wrap items-center justify-center gap-3 border-t border-line pt-6">
           {publicSettings?.androidApk && (
             <a
@@ -115,7 +117,9 @@ export function SiteFooter() {
               download
               className="hud-corner group flex items-center gap-2.5 rounded-xl border border-line bg-[#0a0d12] px-4 py-2 transition hover:border-mint/60"
             >
-              <Download size={20} className="shrink-0 text-mint" aria-hidden />
+              <span className="shrink-0 text-mint">
+                <AndroidIcon size={22} />
+              </span>
               <span className="flex flex-col items-start leading-tight">
                 <span className="text-[9px] font-semibold uppercase tracking-wider text-muted">{t("landing.footerAndroidBadgeEyebrow")}</span>
                 <span className="text-sm font-black text-foreground">{t("landing.footerAndroidBadge")}</span>
@@ -126,7 +130,9 @@ export function SiteFooter() {
             href="/install-ios"
             className="hud-corner group flex items-center gap-2.5 rounded-xl border border-line bg-[#0a0d12] px-4 py-2 transition hover:border-gold/60"
           >
-            <Share size={20} className="shrink-0 text-gold" aria-hidden />
+            <span className="shrink-0 text-gold">
+              <DeviceDuoIcon size={22} />
+            </span>
             <span className="flex flex-col items-start leading-tight">
               <span className="text-[9px] font-semibold uppercase tracking-wider text-muted">{t("landing.footerIosBadgeEyebrow")}</span>
               <span className="text-sm font-black text-foreground">{t("landing.footerIosBadge")}</span>
