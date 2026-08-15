@@ -1005,6 +1005,8 @@ const zh = {
     guaranteedRoiTooltip: "购买算力时即已锁定，，在整个{{days}}天期限内提供保证，并由保护储备金逐日平滑，无论市场如何波动。",
     onTrackLabel: "达标进度",
     onTrackTooltip: "衡量您目前已入账的收益与保证每日目标的匹配程度。接近100%表示进度正常，，保护储备金会吸收日常波动，因此该数值很少下降。",
+    totalMiningValueLabel: "总挖矿价值",
+    totalMiningValueTooltip: "截至目前从挖矿入账给您的完整价值，汇总您曾经持有的每一份算力合约，无论是进行中或已到期。",
     activationFailedFeedback: "激活失败。",
     purchaseFailedFeedback: "购买失败。",
     activationSuccessTitle: "挖矿设备已激活！",

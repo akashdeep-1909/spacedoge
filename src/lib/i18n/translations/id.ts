@@ -1005,6 +1005,8 @@ const id = {
     guaranteedRoiTooltip: "Terkunci sejak Anda membeli hashrate, dijamin selama seluruh jangka waktu {{days}} hari dan diratakan setiap hari oleh Protection Reserve, apa pun pergerakan pasar.",
     onTrackLabel: "Progres Sesuai Target",
     onTrackTooltip: "Seberapa dekat hadiah yang dikreditkan mengikuti target harian yang dijamin sejauh ini. Nilai mendekati 100% berarti Anda sesuai jadwal, Protection Reserve menyerap fluktuasi harian sehingga nilai ini jarang turun.",
+    totalMiningValueLabel: "Total Nilai Mining",
+    totalMiningValueTooltip: "Total nilai yang telah dikreditkan kepada Anda dari mining sejauh ini, dijumlahkan dari setiap kontrak hashrate yang pernah Anda miliki, baik yang aktif maupun yang sudah matang.",
     activationFailedFeedback: "Aktivasi gagal.",
     purchaseFailedFeedback: "Pembelian gagal.",
     activationSuccessTitle: "Rig Penambangan Diaktifkan!",

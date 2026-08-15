@@ -1020,6 +1020,8 @@ const en = {
     guaranteedRoiTooltip: "Locked in when you bought your hashrate, guaranteed over the full {{days}}-day term and smoothed daily by the Protection Reserve, no matter how the market moves.",
     onTrackLabel: "On-Track Progress",
     onTrackTooltip: "How closely your credited rewards are keeping pace with your guaranteed daily target so far. Values near 100% mean you're right on schedule, the Protection Reserve absorbs day-to-day swings, so this rarely drops.",
+    totalMiningValueLabel: "Total Mining Value",
+    totalMiningValueTooltip: "The full value credited to you from mining so far, summed across every hashrate contract you've ever held, active or already matured.",
     activationFailedFeedback: "Activation failed.",
     purchaseFailedFeedback: "Purchase failed.",
     activationSuccessTitle: "Mining Rig Activated!",

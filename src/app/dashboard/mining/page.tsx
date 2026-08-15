@@ -575,7 +575,29 @@ function MiningContent() {
           <h2 className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-gold">
             ▸ {t("mining.miningRoiHeading")}
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {/* Total lifetime value credited from mining — sits alongside
+                the ROI percentages below rather than replacing them: a
+                percentage alone doesn't say how much that actually is in
+                real terms, and this is the one number on the page that
+                answers "how much have I actually made so far," summed
+                across every contract the wallet has ever held (active or
+                matured), same totalCumulativeCreditedUsdtEquiv source the
+                ROI percentages themselves are derived from. */}
+            <div className="game-panel hud-corner rounded-2xl p-5">
+              <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted">
+                {t("mining.totalMiningValueLabel")}
+                <InfoTooltip text={t("mining.totalMiningValueTooltip")} />
+              </p>
+              <p className="stat-value mt-1 text-2xl text-mint">
+                {liveRateQuote?.rate
+                  ? fmtDogeShort(proof.roiSummary.totalCumulativeCreditedUsdtEquiv / liveRateQuote.rate)
+                  : "…"}
+              </p>
+              <p className="mt-0.5 text-xs text-muted">
+                ≈ ${proof.roiSummary.totalCumulativeCreditedUsdtEquiv.toFixed(2)} USDT
+              </p>
+            </div>
             {proof.roiSummary.hasMaturedContract ? (
               <>
                 <div className="game-panel hud-corner rounded-2xl p-5">

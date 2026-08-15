@@ -1005,6 +1005,8 @@ const ko = {
     guaranteedRoiTooltip: "해시레이트를 구매한 시점에 고정됩니다, 전체 {{days}}일 기간 동안 보장되며 Protection Reserve가 매일 평탄화하므로 시장이 어떻게 움직이든 영향을 받지 않습니다.",
     onTrackLabel: "목표 대비 진행률",
     onTrackTooltip: "지금까지 적립된 보상이 보장된 일일 목표와 얼마나 일치하는지를 나타냅니다. 100%에 가까울수록 예정대로 진행 중이라는 뜻입니다, Protection Reserve가 일일 변동을 흡수하므로 이 값은 잘 떨어지지 않습니다.",
+    totalMiningValueLabel: "총 마이닝 가치",
+    totalMiningValueTooltip: "지금까지 마이닝으로 적립된 전체 가치입니다, 활성 상태이거나 이미 만료된 모든 해시레이트 계약을 합산한 값입니다.",
     activationFailedFeedback: "활성화에 실패했습니다.",
     purchaseFailedFeedback: "구매에 실패했습니다.",
     activationSuccessTitle: "채굴 장비가 활성화되었습니다!",

@@ -1005,6 +1005,8 @@ const zhTW = {
     guaranteedRoiTooltip: "購買算力時即已鎖定，，在整個{{days}}天期限內提供保證，並由保護儲備金逐日平滑，無論市場如何波動。",
     onTrackLabel: "達標進度",
     onTrackTooltip: "衡量您目前已入帳的收益與保證每日目標的匹配程度。接近100%表示進度正常，，保護儲備金會吸收日常波動，因此該數值很少下降。",
+    totalMiningValueLabel: "總挖礦價值",
+    totalMiningValueTooltip: "截至目前從挖礦入帳給您的完整價值，加總您曾經持有的每一份算力合約，無論是進行中或已到期。",
     activationFailedFeedback: "啟動失敗。",
     purchaseFailedFeedback: "購買失敗。",
     activationSuccessTitle: "挖礦設備已啟動！",

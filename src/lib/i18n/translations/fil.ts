@@ -1005,6 +1005,8 @@ const fil = {
     guaranteedRoiTooltip: "Naka-lock na noong binili mo ang hashrate mo, guaranteed sa buong {{days}}-araw na term at pinapakinis araw-araw ng Protection Reserve, kahit paano gumalaw ang market.",
     onTrackLabel: "Progreso sa Tamang Landas",
     onTrackTooltip: "Kung gaano ka-tugma ang naipon mong reward sa guaranteed na daily target mo sa ngayon. Ang value na malapit sa 100% ay nangangahulugang nasa tamang takbo ka, sinasalo ng Protection Reserve ang araw-araw na pagbabago, kaya bihira itong bumaba.",
+    totalMiningValueLabel: "Kabuuang Halaga ng Mining",
+    totalMiningValueTooltip: "Ang kabuuang halaga na na-credit sa iyo mula sa mining sa ngayon, sinuma sa lahat ng hashrate contract na na-hawak mo, aktibo man o tapos na.",
     activationFailedFeedback: "Nabigo ang activation.",
     purchaseFailedFeedback: "Nabigo ang pagbili.",
     activationSuccessTitle: "Na-activate ang Mining Rig!",

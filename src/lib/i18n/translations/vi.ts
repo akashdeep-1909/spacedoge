@@ -1005,6 +1005,8 @@ const vi = {
     guaranteedRoiTooltip: "Được khóa ngay khi bạn mua hashrate, được đảm bảo trong suốt kỳ hạn {{days}} ngày và được làm mượt hàng ngày bởi Quỹ Bảo Vệ, bất kể thị trường biến động thế nào.",
     onTrackLabel: "Tiến Độ Đúng Hướng",
     onTrackTooltip: "Mức độ phần thưởng đã ghi có của bạn bám sát mục tiêu hàng ngày được đảm bảo đến thời điểm này. Giá trị gần 100% nghĩa là bạn đang đúng tiến độ, Quỹ Bảo Vệ hấp thụ các biến động hàng ngày nên giá trị này hiếm khi giảm.",
+    totalMiningValueLabel: "Tổng Giá Trị Đào",
+    totalMiningValueTooltip: "Tổng giá trị đã được ghi có cho bạn từ việc đào đến thời điểm này, cộng dồn từ mọi hợp đồng hashrate bạn từng sở hữu, dù đang hoạt động hay đã đáo hạn.",
     activationFailedFeedback: "Kích hoạt thất bại.",
     purchaseFailedFeedback: "Mua thất bại.",
     activationSuccessTitle: "Giàn Đào Đã Được Kích Hoạt!",
