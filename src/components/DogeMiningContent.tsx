@@ -80,7 +80,6 @@ const PACKAGE_COLORS: Record<string, string> = {
 
 const FAQ_KEYS = [
   { qKey: "dogeMining.faq1Q" as const, aKey: "dogeMining.faq1A" as const },
-  { qKey: "dogeMining.faq2Q" as const, aKey: "dogeMining.faq2A" as const },
   { qKey: "dogeMining.faq3Q" as const, aKey: "dogeMining.faq3A" as const },
   { qKey: "dogeMining.faq4Q" as const, aKey: "dogeMining.faq4A" as const },
   { qKey: "dogeMining.faq5Q" as const, aKey: "dogeMining.faq5A" as const },
