@@ -1065,6 +1065,7 @@ export interface PublicSettings {
     medium: string | null;
   };
   withdrawChains: PublicWithdrawChain[];
+  androidApk: { versionLabel: string | null; fileSizeBytes: number } | null;
 }
 
 export function usePublicSettings() {
@@ -1126,6 +1127,49 @@ export function useUpdateAdminSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "settings"] });
+      queryClient.invalidateQueries({ queryKey: ["settings", "public"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------
+// Android APK upload (admin) — src/app/api/admin/apk. No per-version
+// history: uploading a new build just overwrites the one GET
+// /api/download-apk serves, see src/lib/apkStorage.ts.
+// ---------------------------------------------------------------------
+
+export interface AdminApkInfo {
+  originalName: string;
+  versionLabel: string | null;
+  fileSizeBytes: number;
+  uploadedAt: string;
+}
+
+export function useAdminApkInfo() {
+  return useQuery({
+    queryKey: ["admin", "apk"],
+    queryFn: async (): Promise<{ apk: AdminApkInfo | null }> => {
+      const res = await fetch("/api/admin/apk");
+      if (!res.ok) throw new Error("Failed to load APK info");
+      return res.json();
+    },
+  });
+}
+
+export function useUploadApk() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { file: File; versionLabel: string }) => {
+      const form = new FormData();
+      form.append("file", input.file);
+      if (input.versionLabel.trim()) form.append("versionLabel", input.versionLabel.trim());
+      const res = await fetch("/api/admin/apk", { method: "POST", body: form });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Upload failed");
+      return body as { ok: true; apk: AdminApkInfo };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "apk"] });
       queryClient.invalidateQueries({ queryKey: ["settings", "public"] });
     },
   });

@@ -44,6 +44,10 @@ export async function updatePlatformSettings(
     walletConnectProjectId?: string | null;
     weeklyLeaderboardEnabled?: boolean;
     weeklyLeaderboardPoolUsdt?: number | null;
+    androidApkOriginalName?: string | null;
+    androidApkVersionLabel?: string | null;
+    androidApkFileSizeBytes?: number | null;
+    androidApkUploadedAt?: Date | null;
   },
   updatedByAddress: string
 ) {
@@ -89,6 +93,47 @@ export async function getWeeklyLeaderboardConfig(): Promise<{ enabled: boolean; 
       ? Number(settings.weeklyLeaderboardPoolUsdt)
       : 0;
   return { enabled: settings.weeklyLeaderboardEnabled && poolUsdt > 0, poolUsdt };
+}
+
+// The Android app has no Play Store listing (it's a direct-download
+// APK, see src/app/api/admin/apk/route.ts) — this is just the DB-side
+// metadata an admin/public page needs to render without touching the
+// filesystem. `null` (or a missing row) means no APK has been uploaded
+// yet, which every caller treats as "hide the download button," not an
+// error.
+export interface AndroidApkInfo {
+  originalName: string;
+  versionLabel: string | null;
+  fileSizeBytes: number;
+  uploadedAt: Date;
+}
+
+export async function getAndroidApkInfo(): Promise<AndroidApkInfo | null> {
+  const settings = await getPlatformSettings();
+  if (!settings.androidApkOriginalName || !settings.androidApkUploadedAt || settings.androidApkFileSizeBytes === null) {
+    return null;
+  }
+  return {
+    originalName: settings.androidApkOriginalName,
+    versionLabel: settings.androidApkVersionLabel,
+    fileSizeBytes: settings.androidApkFileSizeBytes,
+    uploadedAt: settings.androidApkUploadedAt,
+  };
+}
+
+export async function setAndroidApkInfo(
+  info: { originalName: string; versionLabel: string | null; fileSizeBytes: number },
+  updatedByAddress: string
+): Promise<void> {
+  await updatePlatformSettings(
+    {
+      androidApkOriginalName: info.originalName,
+      androidApkVersionLabel: info.versionLabel,
+      androidApkFileSizeBytes: info.fileSizeBytes,
+      androidApkUploadedAt: new Date(),
+    },
+    updatedByAddress
+  );
 }
 
 export async function getSocialLinks() {

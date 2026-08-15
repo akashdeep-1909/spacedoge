@@ -70,6 +70,17 @@ export const metadata: Metadata = {
       "Wallet-first Coin Rush Arena with verifiable Scrypt cloud-mining rewards.",
     images: ["/SpaceDOGE-logo.png"],
   },
+  // iOS Safari has no install prompt of its own — this only controls
+  // what the result looks like ONCE a user manually does Share -> Add
+  // to Home Screen (see src/app/install-ios/page.tsx), not whether
+  // they're offered to. `capable: true` is what actually drops the
+  // Safari chrome for a standalone/full-screen launch; without it the
+  // home-screen icon still opens inside a normal Safari tab.
+  appleWebApp: {
+    capable: true,
+    title: "Space DOGE",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export default async function RootLayout({

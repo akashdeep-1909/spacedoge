@@ -19,6 +19,8 @@ import {
   useDeleteWithdrawChain,
   useAdminGameModes,
   useUpdateGameModeConfig,
+  useAdminApkInfo,
+  useUploadApk,
   type AdminDepositChainRow,
   type AdminWithdrawChainRow,
   type AdminGameModeRow,
@@ -42,6 +44,7 @@ export default function AdminSettingsPage() {
       <WithdrawalPolicySection />
       <WeeklyLeaderboardSection />
       <WalletConnectSection />
+      <AndroidApkSection />
       <AdminUsersSection />
       <SocialSection />
     </div>
@@ -994,6 +997,94 @@ function WalletConnectSection() {
           {update.isPending ? "Saving…" : "Save WalletConnect"}
         </button>
         {saved && !update.isPending && <span className="text-xs text-mint">✓ Saved: takes effect on next page load</span>}
+        {error && <span className="text-xs text-risk">{error}</span>}
+      </div>
+    </section>
+  );
+}
+
+function formatBytes(bytes: number): string {
+  return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)}MB` : `${(bytes / 1024).toFixed(0)}KB`;
+}
+
+// No per-version history — uploading a new build overwrites the one
+// GET /api/download-apk serves (see src/lib/apkStorage.ts). This is the
+// direct-download button shown on the public footer/App page, not a
+// Play Store submission.
+function AndroidApkSection() {
+  const { data, isLoading } = useAdminApkInfo();
+  const upload = useUploadApk();
+  const [file, setFile] = useState<File | null>(null);
+  const [versionLabel, setVersionLabel] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [uploaded, setUploaded] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function doUpload() {
+    if (!file) return;
+    setError(null);
+    setUploaded(false);
+    try {
+      await upload.mutateAsync({ file, versionLabel });
+      setUploaded(true);
+      setFile(null);
+      setVersionLabel("");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    }
+  }
+
+  return (
+    <section className="game-panel hud-corner rounded-2xl p-5">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-gold">Android App (APK)</p>
+      <p className="mt-1 text-xs text-muted">
+        The .apk visitors download from the site&apos;s footer/App page — this is a direct
+        sideload, not a Play Store listing. Uploading a new file replaces the current one
+        immediately; there&apos;s no version history kept here.
+      </p>
+
+      <div className="mt-4 rounded-xl border border-line bg-panel-2 p-3 text-xs">
+        {isLoading ? (
+          <p className="text-muted">Loading…</p>
+        ) : data?.apk ? (
+          <>
+            <p className="font-semibold text-foreground">
+              Current: {data.apk.originalName} {data.apk.versionLabel && <span className="text-mint">({data.apk.versionLabel})</span>}
+            </p>
+            <p className="mt-0.5 text-muted">
+              {formatBytes(data.apk.fileSizeBytes)} · uploaded {new Date(data.apk.uploadedAt).toLocaleString()}
+            </p>
+          </>
+        ) : (
+          <p className="text-muted">No build uploaded yet — the download button stays hidden until one is.</p>
+        )}
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <Field label="Version label (optional)" hint='Shown to users, e.g. "1.0.1" — purely informational.'>
+          <input value={versionLabel} onChange={(e) => setVersionLabel(e.target.value)} placeholder="e.g. 1.0.1" className={plainInputClass} />
+        </Field>
+        <Field label=".apk file">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".apk"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            className={plainInputClass}
+          />
+        </Field>
+      </div>
+
+      <div className="mt-4 flex items-center gap-3">
+        <button
+          onClick={doUpload}
+          disabled={!file || upload.isPending}
+          className="btn-game-outline rounded-full px-4 py-1.5 text-xs disabled:opacity-50"
+        >
+          {upload.isPending ? "Uploading…" : "Upload & Replace"}
+        </button>
+        {uploaded && !upload.isPending && <span className="text-xs text-mint">✓ Uploaded — live immediately, no redeploy needed</span>}
         {error && <span className="text-xs text-risk">{error}</span>}
       </div>
     </section>

@@ -986,6 +986,18 @@ model PlatformSettings {
   // it just never pays a reward.
   weeklyLeaderboardEnabled  Boolean  @default(false)
   weeklyLeaderboardPoolUsdt Decimal? @db.Decimal(24, 8)
+  // Android app distribution — a direct-download APK (no Play Store
+  // listing) since this is sideloaded, not published through Google
+  // Play. The file itself lives on disk (storage/uploads/apk/current.apk,
+  // gitignored, outside .next/ so `rm -rf .next` and `git pull` both
+  // leave it alone — see src/app/api/admin/apk/route.ts), always
+  // overwritten in place rather than versioned per-file, since there's
+  // only ever one "current" build to offer. These columns are just the
+  // metadata a page needs to render without touching the filesystem.
+  androidApkOriginalName  String?
+  androidApkVersionLabel  String?
+  androidApkFileSizeBytes Int?
+  androidApkUploadedAt    DateTime?
   updatedAt              DateTime @updatedAt
   updatedByAddress       String? // lowercased EVM address of the admin who last saved
 }

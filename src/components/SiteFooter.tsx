@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { Download, Smartphone } from "lucide-react";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { SocialLinks } from "@/components/SocialLinks";
+import { usePublicSettings } from "@/lib/hooks";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import type { TranslationKey } from "@/lib/i18n/LocaleProvider";
 
@@ -48,6 +50,7 @@ const FOOTER_COLUMNS: { headingKey: TranslationKey; links: { labelKey: Translati
 // for why this is a standalone component instead of duplicated JSX.
 export function SiteFooter() {
   const { t } = useLocale();
+  const { data: publicSettings } = usePublicSettings();
 
   return (
     <footer className="border-t border-line py-[46px]">
@@ -89,6 +92,33 @@ export function SiteFooter() {
               <SocialLinks />
             </div>
           </div>
+        </div>
+
+        {/* Android is a direct-download APK (no Play Store listing, see
+            src/app/api/admin/apk/route.ts) — hidden entirely until an
+            admin has actually uploaded a build, so this never links to
+            a dead 404. iOS has no installable file at all (Safari has
+            no install prompt), so that badge always links to a real
+            page walking through the manual Share -> Add to Home Screen
+            steps instead of a download. */}
+        <div className="flex flex-wrap items-center justify-center gap-3 border-t border-line pt-6">
+          {publicSettings?.androidApk && (
+            <a
+              href="/api/download-apk"
+              download
+              className="btn-game-outline hud-corner inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide"
+            >
+              <Download size={14} className="shrink-0" aria-hidden />
+              {t("landing.footerAndroidBadge")}
+            </a>
+          )}
+          <Link
+            href="/install-ios"
+            className="btn-game-outline hud-corner inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide"
+          >
+            <Smartphone size={14} className="shrink-0" aria-hidden />
+            {t("landing.footerIosBadge")}
+          </Link>
         </div>
 
         <div className="flex flex-col items-center gap-2 border-t border-line pt-6 text-center text-[11px] text-muted">
