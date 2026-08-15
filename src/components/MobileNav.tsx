@@ -59,7 +59,7 @@ export function MobileNav() {
   const { t } = useLocale();
   const { session, signOut } = useAuth();
   const [open, setOpen] = useState(false);
-  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
+  const [anchor, setAnchor] = useState<{ top: number; right: number; maxHeight: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
 
@@ -88,7 +88,12 @@ export function MobileNav() {
       const idealRight = window.innerWidth - rect.right;
       const maxRight = Math.max(MARGIN, window.innerWidth - PANEL_WIDTH - MARGIN);
       const right = Math.min(idealRight, maxRight);
-      setAnchor({ top: rect.bottom + 8, right });
+      const top = rect.bottom + 8;
+      // 12 nav links + the language row + (when authenticated)
+      // disconnect easily runs taller than a phone's viewport — without
+      // a height cap + scroll, whatever didn't fit above the fold was
+      // simply unreachable, confirmed live on a real phone.
+      setAnchor({ top, right, maxHeight: Math.max(160, window.innerHeight - top - MARGIN) });
     }
     place();
     window.addEventListener("resize", place);
@@ -119,7 +124,10 @@ export function MobileNav() {
               className="fixed z-50 w-56"
               style={{ top: anchor.top, right: anchor.right }}
             >
-              <nav className="game-panel flex flex-col gap-1 rounded-2xl p-2 shadow-2xl">
+              <nav
+                className="game-panel flex flex-col gap-1 overflow-y-auto rounded-2xl p-2 shadow-2xl"
+                style={{ maxHeight: anchor.maxHeight }}
+              >
                 {LINKS.map((l) => (
                   <Link
                     key={l.href}

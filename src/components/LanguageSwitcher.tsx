@@ -34,7 +34,7 @@ const DEFAULT_TRIGGER_CLASS =
 export function LanguageSwitcher({ className, icon }: { className?: string; icon?: ReactNode } = {}) {
   const { locale, setLocale, t } = useLocale();
   const [open, setOpen] = useState(false);
-  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
+  const [anchor, setAnchor] = useState<{ top: number; right: number; maxHeight: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -48,7 +48,15 @@ export function LanguageSwitcher({ className, icon }: { className?: string; icon
       const idealRight = window.innerWidth - rect.right;
       const maxRight = Math.max(MARGIN, window.innerWidth - PANEL_WIDTH - MARGIN);
       const right = Math.min(idealRight, maxRight);
-      setAnchor({ top: rect.bottom + 6, right });
+      const top = rect.bottom + 6;
+      // All 10 locales don't always fit before the viewport's bottom
+      // edge — especially when this trigger is itself a row near the
+      // bottom of MobileNav's own (already tall) dropdown. Without a
+      // height cap + scroll, whatever didn't fit was simply
+      // unreachable — confirmed live on a real phone (a user could see
+      // "English" through "Filipino" but had no way to even scroll to
+      // Indonesian/Khmer/Korean/Russian below the fold).
+      setAnchor({ top, right, maxHeight: Math.max(120, window.innerHeight - top - MARGIN) });
     }
     place();
     window.addEventListener("resize", place);
@@ -91,7 +99,11 @@ export function LanguageSwitcher({ className, icon }: { className?: string; icon
           <>
             <div className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
             <div className="fixed z-50" style={{ top: anchor.top, right: anchor.right, width: PANEL_WIDTH }}>
-              <div role="listbox" className="game-panel rounded-lg border border-line p-1 shadow-2xl">
+              <div
+                role="listbox"
+                className="game-panel overflow-y-auto rounded-lg border border-line p-1 shadow-2xl"
+                style={{ maxHeight: anchor.maxHeight }}
+              >
                 {LOCALES.map((code) => {
                   const active = code === locale;
                   return (
