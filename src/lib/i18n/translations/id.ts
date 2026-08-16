@@ -1147,7 +1147,7 @@ const id = {
     conversionFailedError: "Konversi gagal.",
   },
   withdraw: {
-    manualNoticeBody: "⚠️ Diselesaikan secara manual, penarikan nyata menyiarkan transfer on-chain dari dompet treasury setelah pemeriksaan risiko/sanksi. Ini langsung mendebit saldo buku besar Anda dan membuat catatan penarikan tertunda yang nyata, admin mengirim transaksi on-chain aktual dan mencatat hash-nya untuk menyelesaikannya. Penarikan biasanya diselesaikan dalam 72 jam kerja berikutnya.",
+    manualNoticeBody: "Penarikan biasanya diselesaikan dalam 72 jam kerja berikutnya.",
     withdrawLabel: "Tarik Dana",
     coinLabel: "Koin",
     networkLabel: "Jaringan",

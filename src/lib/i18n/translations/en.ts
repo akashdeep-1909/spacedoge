@@ -1437,7 +1437,7 @@ const en = {
     conversionFailedError: "Conversion failed.",
   },
   withdraw: {
-    manualNoticeBody: "⚠️ Manually completed, a real withdrawal broadcasts an on-chain transfer from a treasury wallet after risk/sanctions screening. This debits your ledger balance immediately and creates a real pending withdrawal record, an admin sends the actual on-chain transaction and records its hash to complete it. Withdrawals are typically completed within the next 72 working hours.",
+    manualNoticeBody: "Withdrawals are typically completed within the next 72 working hours.",
     withdrawLabel: "Withdraw",
     coinLabel: "Coin",
     networkLabel: "Network",

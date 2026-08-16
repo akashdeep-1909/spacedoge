@@ -1147,7 +1147,7 @@ const ko = {
     conversionFailedError: "전환 실패.",
   },
   withdraw: {
-    manualNoticeBody: "⚠️ 수동으로 완료됨, 실제 출금은 위험/제재 심사 후 재무 지갑에서 온체인 전송을 브로드캐스트합니다. 이 작업은 즉시 원장 잔액을 차감하고 실제 보류 중인 출금 기록을 생성합니다, 관리자가 실제 온체인 거래를 보내고 해시를 기록하여 완료합니다. 출금은 일반적으로 이후 72 영업시간 이내에 완료됩니다.",
+    manualNoticeBody: "출금은 일반적으로 이후 72 영업시간 이내에 완료됩니다.",
     withdrawLabel: "출금",
     coinLabel: "코인",
     networkLabel: "네트워크",

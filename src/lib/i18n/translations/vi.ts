@@ -1147,7 +1147,7 @@ const vi = {
     conversionFailedError: "Chuyển đổi thất bại.",
   },
   withdraw: {
-    manualNoticeBody: "⚠️ Hoàn tất thủ công, một khoản rút tiền thực sự phát sóng một giao dịch chuyển khoản on-chain từ ví kho bạc sau khi sàng lọc rủi ro/trừng phạt. Thao tác này ghi nợ ngay lập tức vào số dư sổ cái của bạn và tạo một bản ghi rút tiền đang chờ xử lý thực sự, quản trị viên gửi giao dịch on-chain thực tế và ghi lại mã hash của nó để hoàn tất. Các khoản rút tiền thường được hoàn tất trong vòng 72 giờ làm việc tiếp theo.",
+    manualNoticeBody: "Các khoản rút tiền thường được hoàn tất trong vòng 72 giờ làm việc tiếp theo.",
     withdrawLabel: "Rút Tiền",
     coinLabel: "Đồng Tiền",
     networkLabel: "Mạng",

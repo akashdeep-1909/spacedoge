@@ -1147,7 +1147,7 @@ const zh = {
     conversionFailedError: "兑换失败。",
   },
   withdraw: {
-    manualNoticeBody: "⚠️ 人工完成，，真实提现是在完成风险/制裁筛查后，从国库钱包广播一笔链上转账。此操作会立即从您的账本余额中扣除，并创建一条真实的待处理提现记录，，管理员会发送实际的链上交易并记录其哈希以完成提现。提现通常在接下来的72个工作小时内完成。",
+    manualNoticeBody: "提现通常在接下来的72个工作小时内完成。",
     withdrawLabel: "提现",
     coinLabel: "币种",
     networkLabel: "网络",

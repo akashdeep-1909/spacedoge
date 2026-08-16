@@ -1147,7 +1147,7 @@ const zhTW = {
     conversionFailedError: "兌換失敗。",
   },
   withdraw: {
-    manualNoticeBody: "⚠️ 人工完成，，真實提領是在完成風險/制裁篩查後，從國庫錢包廣播一筆鏈上轉帳。此操作會立即從您的帳本餘額中扣除，並建立一筆真實的待處理提領紀錄，，管理員會發送實際的鏈上交易並記錄其雜湊以完成提領。提領通常在接下來的72個工作小時內完成。",
+    manualNoticeBody: "提領通常在接下來的72個工作小時內完成。",
     withdrawLabel: "提領",
     coinLabel: "幣種",
     networkLabel: "網路",

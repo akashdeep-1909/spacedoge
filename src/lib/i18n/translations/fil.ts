@@ -1147,7 +1147,7 @@ const fil = {
     conversionFailedError: "Nabigo ang conversion.",
   },
   withdraw: {
-    manualNoticeBody: "⚠️ Manu-manong nakumpleto, ang tunay na withdrawal ay nagbo-broadcast ng on-chain transfer mula sa treasury wallet pagkatapos ng risk/sanctions screening. Ide-debit agad nito ang iyong ledger balance at gagawa ng tunay na pending withdrawal record, magpapadala ang admin ng aktwal na on-chain transaction at ire-record ang hash nito para kumpletuhin ito. Karaniwang nakukumpleto ang mga withdrawal sa loob ng susunod na 72 working hours.",
+    manualNoticeBody: "Karaniwang nakukumpleto ang mga withdrawal sa loob ng susunod na 72 working hours.",
     withdrawLabel: "Mag-withdraw",
     coinLabel: "Coin",
     networkLabel: "Network",
