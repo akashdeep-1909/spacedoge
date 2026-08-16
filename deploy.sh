@@ -61,10 +61,21 @@
 #                             this explicit step (run directly from this
 #                             script's own, correct working directory) is
 #                             the one that's actually relied on.
-#   4. npm run build        - production build (next build --webpack).
-#   5. npx prisma migrate deploy - applies any new database migrations;
+#   4. npx prisma migrate deploy - applies any new database migrations;
 #                                  safe to re-run, already-applied
-#                                  migrations are skipped.
+#                                  migrations are skipped. Runs BEFORE
+#                                  the build (not after, despite the
+#                                  step order this comment used to
+#                                  document) — confirmed live: `next
+#                                  build` prerenders pages that query
+#                                  the DB (e.g. the root layout reading
+#                                  PlatformSettings), and a migration
+#                                  that adds a column a newly-deployed
+#                                  page/route already expects to exist
+#                                  makes the build itself fail with
+#                                  "column ... does not exist" if the
+#                                  migration hasn't been applied yet.
+#   5. npm run build        - production build (next build --webpack).
 #
 # Requires DATABASE_URL (and the app's other env vars) to already be
 # set — either in a real .env file in this directory, or as
@@ -86,7 +97,7 @@ npx prisma generate --schema=./prisma/schema.prisma
 # 1024 is a confirmed-working value on this host, not a guess — raise it
 # only after checking the account's real "Physical Memory Usage" limit
 # in cPanel first.
-NODE_OPTIONS="--max-old-space-size=1024" npm run build
 npx prisma migrate deploy
+NODE_OPTIONS="--max-old-space-size=1024" npm run build
 echo ""
 echo "Done. Now go to cPanel -> Setup Node.js App -> Restart."
