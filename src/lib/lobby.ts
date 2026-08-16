@@ -5,7 +5,7 @@ import { BalanceType, GameMode } from "@/generated/prisma/enums";
 import { GAME_MODE_CONFIG, botScore } from "@/lib/game-config";
 import { getGameModeConfigs, getGameModeConfig, computeRoomEconomicsFromConfig } from "@/lib/gameModes";
 import { distributeEntryFeeToTreasuryAndReferrals } from "@/lib/referrals";
-import { getWalletBalances } from "@/lib/balances";
+import { getWalletBalances, lockWalletForBalanceChange, getLedgerBalance } from "@/lib/balances";
 import { sendPushToWallet } from "@/lib/push";
 import type { GameLobby, LobbyParticipant } from "@/generated/prisma/client";
 
@@ -523,18 +523,33 @@ export async function joinLobbySeat(
     if (eligibility) return { ok: false, status: eligibility.status, error: eligibility.error };
 
     const nextSlot = joinedCount + 1;
-    const claimedLobby = await db.$transaction(async (tx) => {
+    const entryFeeUsdt = Number(lobby.entryFeeUsdt);
+    const claimResult = await db.$transaction(async (tx) => {
+      // The version-based claim below already prevents two joins from
+      // racing on the LOBBY itself, but it doesn't protect this
+      // wallet's BALANCE — the same wallet could be joining two
+      // different lobbies (or joining while withdrawing) at once, each
+      // acquiring a different lobby's version claim. checkPaidEligibility
+      // above already did a first-pass balance check, but unlocked;
+      // re-checked here, after the lock, for the actual race-safe
+      // guard (see lockWalletForBalanceChange's doc-comment).
+      await lockWalletForBalanceChange(tx, walletProfile.id);
+      if (entryFeeUsdt > 0) {
+        const playUsdt = await getLedgerBalance(tx, walletProfile.id, BalanceType.PLAY_USDT);
+        if (playUsdt < entryFeeUsdt) return { kind: "insufficient" as const };
+      }
+
       const claim = await tx.gameLobby.updateMany({
         where: { id: lobbyId, version: lobby.version, status: lobby.status },
         data: { version: { increment: 1 } },
       });
-      if (claim.count === 0) return null; // lost the race — someone else changed the lobby first
+      if (claim.count === 0) return { kind: "lost_race" as const };
 
       const holdLedgerId =
-        Number(lobby.entryFeeUsdt) > 0
+        entryFeeUsdt > 0
           ? await holdEntryFee(tx, {
               walletProfileId: walletProfile.id,
-              entryFeeUsdt: Number(lobby.entryFeeUsdt),
+              entryFeeUsdt,
               lobbyId,
             })
           : null;
@@ -542,10 +557,15 @@ export async function joinLobbySeat(
         data: { lobbyId, walletProfileId: walletProfile.id, slotNumber: nextSlot, joinSource, entryHoldLedgerId: holdLedgerId },
       });
       const newStatus = nextSlot >= LOBBY_MAX_PLAYERS ? "FULL" : lobby.status;
-      return tx.gameLobby.update({ where: { id: lobbyId }, data: { status: newStatus } });
+      const updated = await tx.gameLobby.update({ where: { id: lobbyId }, data: { status: newStatus } });
+      return { kind: "joined" as const, lobby: updated };
     });
 
-    if (!claimedLobby) continue; // retry against fresh state
+    if (claimResult.kind === "insufficient") {
+      return { ok: false, status: 402, error: `You need at least ${entryFeeUsdt} USDT in your Deposit USDT to join this match.` };
+    }
+    if (claimResult.kind === "lost_race") continue; // retry against fresh state
+    const claimedLobby = claimResult.lobby;
 
     // Notify the host the instant someone accepts — via whichever of
     // the three accept paths (direct invite, invitation, invite link)

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { BalanceType } from "@/generated/prisma/enums";
+import { lockWalletForBalanceChange, getLedgerBalance } from "@/lib/balances";
 
 // Only a subset of BalanceType can move between a wallet's own buckets.
 // GAME_REWARD_USDT is included here (unlike TRANSFERABLE_TO_OTHER_USER
@@ -61,11 +62,14 @@ export async function moveBalance(input: {
   }
 
   return db.$transaction(async (tx) => {
-    const sum = await tx.ledgerEntry.aggregate({
-      where: { walletProfileId, balanceType: fromBalanceType },
-      _sum: { amount: true },
-    });
-    const available = Number(sum._sum.amount ?? 0);
+    // First statement, before the balance read below — see
+    // lockWalletForBalanceChange's doc-comment in src/lib/balances.ts.
+    // Without this, two concurrent moveBalance calls (or a
+    // moveBalance racing a withdraw/convert/etc. on the same wallet)
+    // could both read the same pre-debit balance and both pass.
+    await lockWalletForBalanceChange(tx, walletProfileId);
+
+    const available = await getLedgerBalance(tx, walletProfileId, fromBalanceType);
     if (amount > available) {
       throw new TransferError("Insufficient balance.");
     }
@@ -147,11 +151,14 @@ export async function sendToWallet(input: {
   }
 
   return db.$transaction(async (tx) => {
-    const sum = await tx.ledgerEntry.aggregate({
-      where: { walletProfileId: fromWalletProfileId, balanceType },
-      _sum: { amount: true },
-    });
-    const available = Number(sum._sum.amount ?? 0);
+    // Lock the SENDER only — the recipient's credit below is an
+    // unconditional create with no availability check of its own, so
+    // there's nothing there to race (see the ordering rule in
+    // src/lib/balances.ts). Two users sending to each other at the
+    // same time acquire disjoint locks, so no deadlock.
+    await lockWalletForBalanceChange(tx, fromWalletProfileId);
+
+    const available = await getLedgerBalance(tx, fromWalletProfileId, balanceType);
     if (amount > available) {
       throw new TransferError("Insufficient balance.");
     }

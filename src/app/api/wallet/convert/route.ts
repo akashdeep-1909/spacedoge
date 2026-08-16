@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { getWalletBalances } from "@/lib/balances";
+import { lockWalletForBalanceChange, getLedgerBalance } from "@/lib/balances";
 import { BalanceType } from "@/generated/prisma/enums";
 import { getDogeUsdtQuote, MIN_DOGE_CONVERSION } from "@/lib/conversion";
 
@@ -42,14 +42,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const balances = await getWalletBalances(session.walletProfileId);
-  if (balances.availableDoge < dogeAmount) {
-    return NextResponse.json({ error: "Not enough Available DOGE." }, { status: 402 });
-  }
-
+  // Fetched before the lock — a real external price-feed call
+  // (fetchDogeUsdtRate), deliberately kept out of the critical section.
   const quote = await getDogeUsdtQuote(dogeAmount);
 
-  await db.$transaction(async (tx) => {
+  const outcome = await db.$transaction(async (tx) => {
+    await lockWalletForBalanceChange(tx, session.walletProfileId);
+
+    const availableDoge = await getLedgerBalance(tx, session.walletProfileId, BalanceType.AVAILABLE_DOGE);
+    if (availableDoge < dogeAmount) return { kind: "insufficient" as const };
+
     await tx.ledgerEntry.create({
       data: {
         walletProfileId: session.walletProfileId,
@@ -66,7 +68,12 @@ export async function POST(request: NextRequest) {
         reason: "doge_to_usdt_conversion",
       },
     });
+    return { kind: "converted" as const };
   });
+
+  if (outcome.kind === "insufficient") {
+    return NextResponse.json({ error: "Not enough Available DOGE." }, { status: 402 });
+  }
 
   return NextResponse.json(quote);
 }

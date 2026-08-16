@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 import { seededRandom, REFERRAL_L1_PCT, REFERRAL_L2_PCT } from "@/lib/game-config";
 import { BalanceType } from "@/generated/prisma/enums";
 import { EXAMPLE_NET_DOGE_PER_MHS_DAY, ACTIVATION_PRICE_USDT, DEFAULT_FLEET_CAPACITY_MHS } from "@/lib/mining-shared";
@@ -21,8 +22,13 @@ export { getFleetCapacityMhs } from "@/lib/mining-settings";
 // Total MH/s currently sold across every active contract, platform-
 // wide — the denominator for the sellable-capacity gate in
 // src/app/api/mining/purchase-power/route.ts.
-export async function totalActiveSoldMhs(): Promise<number> {
-  const sum = await db.miningContract.aggregate({
+// Optional tx client so /api/mining/purchase-power can re-check this
+// INSIDE its own locked transaction (see lockGlobalFleetCapacity's
+// doc-comment in src/lib/balances.ts) — a plain read outside a lock
+// let two concurrent purchases both see capacity for the same last
+// slot and both sell it, overselling verified capacity.
+export async function totalActiveSoldMhs(client: Prisma.TransactionClient | typeof db = db): Promise<number> {
+  const sum = await client.miningContract.aggregate({
     where: { active: true, expiresAt: { gt: new Date() } },
     _sum: { miningPower: true },
   });
@@ -34,8 +40,16 @@ export async function totalActiveSoldMhs(): Promise<number> {
 // — a ledger entry with this reason IS the activation record, same
 // "reconstruct from the ledger, never a mutable flag" pattern as
 // every balance in this app.
-export async function hasActivatedDashboard(walletProfileId: string): Promise<boolean> {
-  const entry = await db.ledgerEntry.findFirst({
+// Optional tx client so /api/mining/activate can re-check this INSIDE
+// its own locked transaction (a consistent view immediately before the
+// debit, closing a double-activation TOCTOU the same class as the
+// balance-check race elsewhere in the money path — see
+// lockWalletForBalanceChange's doc-comment in src/lib/balances.ts).
+export async function hasActivatedDashboard(
+  walletProfileId: string,
+  client: Prisma.TransactionClient | typeof db = db
+): Promise<boolean> {
+  const entry = await client.ledgerEntry.findFirst({
     where: { walletProfileId, reason: "rig_activation_fee" },
   });
   return entry !== null;

@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
+import { lockWalletForBalanceChange, getLedgerBalance } from "@/lib/balances";
+import { BalanceType } from "@/generated/prisma/enums";
 import {
   LOBBY_WAIT_SECONDS,
   checkPaidEligibility,
@@ -48,7 +50,19 @@ export async function POST(request: NextRequest) {
     roomCode = generateRoomCode();
   }
 
-  const lobby = await db.$transaction(async (tx) => {
+  // checkPaidEligibility above already did a first-pass balance check,
+  // but unlocked — re-checked here, after the lock, for the actual
+  // race-safe guard (two concurrent lobby-creation/join requests from
+  // the same wallet could otherwise both pass that first check and
+  // both hold an entry fee against one balance).
+  const outcome = await db.$transaction(async (tx) => {
+    await lockWalletForBalanceChange(tx, walletProfile.id);
+
+    if (entryFeeUsdt > 0) {
+      const playUsdt = await getLedgerBalance(tx, walletProfile.id, BalanceType.PLAY_USDT);
+      if (playUsdt < entryFeeUsdt) return { kind: "insufficient" as const };
+    }
+
     const created = await tx.gameLobby.create({
       data: {
         roomCode,
@@ -76,8 +90,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return created;
+    return { kind: "created" as const, lobby: created };
   });
 
-  return NextResponse.json(await serializeLobby(lobby.id, walletProfile.id));
+  if (outcome.kind === "insufficient") {
+    return NextResponse.json({ error: `You need at least ${entryFeeUsdt} USDT in your Deposit USDT to join this match.` }, { status: 402 });
+  }
+
+  return NextResponse.json(await serializeLobby(outcome.lobby.id, walletProfile.id));
 }

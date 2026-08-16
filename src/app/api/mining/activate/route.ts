@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { getWalletBalances } from "@/lib/balances";
+import { lockWalletForBalanceChange, getLedgerBalance } from "@/lib/balances";
 import { BalanceType } from "@/generated/prisma/enums";
 import { ACTIVATION_PRICE_USDT, MINING_FUNDING_SOURCES } from "@/lib/mining-shared";
 import { hasActivatedDashboard } from "@/lib/mining";
@@ -28,31 +28,46 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   const { source } = parsed.data;
 
+  // Cheap pre-check outside any lock, purely to fail fast for the
+  // common case — the real, race-safe check happens again inside the
+  // transaction below right before the debit.
   if (await hasActivatedDashboard(session.walletProfileId)) {
     return NextResponse.json({ error: "Mining dashboard already activated." }, { status: 409 });
   }
 
-  const balances = await getWalletBalances(session.walletProfileId);
-  const available =
-    source === "GAME_REWARD_USDT"
-      ? balances.gameRewardUsdt
-      : source === "REFERRAL_USDT"
-      ? balances.referralUsdt
-      : source === "PLAY_USDT"
-      ? balances.playUsdt
-      : balances.recycledUsdt;
-  if (available < ACTIVATION_PRICE_USDT) {
+  // This route previously had no transaction at all — a single bare
+  // ledgerEntry.create — which meant both the "already activated?"
+  // check above and any balance check were fully unguarded: two
+  // concurrent requests could both pass, both debit, and grant two
+  // activations for one fee (or one activation for an unaffordable
+  // balance). Now: lock first, then re-check both inside.
+  const outcome = await db.$transaction(async (tx) => {
+    await lockWalletForBalanceChange(tx, session.walletProfileId);
+
+    if (await hasActivatedDashboard(session.walletProfileId, tx)) {
+      return { kind: "already_activated" as const };
+    }
+
+    const available = await getLedgerBalance(tx, session.walletProfileId, source as BalanceType);
+    if (available < ACTIVATION_PRICE_USDT) return { kind: "insufficient" as const };
+
+    await tx.ledgerEntry.create({
+      data: {
+        walletProfileId: session.walletProfileId,
+        balanceType: source as BalanceType,
+        amount: -ACTIVATION_PRICE_USDT,
+        reason: "rig_activation_fee",
+      },
+    });
+    return { kind: "activated" as const };
+  });
+
+  if (outcome.kind === "already_activated") {
+    return NextResponse.json({ error: "Mining dashboard already activated." }, { status: 409 });
+  }
+  if (outcome.kind === "insufficient") {
     return NextResponse.json({ error: "Not enough balance for that source." }, { status: 402 });
   }
-
-  await db.ledgerEntry.create({
-    data: {
-      walletProfileId: session.walletProfileId,
-      balanceType: source as BalanceType,
-      amount: -ACTIVATION_PRICE_USDT,
-      reason: "rig_activation_fee",
-    },
-  });
 
   return NextResponse.json({ activated: true });
 }

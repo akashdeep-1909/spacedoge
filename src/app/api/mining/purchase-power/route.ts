@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { getWalletBalances } from "@/lib/balances";
+import { lockWalletForBalanceChange, lockGlobalFleetCapacity, getLedgerBalance } from "@/lib/balances";
 import { BalanceType } from "@/generated/prisma/enums";
 import {
   HASHRATE_PER_USDT,
@@ -52,43 +52,40 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const balances = await getWalletBalances(session.walletProfileId);
-  const available =
-    source === "GAME_REWARD_USDT"
-      ? balances.gameRewardUsdt
-      : source === "REFERRAL_USDT"
-      ? balances.referralUsdt
-      : source === "PLAY_USDT"
-      ? balances.playUsdt
-      : balances.recycledUsdt;
-  if (available < amountUsdt) {
-    return NextResponse.json({ error: "Not enough balance for that source." }, { status: 402 });
-  }
-
   const hashrateMhs = Math.round(amountUsdt * HASHRATE_PER_USDT * 1e4) / 1e4;
-
-  // Doc "Development acceptance criteria": "Hashrate may not be sold
-  // when available verified capacity is insufficient." Fleet capacity
-  // is now admin-configurable (MiningEconomicsConfig.fleetCapacityMhs,
-  // default 800,000, fully sellable) instead of the old static
-  // SELLABLE_CAPACITY_MHS=14,400 constant.
-  const [alreadySold, fleetCapacityMhs] = await Promise.all([totalActiveSoldMhs(), getFleetCapacityMhs()]);
-  if (alreadySold + hashrateMhs > fleetCapacityMhs) {
-    return NextResponse.json(
-      { error: "Not enough verified mining capacity available for that purchase right now." },
-      { status: 409 }
-    );
-  }
-
   const startsAt = new Date();
   const expiresAt = new Date(startsAt.getTime() + HASHRATE_TERM_DAYS * 24 * 60 * 60 * 1000);
 
+  // Two locks, fixed order (global class before wallet class — see the
+  // ordering rule in src/lib/balances.ts) since this is the one route
+  // that needs both: fleet capacity is a shared resource every
+  // purchase competes for, the wallet balance is per-user. Both the
+  // capacity check and the balance check used to run unlocked before
+  // this transaction even opened, which let concurrent purchases both
+  // see room for "the last slot" and both take it, overselling
+  // capacity — and separately let concurrent purchases from one wallet
+  // both pass the same pre-debit balance check.
+  //
   // Mining referral commission is NOT paid here on purchase — it's a
   // recurring daily carve-out of this contract's own electricity-cost
   // deduction instead, computed in src/lib/mining.ts settleEpochForDate
   // for as long as the contract stays active. See
   // src/lib/referrals.ts creditMiningReferralDoge's doc-comment.
-  const contract = await db.$transaction(async (tx) => {
+  const outcome = await db.$transaction(async (tx) => {
+    await lockGlobalFleetCapacity(tx);
+    await lockWalletForBalanceChange(tx, session.walletProfileId);
+
+    // Doc "Development acceptance criteria": "Hashrate may not be sold
+    // when available verified capacity is insufficient." Fleet
+    // capacity is admin-configurable (MiningEconomicsConfig.
+    // fleetCapacityMhs, default 800,000, fully sellable) instead of
+    // the old static SELLABLE_CAPACITY_MHS=14,400 constant.
+    const [alreadySold, fleetCapacityMhs] = await Promise.all([totalActiveSoldMhs(tx), getFleetCapacityMhs()]);
+    if (alreadySold + hashrateMhs > fleetCapacityMhs) return { kind: "no_capacity" as const };
+
+    const available = await getLedgerBalance(tx, session.walletProfileId, source as BalanceType);
+    if (available < amountUsdt) return { kind: "insufficient" as const };
+
     await tx.ledgerEntry.create({
       data: {
         walletProfileId: session.walletProfileId,
@@ -97,7 +94,7 @@ export async function POST(request: NextRequest) {
         reason: "mining_power_purchase",
       },
     });
-    return tx.miningContract.create({
+    const contract = await tx.miningContract.create({
       data: {
         walletProfileId: session.walletProfileId,
         level: levelForHashrate(hashrateMhs),
@@ -112,12 +109,23 @@ export async function POST(request: NextRequest) {
         targetRoiPct: Number(config.targetRoiPct),
       },
     });
+    return { kind: "purchased" as const, contract };
   });
 
+  if (outcome.kind === "no_capacity") {
+    return NextResponse.json(
+      { error: "Not enough verified mining capacity available for that purchase right now." },
+      { status: 409 }
+    );
+  }
+  if (outcome.kind === "insufficient") {
+    return NextResponse.json({ error: "Not enough balance for that source." }, { status: 402 });
+  }
+
   return NextResponse.json({
-    contractId: contract.id,
-    level: contract.level,
-    miningPower: Number(contract.miningPower),
-    expiresAt: contract.expiresAt,
+    contractId: outcome.contract.id,
+    level: outcome.contract.level,
+    miningPower: Number(outcome.contract.miningPower),
+    expiresAt: outcome.contract.expiresAt,
   });
 }

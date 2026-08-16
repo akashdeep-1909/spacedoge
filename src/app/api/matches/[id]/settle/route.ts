@@ -27,15 +27,33 @@ const bodySchema = z.object({
 
 const MIN_MATCH_SECONDS = 20; // anti-farming floor, mirrors the demo heuristic used elsewhere in this project
 
+// How much slack the plausibility ceiling gives a genuine client beyond
+// what the server itself can verify:
+//  - CLOCK_SKEW_GRACE_SEC covers a client Date.now() that runs a little
+//    fast relative to the server (used to compute startElapsedSec on
+//    the client, see src/app/dashboard/play/page.tsx).
+//  - DURATION_ROUNDING_GRACE_SEC covers Math.round() on the mission
+//    clock and the ~1-2s gap between "mission clock hits 0" and this
+//    request actually arriving.
+// Deliberately NOT applied to the MIN_MATCH_SECONDS floor check below —
+// see floorDurationSec's own comment for why that needs a looser bound.
+const CLOCK_SKEW_GRACE_SEC = 10;
+const DURATION_ROUNDING_GRACE_SEC = 2;
+
 // POST /api/matches/[id]/settle
 //
-// KNOWN GAP vs doc section 18.1: the human player's score is
+// KNOWN GAP vs doc section 18.1: the human player's score is still
 // client-reported here, not derived from a server-authoritative replay
-// of validated inputs. Bot scores ARE server-computed (deterministic,
-// seeded from mapSeed) so they can't be tampered with, and the
-// duration/plausibility checks below block the crudest score-editing.
-// This is NOT a substitute for the real-time authoritative server the
-// doc requires before real money is at stake.
+// of validated inputs — bot scores ARE server-computed (deterministic,
+// seeded from mapSeed) so they can't be tampered with, but a human's
+// own score can still be set to anything up to the plausibility
+// ceiling below. What CAN be, and is, fully server-verified is the
+// DURATION that ceiling is computed from (see effectiveDurationSec) —
+// durationPlayedSec used to be trusted as-is, which made the ceiling
+// self-referential (a forged duration validates a forged score against
+// itself). This is NOT a substitute for the real-time authoritative
+// server the doc requires before real money is at stake, but it closes
+// the unbounded-console-fetch version of the exploit.
 //
 // Instant play is ALWAYS exactly 1 human + 3 bots (no lobby involved).
 // For every paid mode, the solo-vs-bots anti-farming rule (rankBotMatch)
@@ -65,29 +83,17 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/matches
   );
   if (!me) return NextResponse.json({ error: "You are not a participant in this match" }, { status: 403 });
 
-  // Idempotent settlement — doc section 18.1 "unique room ID, nonce,
-  // result hash and idempotent settlement." A second call just returns
-  // the already-computed result instead of re-crediting anything.
-  const isKolBonus = match.mode === GameMode.KOL_REFERRAL_BONUS;
-
-  if (match.status !== "IN_MATCH") {
-    const already = await db.matchParticipant.findMany({
-      where: { matchId: match.id },
-      include: { walletProfile: true },
-      orderBy: { rank: "asc" },
-    });
-    return NextResponse.json({
-      matchId: match.id,
-      status: match.status,
-      rank: me.rank,
-      score: me.score,
-      rewardUsdt: Number(me.rewardUsdt),
-      alreadySettled: true,
-      participants: buildParticipantSummaries(already, session.walletProfileId, match.mapSeed),
-      pool: computePoolSummary(Number(match.entryFeeUsdt), Number(match.platformFeeUsdt), Number(match.prizePoolUsdt)),
-      kolBonus: isKolBonus ? await checkKolBonusEligibility(session.walletProfileId) : null,
-    });
+  // resultsDeadlineAt is set only for lobby-originated matches (see
+  // src/lib/lobby.ts finalizeLobby) — a lobby match participant must
+  // use .../results instead. Without this check, any participant in a
+  // multi-human room could call this single-shot route to stamp their
+  // own score onto every other human and credit them for a match they
+  // never submitted a result to.
+  if (match.resultsDeadlineAt !== null) {
+    return NextResponse.json({ error: "Use the multiplayer results endpoint for this match." }, { status: 409 });
   }
+
+  const isKolBonus = match.mode === GameMode.KOL_REFERRAL_BONUS;
 
   // The duration THIS match was actually created under — never a
   // possibly-changed current admin config (src/lib/gameModes.ts). Null
@@ -95,16 +101,48 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/matches
   const durationSec = match.durationSec ?? GAME_MODE_CONFIG[match.mode].durationSec;
   const isPractice = match.mode === GameMode.PRACTICE;
 
+  // Two different bounds on the same client-reported durationPlayedSec,
+  // because feeding the tight one into BOTH checks below would
+  // regress a legitimate case: src/components/game/CoinRushArena.tsx's
+  // finish() deliberately reports the full mission duration (not real
+  // elapsed time) when a match ends early via all-ships-down, so a
+  // genuine 15s death doesn't get wiped by MIN_MATCH_SECONDS. That
+  // report is bounded by the match's own clock, not by server
+  // wall-clock, so the floor check only needs the (still real, still
+  // server-verified-by-durationSec) mission-length bound —
+  // serverElapsedSec is what stops the actual exploit ("claim a huge
+  // duration to inflate the plausibility ceiling"), so only the
+  // ceiling calculation needs it.
+  const serverElapsedSec = (Date.now() - (match.startedAt ?? match.createdAt).getTime()) / 1000;
+  const effectiveDurationSec = Math.min(
+    durationPlayedSec,
+    serverElapsedSec + CLOCK_SKEW_GRACE_SEC,
+    durationSec + DURATION_ROUNDING_GRACE_SEC
+  );
+  const floorDurationSec = Math.min(durationPlayedSec, durationSec + DURATION_ROUNDING_GRACE_SEC);
+
   let finalScore = score;
   let blockedReason: string | null = null;
   if (!isPractice) {
-    const maxPossible = maxPlausibleScore(match.mode, durationPlayedSec);
-    if (durationPlayedSec < MIN_MATCH_SECONDS) blockedReason = "Match too short to qualify for rewards.";
+    const maxPossible = maxPlausibleScore(match.mode, effectiveDurationSec);
+    if (floorDurationSec < MIN_MATCH_SECONDS) blockedReason = "Match too short to qualify for rewards.";
     else if (score > maxPossible) blockedReason = "Score outside plausible range.";
     if (blockedReason) finalScore = 0;
   }
 
-  const settled = await db.$transaction(async (tx) => {
+  const outcome = await db.$transaction(async (tx) => {
+    // Claim the settle step — doc section 18.1 "unique room ID, nonce,
+    // result hash and idempotent settlement." Only one concurrent
+    // request can ever win this (IN_MATCH -> PROVISIONAL, same
+    // status-as-claim-guard pattern .../results/route.ts uses); a
+    // second, concurrent call sees claim.count === 0 and returns the
+    // already-computed result instead of re-crediting anything. Without
+    // this, two Promise.all'd requests both read status === "IN_MATCH"
+    // (the old check ran before this transaction even opened) and both
+    // ran the full settlement, double-crediting one entry fee.
+    const claim = await tx.match.updateMany({ where: { id: match.id, status: "IN_MATCH" }, data: { status: "PROVISIONAL" } });
+    if (claim.count === 0) return { kind: "already_claimed" as const };
+
     // Score every participant: the caller's reported (and possibly
     // zeroed) score, and deterministic bot scores.
     const scored = await Promise.all(
@@ -156,7 +194,12 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/matches
       for (const p of ranked) {
         await tx.matchParticipant.update({
           where: { id: p.id },
-          data: { rank: p.rank, score: p.score, rewardUsdt: p.id === me.id ? rewardUsdt : 0 },
+          data: {
+            rank: p.rank,
+            score: p.score,
+            rewardUsdt: p.id === me.id ? rewardUsdt : 0,
+            resultBlockedReason: p.id === me.id ? blockedReason : undefined,
+          },
         });
       }
       if (rewardPts > 0) {
@@ -176,6 +219,7 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/matches
         data: { status: rewardUsdt > 0 ? "SETTLED_WIN" : "SETTLED_LOSS", endedAt: new Date() },
       });
       return {
+        kind: "settled" as const,
         myRank,
         myReward: { rank: myRank, targetPts: 0, gameplayPts: finalScore, bonusPts: 0, rewardPts, rewardUsdt },
       };
@@ -214,7 +258,9 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/matches
         // here so the DB row (and everything read back from it after
         // this transaction) matches what's shown, not the pre-bump value
         // written during the scoring step above.
-        data: isPractice ? { rank: p.rank, score: p.score } : { rank: p.rank, rewardUsdt: displayRewardUsdt, score: p.score },
+        data: isPractice
+          ? { rank: p.rank, score: p.score }
+          : { rank: p.rank, rewardUsdt: displayRewardUsdt, score: p.score, resultBlockedReason: isMe ? blockedReason : undefined },
       });
 
       if (creditable && displayRewardUsdt > 0) {
@@ -263,8 +309,36 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/matches
       },
     });
 
-    return { myRank, myReward };
+    return { kind: "settled" as const, myRank, myReward };
   });
+
+  // A concurrent request already won the claim (see the updateMany
+  // above) — re-read the now-settled state fresh from the DB (not the
+  // possibly-stale `match`/`me` fetched at the top of this request) and
+  // return the same shape a genuinely-late "already settled" call
+  // always has, instead of crediting anything a second time.
+  if (outcome.kind === "already_claimed") {
+    const [freshMatch, freshMe, already] = await Promise.all([
+      db.match.findUniqueOrThrow({ where: { id: match.id } }),
+      db.matchParticipant.findUniqueOrThrow({ where: { id: me.id } }),
+      db.matchParticipant.findMany({
+        where: { matchId: match.id },
+        include: { walletProfile: true },
+        orderBy: { rank: "asc" },
+      }),
+    ]);
+    return NextResponse.json({
+      matchId: match.id,
+      status: freshMatch.status,
+      rank: freshMe.rank,
+      score: freshMe.score,
+      rewardUsdt: Number(freshMe.rewardUsdt),
+      alreadySettled: true,
+      participants: buildParticipantSummaries(already, session.walletProfileId, match.mapSeed),
+      pool: computePoolSummary(Number(freshMatch.entryFeeUsdt), Number(freshMatch.platformFeeUsdt), Number(freshMatch.prizePoolUsdt)),
+      kolBonus: isKolBonus ? await checkKolBonusEligibility(session.walletProfileId) : null,
+    });
+  }
 
   const finalParticipants = await db.matchParticipant.findMany({
     where: { matchId: match.id },
@@ -275,10 +349,10 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/matches
   return NextResponse.json({
     matchId: match.id,
     mode: match.mode,
-    rank: settled.myRank,
+    rank: outcome.myRank,
     score: finalScore,
-    rewardUsdt: settled.myReward.rewardUsdt,
-    bonusPts: settled.myReward.bonusPts,
+    rewardUsdt: outcome.myReward.rewardUsdt,
+    bonusPts: outcome.myReward.bonusPts,
     blockedReason,
     isPractice,
     participants: buildParticipantSummaries(finalParticipants, session.walletProfileId, match.mapSeed),

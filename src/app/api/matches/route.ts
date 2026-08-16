@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { GameMode, BalanceType } from "@/generated/prisma/enums";
 import { getGameModeConfig, computeRoomEconomicsFromConfig, checkPromoEligibility } from "@/lib/gameModes";
-import { getWalletBalances } from "@/lib/balances";
+import { lockWalletForBalanceChange, getLedgerBalance } from "@/lib/balances";
 import { distributeEntryFeeToTreasuryAndReferrals, checkKolBonusEligibility } from "@/lib/referrals";
 
 const bodySchema = z.object({
@@ -76,13 +76,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  if (econ.entryFeeUsdt > 0) {
-    const balances = await getWalletBalances(session.walletProfileId);
-    if (balances.playUsdt < econ.entryFeeUsdt) {
-      return NextResponse.json({ error: "Not enough Deposit USDT." }, { status: 402 });
-    }
-  }
-
   // Activity-eligibility gate (admin-configured, e.g. Sponsored Drop
   // needs 20+ plays in the last 24h) — checked independently of, and
   // in addition to, the re-entry cooldown below. See src/lib/gameModes.ts.
@@ -114,7 +107,22 @@ export async function POST(request: NextRequest) {
 
   const mapSeed = randomUUID();
 
-  const match = await db.$transaction(async (tx) => {
+  // Lock the entering human only — bot profile upserts and the
+  // referral/treasury distribution below are unconditional
+  // creates/credits with no availability check of their own, so
+  // there's nothing else in this transaction to race (see the
+  // ordering rule in src/lib/balances.ts). The balance check used to
+  // run before this transaction even opened — moved inside, right
+  // after the lock, so two concurrent match-creation requests can't
+  // both read the same pre-debit Play USDT balance.
+  const outcome = await db.$transaction(async (tx) => {
+    await lockWalletForBalanceChange(tx, walletProfile.id);
+
+    if (econ.entryFeeUsdt > 0) {
+      const playUsdt = await getLedgerBalance(tx, walletProfile.id, BalanceType.PLAY_USDT);
+      if (playUsdt < econ.entryFeeUsdt) return { kind: "insufficient" as const };
+    }
+
     const created = await tx.match.create({
       data: {
         mode,
@@ -172,12 +180,16 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return created;
+    return { kind: "created" as const, match: created };
   });
 
+  if (outcome.kind === "insufficient") {
+    return NextResponse.json({ error: "Not enough Deposit USDT." }, { status: 402 });
+  }
+
   return NextResponse.json({
-    matchId: match.id,
-    mapSeed: match.mapSeed,
+    matchId: outcome.match.id,
+    mapSeed: outcome.match.mapSeed,
     mode,
     durationSec: econ.durationSec,
     entryFeeUsdt: econ.entryFeeUsdt,

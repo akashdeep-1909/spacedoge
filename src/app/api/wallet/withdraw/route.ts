@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { getWalletBalances } from "@/lib/balances";
+import { tryLockWalletForBalanceChange, getLedgerBalance } from "@/lib/balances";
 import { isValidAddressForRegex } from "@/lib/withdrawals";
 import { getMinUsdtWithdrawal, getMinDogeWithdrawal, getWithdrawChainConfig } from "@/lib/settings";
 import { BalanceType } from "@/generated/prisma/enums";
@@ -79,20 +79,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `That doesn't look like a valid ${chainConfig.label} address.` }, { status: 400 });
   }
 
-  const balances = await getWalletBalances(session.walletProfileId);
-  const available =
-    source === "RECYCLED_USDT"
-      ? balances.recycledUsdt
-      : source === "REFERRAL_USDT"
-        ? balances.referralUsdt
-        : source === "GAME_REWARD_USDT"
-          ? balances.gameRewardUsdt
-          : balances.availableDoge;
-  if (available < amount) {
-    return NextResponse.json({ error: "Not enough balance for that withdrawal." }, { status: 402 });
-  }
+  // Try-lock, not the blocking variant — this is the endpoint the
+  // original race was demonstrated against (N parallel requests
+  // against one wallet), so queuing behind a held lock for Prisma's
+  // transaction timeout is worse than just failing fast and asking the
+  // client to retry. Balance check moved inside the lock (was
+  // previously read before the transaction even opened, which is
+  // exactly what let concurrent requests all see the same pre-debit
+  // balance).
+  const outcome = await db.$transaction(async (tx) => {
+    const locked = await tryLockWalletForBalanceChange(tx, session.walletProfileId);
+    if (!locked) return { kind: "locked" as const };
 
-  const withdrawal = await db.$transaction(async (tx) => {
+    const available = await getLedgerBalance(tx, session.walletProfileId, source as BalanceType);
+    if (available < amount) return { kind: "insufficient" as const };
+
     const created = await tx.withdrawal.create({
       data: {
         walletProfileId: session.walletProfileId,
@@ -113,15 +114,22 @@ export async function POST(request: NextRequest) {
         refId: created.id,
       },
     });
-    return created;
+    return { kind: "created" as const, withdrawal: created };
   });
 
+  if (outcome.kind === "locked") {
+    return NextResponse.json({ error: "Another balance operation is already in progress — please try again." }, { status: 409 });
+  }
+  if (outcome.kind === "insufficient") {
+    return NextResponse.json({ error: "Not enough balance for that withdrawal." }, { status: 402 });
+  }
+
   return NextResponse.json({
-    id: withdrawal.id,
+    id: outcome.withdrawal.id,
     source,
     amount,
-    status: withdrawal.status,
-    destination: withdrawal.destinationAddress,
-    chain: withdrawal.chain,
+    status: outcome.withdrawal.status,
+    destination: outcome.withdrawal.destinationAddress,
+    chain: outcome.withdrawal.chain,
   });
 }

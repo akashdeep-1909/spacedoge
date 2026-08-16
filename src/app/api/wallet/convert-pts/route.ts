@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { getWalletBalances } from "@/lib/balances";
+import { lockWalletForBalanceChange, getLedgerBalance } from "@/lib/balances";
 import { BalanceType } from "@/generated/prisma/enums";
 import { PTS_TO_USDT_RATE, MIN_PTS_CONVERSION } from "@/lib/game-config";
 
@@ -30,14 +30,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const balances = await getWalletBalances(session.walletProfileId);
-  if (balances.pts < ptsAmount) {
-    return NextResponse.json({ error: "Not enough PTS." }, { status: 402 });
-  }
-
   const usdtAmount = Math.round(ptsAmount * PTS_TO_USDT_RATE * 1e8) / 1e8;
 
-  await db.$transaction(async (tx) => {
+  const outcome = await db.$transaction(async (tx) => {
+    await lockWalletForBalanceChange(tx, session.walletProfileId);
+
+    const pts = await getLedgerBalance(tx, session.walletProfileId, BalanceType.PTS);
+    if (pts < ptsAmount) return { kind: "insufficient" as const };
+
     await tx.ledgerEntry.create({
       data: {
         walletProfileId: session.walletProfileId,
@@ -54,7 +54,12 @@ export async function POST(request: NextRequest) {
         reason: "pts_to_gamereward_conversion",
       },
     });
+    return { kind: "converted" as const };
   });
+
+  if (outcome.kind === "insufficient") {
+    return NextResponse.json({ error: "Not enough PTS." }, { status: 402 });
+  }
 
   return NextResponse.json({ ptsAmount, usdtAmount, rate: PTS_TO_USDT_RATE });
 }

@@ -28,6 +28,11 @@ const bodySchema = z.object({
 // go stale relative to settle/route.ts's.
 const MIN_MATCH_SECONDS = 20;
 
+// Same grace constants, same reasoning, as settle/route.ts — see that
+// file's doc-comment above these two constants for the full rationale.
+const CLOCK_SKEW_GRACE_SEC = 10;
+const DURATION_ROUNDING_GRACE_SEC = 2;
+
 // POST /api/matches/[id]/results — multi-human result submission for
 // lobby-originated matches (see src/lib/lobby.ts finalizeLobby()).
 // src/app/api/matches/[id]/settle/route.ts stays the single-shot path
@@ -68,6 +73,32 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const me = match.participants.find((p) => p.walletProfileId === session.walletProfileId && !p.isBot);
     if (!me) return { kind: "forbidden" as const };
 
+    // resultsDeadlineAt is set only for lobby-originated matches (see
+    // src/lib/lobby.ts finalizeLobby) — an instant-play match (always
+    // exactly 1 human) must use .../settle instead, which applies its
+    // own solo-vs-bots anti-farming cap that this route's no-bot branch
+    // doesn't have.
+    if (match.resultsDeadlineAt === null) {
+      return { kind: "invalid_status" as const, status: match.status };
+    }
+
+    // The duration THIS match was actually created under (lobby-
+    // originated matches always have it set, see src/lib/lobby.ts
+    // finalizeLobby) — never a possibly-changed current admin config.
+    const durationSec = match.durationSec ?? GAME_MODE_CONFIG[match.mode].durationSec;
+    // Two different bounds on the same client-reported durationPlayedSec
+    // — see settle/route.ts's identical constants/comment for the full
+    // rationale (a genuine early-finish report must only ever be capped
+    // by the mission clock, not by server wall-clock, or a legitimate
+    // no-show-adjacent score gets wrongly zeroed by MIN_MATCH_SECONDS).
+    const serverElapsedSec = (Date.now() - (match.startedAt ?? match.createdAt).getTime()) / 1000;
+    const effectiveDurationSec = Math.min(
+      durationPlayedSec,
+      serverElapsedSec + CLOCK_SKEW_GRACE_SEC,
+      durationSec + DURATION_ROUNDING_GRACE_SEC
+    );
+    const floorDurationSec = Math.min(durationPlayedSec, durationSec + DURATION_ROUNDING_GRACE_SEC);
+
     if (match.status === "SETTLED") {
       const mine = await tx.matchParticipant.findUniqueOrThrow({ where: { id: me.id } });
       const all = await tx.matchParticipant.findMany({
@@ -75,7 +106,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         include: { walletProfile: true },
         orderBy: { rank: "asc" },
       });
-      return { kind: "settled" as const, participant: mine, all, match, blockedReason: null };
+      return { kind: "settled" as const, participant: mine, all, match, blockedReason: mine.resultBlockedReason };
     }
     if (match.status !== "IN_MATCH") {
       return { kind: "invalid_status" as const, status: match.status };
@@ -83,8 +114,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     let blockedReason: string | null = null;
     if (!me.resultSubmittedAt) {
-      const maxPossible = maxPlausibleScore(match.mode, durationPlayedSec);
-      if (durationPlayedSec < MIN_MATCH_SECONDS) blockedReason = "Match too short to qualify for rewards.";
+      const maxPossible = maxPlausibleScore(match.mode, effectiveDurationSec);
+      if (floorDurationSec < MIN_MATCH_SECONDS) blockedReason = "Match too short to qualify for rewards.";
       else if (score > maxPossible) blockedReason = "Score outside plausible range.";
       const scoreToStore = blockedReason ? 0 : score;
       await tx.matchParticipant.update({
@@ -97,13 +128,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const humans = refreshed.filter((p) => !p.isBot);
     const allSubmitted = humans.every((p) => p.resultSubmittedAt !== null);
     const deadlinePassed = match.resultsDeadlineAt ? Date.now() >= match.resultsDeadlineAt.getTime() : false;
+    // Read off the freshly-refetched row (not the local `blockedReason`
+    // var, which is only set on the specific request that performed
+    // this participant's own first submission) so a "still waiting on
+    // others" poll after that keeps showing why a blocked score scored 0.
+    const myBlockedReason = refreshed.find((p) => p.id === me.id)?.resultBlockedReason ?? null;
 
     if (!allSubmitted && !deadlinePassed) {
       return {
         kind: "waiting" as const,
         submitted: humans.filter((p) => p.resultSubmittedAt !== null).length,
         total: humans.length,
-        blockedReason,
+        blockedReason: myBlockedReason,
       };
     }
 
@@ -114,14 +150,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         kind: "waiting" as const,
         submitted: humans.filter((p) => p.resultSubmittedAt !== null).length,
         total: humans.length,
-        blockedReason,
+        blockedReason: myBlockedReason,
       };
     }
 
-    // The duration THIS match was actually created under (lobby-
-    // originated matches always have it set, see src/lib/lobby.ts
-    // finalizeLobby) — never a possibly-changed current admin config.
-    const durationSec = match.durationSec ?? GAME_MODE_CONFIG[match.mode].durationSec;
+    // durationSec was already computed above (needed there for the
+    // plausibility clamp) — reused here for bot scoring.
     const scoredParticipants = await Promise.all(
       refreshed.map(async (p) => {
         if (p.isBot) {
@@ -246,7 +280,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         score: outcome.participant.score,
         rewardUsdt,
         bonusPts: Math.max(0, rewardPts - outcome.participant.score),
-        blockedReason: outcome.blockedReason,
+        // Read off the freshly-refetched participant row, not the local
+        // `blockedReason` closure var — that var is only ever set on the
+        // specific request that performed THIS participant's own first
+        // submission, so a later poll that merely observes finalization
+        // (everyone else has now submitted) would otherwise silently
+        // report null even for a participant whose own score really was
+        // blocked earlier in the match.
+        blockedReason: outcome.participant.resultBlockedReason,
         pool: computePoolSummary(
           Number(outcome.match.entryFeeUsdt),
           Number(outcome.match.platformFeeUsdt),
