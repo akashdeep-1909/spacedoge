@@ -185,7 +185,7 @@ function DepositsSection({ data }: { data: AdminOverview }) {
       <div className="game-panel hud-corner mt-3 rounded-2xl p-4">
         <div className="h-56">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data.deposits.series} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <AreaChart data={data.deposits.series} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} accessibilityLayer={false}>
               <CartesianGrid stroke={CHART.grid} vertical={false} />
               <XAxis dataKey="date" tickFormatter={fmtDate} stroke={CHART.muted} fontSize={11} tickLine={false} axisLine={{ stroke: CHART.grid }} />
               <YAxis stroke={CHART.muted} fontSize={11} tickLine={false} axisLine={false} tickFormatter={fmtUsdtShort} width={48} />
@@ -282,7 +282,7 @@ function WithdrawalsSection({ data }: { data: AdminOverview }) {
       <div className="game-panel hud-corner mt-3 rounded-2xl p-4">
         <div className="h-56">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data.withdrawals.series} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <AreaChart data={data.withdrawals.series} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} accessibilityLayer={false}>
               <CartesianGrid stroke={CHART.grid} vertical={false} />
               <XAxis dataKey="date" tickFormatter={fmtDate} stroke={CHART.muted} fontSize={11} tickLine={false} axisLine={{ stroke: CHART.grid }} />
               <YAxis stroke={CHART.muted} fontSize={11} tickLine={false} axisLine={false} tickFormatter={fmtUsdtShort} width={48} />

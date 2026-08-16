@@ -425,6 +425,7 @@ function MiningContent() {
                     },
                   ]}
                   margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
+                  accessibilityLayer={false}
                 >
                   <CartesianGrid stroke={CHART.grid} vertical={false} />
                   <XAxis
@@ -671,7 +672,7 @@ function MiningContent() {
               <p className="text-[10px] font-bold uppercase tracking-widest text-mint">{t("mining.dogeAllocatedPerEpochLabel")}</p>
               <div className="mt-3 h-48">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={allocationSeries} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  <AreaChart data={allocationSeries} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} accessibilityLayer={false}>
                     <CartesianGrid stroke={CHART.grid} vertical={false} />
                     <XAxis dataKey="date" stroke={CHART.muted} fontSize={11} tickLine={false} axisLine={{ stroke: CHART.grid }} />
                     <Tooltip
@@ -698,7 +699,7 @@ function MiningContent() {
               </p>
               <div className="mt-3 h-48">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={allocationSeries} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  <BarChart data={allocationSeries} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} accessibilityLayer={false}>
                     <CartesianGrid stroke={CHART.grid} vertical={false} />
                     <XAxis dataKey="date" stroke={CHART.muted} fontSize={11} tickLine={false} axisLine={{ stroke: CHART.grid }} />
                     <Tooltip

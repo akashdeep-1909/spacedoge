@@ -520,7 +520,7 @@ export function PoolExplorer({
             ) : (
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} accessibilityLayer={false}>
                     <defs>
                       <linearGradient id="poolHashrateFill" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={CHART.mint} stopOpacity={0.45} />
@@ -573,7 +573,7 @@ export function PoolExplorer({
             ) : (
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  <BarChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} accessibilityLayer={false}>
                     <CartesianGrid stroke={CHART.grid} vertical={false} />
                     <XAxis
                       dataKey="epochDateIso"
@@ -663,7 +663,7 @@ export function PoolExplorer({
               ) : (
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={hashrateSeries} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                    <AreaChart data={hashrateSeries} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} accessibilityLayer={false}>
                       <defs>
                         <linearGradient id="liveFleetFill" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor={CHART.mint} stopOpacity={0.4} />

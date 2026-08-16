@@ -405,6 +405,23 @@ body {
 .ld-faq-panel.open { grid-template-rows: 1fr; }
 .ld-faq-panel > div { overflow: hidden; }
 
+/* Recharts (v3) renders every chart with a transparent, focusable
+   "accessibility layer" rect over the plot area by default, so a
+   keyboard user can Tab into the chart and arrow-key between data
+   points — but clicking (or tapping) the chart focuses that same rect,
+   and the browser's default focus ring then draws as a stark
+   rectangle boxing in the whole plot area. Every chart in this app
+   sets accessibilityLayer={false} (the supported way to opt out of
+   the rect existing at all, since these are decorative dashboard
+   charts, not keyboard-navigable widgets), which also removes it from
+   the tab order — this rule is just the belt-and-suspenders fallback
+   for any chart added later without that prop. */
+.recharts-wrapper:focus,
+.recharts-surface:focus,
+.recharts-wrapper *:focus {
+  outline: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ld-aurora span,
   [style*="ld-orbit-spin"] { animation: none !important; }
