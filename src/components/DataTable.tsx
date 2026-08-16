@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { Inbox } from "lucide-react";
 import { usePagination } from "@/lib/usePagination";
 import { PaginationControls } from "@/components/PaginationControls";
 
@@ -28,7 +29,12 @@ export function DataTable({
   const { pageItems, page, pageCount, setPage, start, pageSize: effectivePageSize, total } = usePagination(rows, pageSize);
 
   if (rows.length === 0) {
-    return <p className="text-sm text-muted">{empty}</p>;
+    return (
+      <div className="game-panel hud-corner flex flex-col items-center gap-2 rounded-2xl p-8 text-center">
+        <Inbox size={22} className="text-muted" strokeWidth={1.5} />
+        <p className="text-sm text-muted">{empty}</p>
+      </div>
+    );
   }
 
   return (
