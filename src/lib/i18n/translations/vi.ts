@@ -39,8 +39,9 @@ const vi = {
   },
   landing: {
     tagline: "Chơi. Đào. Kiếm tiền.",
-    heroTitle: "Chào mừng đến với Space DOGE. Mỗi chiến thắng Coin Rush đều tiếp sức cho sức mạnh khai thác thật.",
-    heroSubtitle: "Kết nối ví và lao thẳng vào hành động, trận đấu thật, phần thưởng thật, và sức mạnh khai thác tăng lên theo từng chiến thắng. Không bao giờ cần email, không bao giờ cần mật khẩu.",
+    heroTitleLine1: "Thắng Coin Rush.",
+    heroTitleLine2: "Tiếp Sức Khai Thác Thật.",
+    heroSubtitle: "Kết nối ví, lao thẳng vào các trận đấu thật, và sức mạnh khai thác tăng theo từng chiến thắng, không bao giờ cần email, không bao giờ cần mật khẩu.",
     walletOnlyBadge: "Chỉ truy cập bằng ví, không cần email hay mật khẩu",
     outputHeading: "Sản Lượng Khai Thác Đã Xác Minh",
     miningProofTooltip: "Sản lượng khai thác trong quá khứ không đảm bảo kết quả trong tương lai. Đăng nhập để xem phân bổ theo tỷ lệ của bạn và ước tính sản lượng trực tiếp, chưa quyết toán của hôm nay.",

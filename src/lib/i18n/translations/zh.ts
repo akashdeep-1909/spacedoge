@@ -39,8 +39,9 @@ const zh = {
   },
   landing: {
     tagline: "玩游戏。挖矿。赚收益。",
-    heroTitle: "欢迎来到 Space DOGE。每一次 Coin Rush 胜利都将转化为真实的挖矿算力。",
-    heroSubtitle: "连接钱包，直接投入战斗，，真实对局、真实奖励，挖矿算力随每一次胜利不断增长。永远无需邮箱，无需密码。",
+    heroTitleLine1: "赢下 Coin Rush。",
+    heroTitleLine2: "引爆真实挖矿算力。",
+    heroSubtitle: "连接钱包，直接投入真实对局，让挖矿算力随每一次胜利增长，永远无需邮箱，无需密码。",
     walletOnlyBadge: "仅限钱包访问，，无需邮箱或密码",
     outputHeading: "已验证挖矿产出",
     miningProofTooltip: "历史挖矿产出不保证未来结果。登录后可查看你的比例分配和今日实时、尚未结算的产出预估。",

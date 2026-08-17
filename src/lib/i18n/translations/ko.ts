@@ -39,8 +39,9 @@ const ko = {
   },
   landing: {
     tagline: "플레이하세요. 채굴하세요. 수익을 얻으세요.",
-    heroTitle: "Space DOGE에 오신 것을 환영합니다. Coin Rush에서 승리할 때마다 진짜 채굴 파워로 이어집니다.",
-    heroSubtitle: "지갑을 연결하고 바로 액션 속으로 뛰어드세요, 진짜 매치, 진짜 보상, 그리고 승리할 때마다 성장하는 채굴 파워. 이메일도, 비밀번호도 절대 필요 없습니다.",
+    heroTitleLine1: "Coin Rush에서 승리하세요.",
+    heroTitleLine2: "진짜 채굴 파워를 얻으세요.",
+    heroSubtitle: "지갑을 연결하고 진짜 매치에 바로 뛰어들어, 승리할 때마다 채굴 파워를 키우세요. 이메일도, 비밀번호도 절대 필요 없습니다.",
     walletOnlyBadge: "지갑만으로 접속, 이메일이나 비밀번호 불필요",
     outputHeading: "검증된 채굴 산출량",
     miningProofTooltip: "과거 채굴 산출량은 향후 결과를 보장하지 않습니다. 로그인하여 비례 배분과 오늘의 실시간, 아직 정산되지 않은 산출량 추정치를 확인하세요.",

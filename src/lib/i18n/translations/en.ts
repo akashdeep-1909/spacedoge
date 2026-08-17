@@ -214,8 +214,9 @@ const en = {
   },
   landing: {
     tagline: "Play. Mine. Earn.",
-    heroTitle: "Welcome to Space DOGE. Every Coin Rush Win Fuels Real Mining Power.",
-    heroSubtitle: "Connect your wallet and dive straight into the action, real matches, real rewards, and mining power that grows with every win. No email, no password, ever.",
+    heroTitleLine1: "Win Coin Rush.",
+    heroTitleLine2: "Fuel Real Mining Power.",
+    heroSubtitle: "Connect your wallet, jump into real matches, and grow real mining power with every win — no email, no password, ever.",
     walletOnlyBadge: "Wallet-only access, no email or password",
     outputHeading: "Verified Mining Output",
     miningProofTooltip: "Historical mining output does not guarantee future results. Sign in to view your proportional allocation and today's live, unsettled output estimate.",

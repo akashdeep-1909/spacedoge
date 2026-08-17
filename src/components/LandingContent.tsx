@@ -148,13 +148,32 @@ export function LandingContent({ mining, platformStats }: { mining: MiningStats;
               >
                 {t("landing.heroEyebrow")}
               </motion.span>
+              {/* Two short lines instead of the old single four-line
+                  paragraph ("Welcome to Space DOGE. Every Coin Rush Win
+                  Fuels Real Mining Power.") — confirmed live as reading
+                  like a wall of plain white text with no real focal
+                  point, especially on a phone width where it wrapped
+                  across most of the screen. Dropped "Welcome to Space
+                  DOGE" specifically: the header's own logo+wordmark is
+                  already on screen one line above this, so restating
+                  the brand name here was pure redundancy competing with
+                  the actual value proposition for the reader's first
+                  glance. Second line picks up CoinRushContent.tsx's own
+                  text-gold + text-glow-gold treatment (this page's hero
+                  previously had the glow but not the actual gold color,
+                  landing flat/white next to that page's punchier
+                  version of the same pattern) — kept on only the payoff
+                  line, not both, so it reads as a two-beat setup/payoff
+                  instead of one uniform gold block. */}
               <motion.h2
                 initial={{ clipPath: "inset(0 100% 0 0)", opacity: 0 }}
                 animate={{ clipPath: "inset(0 0% 0 0)", opacity: 1 }}
                 transition={{ duration: reduceMotion ? 0.2 : 0.9, delay: 0.1, ease: EASE }}
-                className="text-glow-gold text-balance max-w-[600px] text-[clamp(1.875rem,4vw,3.25rem)] font-extrabold leading-[1.08] tracking-[-0.03em]"
+                className="text-balance max-w-[600px] text-[clamp(1.875rem,4vw,3.25rem)] font-extrabold leading-[1.08] tracking-[-0.03em]"
               >
-                {t("landing.heroTitle")}
+                {t("landing.heroTitleLine1")}
+                <br />
+                <span className="text-glow-gold text-gold">{t("landing.heroTitleLine2")}</span>
               </motion.h2>
               <motion.p
                 initial={{ opacity: 0, y: 14 }}

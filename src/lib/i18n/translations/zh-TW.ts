@@ -39,8 +39,9 @@ const zhTW = {
   },
   landing: {
     tagline: "玩遊戲。挖礦。賺收益。",
-    heroTitle: "歡迎來到 Space DOGE。每一次 Coin Rush 勝利都將轉化為真實的挖礦算力。",
-    heroSubtitle: "連接錢包，直接投入戰鬥，，真實對局、真實獎勵，挖礦算力隨每一次勝利不斷增長。永遠無需電子郵件，無需密碼。",
+    heroTitleLine1: "贏下 Coin Rush。",
+    heroTitleLine2: "引爆真實挖礦算力。",
+    heroSubtitle: "連接錢包，直接投入真實對局，讓挖礦算力隨每一次勝利增長，永遠無需電子郵件，無需密碼。",
     walletOnlyBadge: "僅限錢包存取，，無需電子郵件或密碼",
     outputHeading: "已驗證挖礦產出",
     miningProofTooltip: "歷史挖礦產出不保證未來結果。登入後可查看您的比例分配和今日即時、尚未結算的產出預估。",

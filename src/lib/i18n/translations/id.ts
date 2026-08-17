@@ -39,8 +39,9 @@ const id = {
   },
   landing: {
     tagline: "Main. Tambang. Hasilkan.",
-    heroTitle: "Selamat datang di Space DOGE. Setiap kemenangan Coin Rush memicu daya tambang yang nyata.",
-    heroSubtitle: "Hubungkan dompet Anda dan langsung terjun ke aksi, pertandingan nyata, hadiah nyata, dan daya tambang yang terus tumbuh di setiap kemenangan. Tanpa email, tanpa kata sandi, selamanya.",
+    heroTitleLine1: "Menangkan Coin Rush.",
+    heroTitleLine2: "Picu Daya Tambang Nyata.",
+    heroSubtitle: "Hubungkan dompet Anda, langsung terjun ke pertandingan nyata, dan tumbuhkan daya tambang di setiap kemenangan, tanpa email, tanpa kata sandi, selamanya.",
     walletOnlyBadge: "Akses hanya dengan dompet, tanpa email atau kata sandi",
     outputHeading: "Output Penambangan Terverifikasi",
     miningProofTooltip: "Output penambangan historis tidak menjamin hasil di masa depan. Masuk untuk melihat alokasi proporsional Anda dan estimasi output langsung yang belum diselesaikan hari ini.",

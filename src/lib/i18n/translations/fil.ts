@@ -39,8 +39,9 @@ const fil = {
   },
   landing: {
     tagline: "Maglaro. Mag-mine. Kumita.",
-    heroTitle: "Maligayang pagdating sa Space DOGE. Bawat panalo sa Coin Rush ay nagpapalakas ng tunay na mining power.",
-    heroSubtitle: "I-connect ang wallet mo at diretsong sumabak sa aksyon, tunay na laban, tunay na gantimpala, at mining power na lumalaki sa bawat panalo. Walang email, walang password, kailanman.",
+    heroTitleLine1: "Manalo sa Coin Rush.",
+    heroTitleLine2: "Palakasin ang Tunay na Mining Power.",
+    heroSubtitle: "I-connect ang wallet mo, sumabak sa tunay na laban, at palaguin ang mining power sa bawat panalo, walang email, walang password, kailanman.",
     walletOnlyBadge: "Wallet lang ang kailangan, walang email o password",
     outputHeading: "Na-verify na Mining Output",
     miningProofTooltip: "Ang nakaraang mining output ay hindi ginagarantiyahan ang mga resulta sa hinaharap. Mag-sign in para makita ang proporsyonal mong allocation at ang live, hindi pa na-settle na estimate ng output ngayong araw.",
