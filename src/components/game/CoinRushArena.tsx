@@ -315,6 +315,18 @@ export function CoinRushArena({
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
+  // Same ref-mirror pattern as onCompleteRef/liveOpponentsRef above —
+  // the canvas nameplate label (drawn inside the setup effect's own
+  // closure below, which intentionally does NOT depend on `t`: adding
+  // it would re-run the whole match setup, resetting an in-progress
+  // run, every time this even re-renders) still needs the CURRENT
+  // translation function, not whatever it captured once at mount, in
+  // case the player switches language mid-match.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
+
   // Polled every ~350ms (see useLiveMatchState) — mirrored into a ref,
   // not read directly from the prop, so the setup effect below (whose
   // closure drives the whole game loop) doesn't need this in its
@@ -1357,7 +1369,13 @@ export function CoinRushArena({
         ctx!.fillStyle = s.color;
         ctx!.font = `700 ${8 * DPR}px Inter, Arial`;
         ctx!.textAlign = "center";
-        ctx!.fillText(s.isYou ? "YOU" : s.name, s.x, s.y - 18 * DPR);
+        // Same key the leaderboard HUD already uses for this exact
+        // label (t("gameArena.youLeaderboardLabel")) — this canvas
+        // nameplate above your own ship was left hardcoded to the raw
+        // English "YOU" even after that one got translated, so a
+        // non-English player saw the leaderboard sidebar correctly
+        // translated but their own in-flight ship still labeled "YOU".
+        ctx!.fillText(s.isYou ? tRef.current("gameArena.youLeaderboardLabel") : s.name, s.x, s.y - 18 * DPR);
         if (s.isYou && (s.shield > 0 || s.magnet > 0)) {
           ctx!.save();
           ctx!.strokeStyle = s.shield > 0 ? "#33f2a4" : "#ff4fd8";
