@@ -7,6 +7,7 @@ import { ShieldCheck, Landmark, Fingerprint, ChevronDown } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { DogeIcon } from "@/components/icons/CoinIcons";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
+import { GatedLink } from "@/components/GatedLink";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { SocialLinks } from "@/components/SocialLinks";
@@ -306,7 +307,33 @@ export function PoolExplorer({
               <p className="text-[11px] text-muted">{t("pool.headerTagline")}</p>
             </div>
           </Link>
-          <div className="flex shrink-0 items-center gap-2">
+          {/* min-w-0 + overflow-x-auto is the same safety net
+              DashboardChrome.tsx's own header uses on its equivalent
+              right-hand cluster — scrolls instead of silently clipping
+              past the viewport edge if it doesn't fully fit a narrow
+              phone width, rather than making any one item (like the
+              new Dashboard link below) invisible instead of just
+              reachable a different way. */}
+          <div className="flex min-w-0 shrink items-center gap-2 overflow-x-auto">
+            {/* This page (unlike the marketing pages SiteHeader.tsx
+                serves) is reached FROM inside the dashboard itself —
+                every nav surface there (MobileNav, DesktopMoreNav,
+                BottomTabBar's own overflow) lists /pool as a regular
+                destination — so a signed-in visitor lands here
+                expecting a way straight back, not just the logo's
+                link to the public homepage. Confirmed live as a real
+                gap, reported specifically on mobile: "no navigation to
+                back on Dashboard, home etc" — kept visible at every
+                width, not hidden below a breakpoint like the brand
+                text above, since this is the actual fix for that
+                report, not a nice-to-have. GatedLink (not a plain
+                Link) because this page is ALSO reachable by a
+                never-signed-in visitor following a public link to it —
+                same connect+SIWE-then-navigate fallback every other
+                marketing-page "Dashboard" CTA already uses. */}
+            <GatedLink href="/dashboard" className="btn-game-outline shrink-0 rounded-full px-3 py-1.5 text-xs">
+              {t("nav.dashboard")}
+            </GatedLink>
             <LanguageSwitcher />
             <ConnectWalletButton />
           </div>
