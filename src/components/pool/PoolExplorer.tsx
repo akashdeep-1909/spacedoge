@@ -913,10 +913,6 @@ export function PoolExplorer({
 
       <footer className="flex flex-col items-center justify-center gap-2 border-t border-line px-5 py-6 text-center text-[11px] text-muted sm:px-8">
         <SocialLinks />
-        <div className="flex items-center gap-1.5">
-          <span>{t("common.disclaimer")}</span>
-          <InfoTooltip text={t("landing.disclaimerTooltip")} />
-        </div>
       </footer>
     </div>
   );

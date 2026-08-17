@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { InfoTooltip } from "@/components/InfoTooltip";
 import { AndroidIcon, DeviceDuoIcon } from "@/components/icons/PlatformIcons";
 import { SocialLinks } from "@/components/SocialLinks";
 import { usePublicSettings } from "@/lib/hooks";
@@ -141,10 +140,6 @@ export function SiteFooter() {
         </div>
 
         <div className="flex flex-col items-center gap-2 border-t border-line pt-6 text-center text-[11px] text-muted">
-          <div className="flex items-center gap-1.5">
-            <span>{t("common.disclaimer")}</span>
-            <InfoTooltip text={t("landing.disclaimerTooltip")} />
-          </div>
           <p>{t("landing.footerCopyright")}</p>
         </div>
       </div>
