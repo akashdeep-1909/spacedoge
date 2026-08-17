@@ -26,6 +26,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
   return NextResponse.json({
     lobbyId: lobby.id,
     roomCode: lobby.roomCode,
+    mode: lobby.mode,
     modeLabel: cfg.label,
     entryFeeUsdt: Number(lobby.entryFeeUsdt),
     durationSec: lobby.durationSec,

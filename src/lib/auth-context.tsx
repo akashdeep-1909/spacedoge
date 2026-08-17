@@ -18,6 +18,7 @@ import {
   useDisconnect,
 } from "wagmi";
 import { SiweMessage } from "siwe";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { walletLog, errorDetails } from "@/lib/walletLog";
 import {
   isStaleWalletConnectError,
@@ -143,6 +144,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { t } = useLocale();
   const { address, chainId, isConnected, connector, status: accountStatus } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { disconnect } = useDisconnect();
@@ -559,7 +561,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const signInAddress = overrideAddress ?? address;
     const signInChainId = overrideChainId ?? chainId;
     if (!signInAddress || !signInChainId) {
-      setError("Connect a wallet first.");
+      setError(t("connectWalletButton.connectWalletFirstError"));
       return;
     }
     if (signInInFlightRef.current) {
@@ -708,15 +710,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus("error");
       setError(
         isUserRejectionError(err)
-          ? "Signature request declined. If MetaMask showed a \"could not verify this site\" warning, look past it for the actual message to approve, then tap Sign In again."
+          ? t("connectWalletButton.signatureDeclinedError")
           : err instanceof Error
             ? err.message
-            : "Sign-in failed."
+            : t("connectWalletButton.signInFailedError")
       );
     } finally {
       signInInFlightRef.current = false;
     }
-  }, [address, chainId, signMessageAsync, refresh, config]);
+  }, [address, chainId, signMessageAsync, refresh, config, t]);
 
   // Auto-continues to sign-in whenever the wallet shows as connected
   // but there's no authenticated session for that address yet. Exists

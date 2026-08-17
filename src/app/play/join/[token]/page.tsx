@@ -7,10 +7,12 @@ import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { OnboardingGate } from "@/components/OnboardingGate";
 import { useAuth } from "@/lib/auth-context";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
+import { gameModeLabel } from "@/lib/game-mode-labels";
 
 interface LinkPreview {
   lobbyId: string;
   roomCode: string;
+  mode: string;
   modeLabel: string;
   entryFeeUsdt: number;
   durationSec: number;
@@ -75,7 +77,7 @@ export default function JoinLobbyPage({ params }: { params: Promise<{ token: str
       {preview && !loadError && (
         <div className="game-panel hud-corner w-full rounded-2xl p-5">
           <p className="text-[10px] font-bold uppercase tracking-widest text-gold">{t("joinLobby.invitedLabel")}</p>
-          <h2 className="mt-1 text-xl font-black">{preview.modeLabel}</h2>
+          <h2 className="mt-1 text-xl font-black">{gameModeLabel(t, preview.mode, preview.modeLabel)}</h2>
           <p className="mt-1 text-sm text-muted">
             {t("joinLobby.entrySummary", { fee: preview.entryFeeUsdt, duration: preview.durationSec })}
           </p>

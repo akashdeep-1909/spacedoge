@@ -60,6 +60,11 @@ const en = {
   },
   notificationsPrompt: {
     couldNotEnable: "Could not enable notifications.",
+    unsupportedError: "Notifications aren't supported in this browser.",
+    notConfiguredError: "Push notifications aren't configured.",
+    permissionDeniedError: "Notification permission denied.",
+    permissionNotGrantedError: "Permission not granted.",
+    saveFailedError: "Failed to save subscription.",
     body: "🔔 Get notified the instant someone invites, accepts, or declines, even if you're not on this page.",
     enablingButton: "Enabling…",
     enableButton: "Enable",
@@ -75,6 +80,15 @@ const en = {
     saveButton: "Save",
     cancelConnectTitle: "Cancel and try again",
     disconnectWalletTitle: "Disconnect this wallet",
+    connectWalletFirstError: "Connect a wallet first.",
+    signatureDeclinedError: "Signature request declined. If MetaMask showed a \"could not verify this site\" warning, look past it for the actual message to approve, then tap Sign In again.",
+    signInFailedError: "Sign-in failed.",
+    noWalletExtensionError: "No wallet extension found.",
+    mobileWalletNotConfiguredError: "No wallet extension found, and mobile wallet connect isn't configured yet, open this page inside your wallet app's own browser instead.",
+    failedToConnectError: "Failed to connect wallet.",
+    networkUnreachableError: "Couldn't reach the wallet network, check your connection and try again.",
+    requestAlreadyPendingError: "Your wallet already has a connection request open, open the extension (or your wallet app) and approve or dismiss it, then tap Connect Wallet again.",
+    connectionDeclinedError: "Connection request declined. If your wallet showed a \"could not verify this site\" warning, look past it for the actual connect request, then tap Connect Wallet again.",
   },
   walletDepositButton: {
     noWalletExtension: "No wallet extension found.",
@@ -1075,6 +1089,38 @@ const en = {
     miningButton: "View / Power Mining Rig",
     actionsHeading: "Actions",
     actionActivatePower: "Activate / Power",
+  },
+  // Static translations for GameModeConfig's mode label/description —
+  // see src/lib/game-mode-labels.ts's own doc-comment for why this
+  // exists alongside DB-stored (admin-editable) label/description
+  // text: the DB has exactly one language slot per field, so a
+  // non-English viewer saw these render in raw English everywhere
+  // (Play page mode cards, in-match HUD title, match results, lobby
+  // summaries, invitations) regardless of locale. Text mirrors
+  // src/lib/gameModes.ts's SEED_DEFAULTS verbatim (the English an
+  // admin sees today) — used only when the mode key is recognized;
+  // an admin who's actually edited a row's wording still sees THAT
+  // wording in English (gameModeLabel/gameModeDescription fall back to
+  // the raw DB string for any mode without a translation here).
+  gameModes: {
+    practiceLabel: "Demo",
+    practiceDescription: "A 60-second practice round, zero risk, sharpen your reflexes before playing for real stakes.",
+    quickRushLabel: "Rookie Rush",
+    quickRushDescription: "A 60-second round with a light hazard field and full lives to spare, the ideal starting point for your first real match.",
+    explorerRushLabel: "Explorer Rush",
+    explorerRushDescription: "60 seconds against a denser hazard field, the natural next step once dodging becomes second nature.",
+    proRushLabel: "Pro Rush",
+    proRushDescription: "A longer 90-second round with sharper competition and a heavier hazard field, for players ready to push their score further.",
+    eliteRushLabel: "Elite Rush",
+    eliteRushDescription: "90 seconds of high-stakes play against a near-maximum hazard field, for confident players chasing a bigger prize pool.",
+    championRushLabel: "Champion Rush",
+    championRushDescription: "90 seconds against the densest hazard field on the ladder, competing for the biggest prize pool, Coin Rush's top tier.",
+    sponsoredDropLabel: "Sponsored Drop",
+    sponsoredDropDescription: "A free 60-second round backed by a $10 sponsored prize pool, unlocks after 20 matches in 24 hours, one entry per day.",
+    forgeCupLabel: "Weekly Forge Cup",
+    forgeCupDescription: "A free 90-second round backed by a $30 sponsored prize pool for the platform's most active players, one entry per week.",
+    kolReferralBonusLabel: "Referral Bonus Rush",
+    kolReferralBonusDescription: "A one-time referral gift, 3 free 60-second plays worth up to $0.30 combined, unlocked once by your referrer.",
   },
   play: {
     chooseModeTitle: "Choose Game Mode",

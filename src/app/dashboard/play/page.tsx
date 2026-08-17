@@ -23,6 +23,7 @@ import { NotificationsPrompt } from "@/components/NotificationsPrompt";
 import { THEME_BY_MODE } from "@/lib/game-config";
 import { MatchResultReveal, type MatchParticipantResult, type MatchPoolSummary } from "@/components/game/MatchResultReveal";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
+import { gameModeLabel, gameModeDescription } from "@/lib/game-mode-labels";
 
 type ModeKey =
   | "PRACTICE"
@@ -222,7 +223,7 @@ function PlayFlow() {
             startElapsedSec={match.startElapsedSec}
             onComplete={handleComplete}
             fullscreen
-            missionTitle={match.modeLabel}
+            missionTitle={gameModeLabel(t, match.mode, match.modeLabel)}
             prizePoolUsdt={match.prizePoolUsdt}
             walletAddress={address}
             nickname={session?.nickname}
@@ -334,7 +335,7 @@ function PlayFlow() {
     return (
       <MatchResultReveal
         participants={result.participants}
-        modeLabel={result.modeLabel}
+        modeLabel={gameModeLabel(t, result.mode, result.modeLabel)}
         onPlayAgain={() => setResult(null)}
         dashboardHref="/dashboard"
       />
@@ -347,7 +348,7 @@ function PlayFlow() {
         <div className="game-panel hud-corner glow-gold mb-5 flex items-center justify-between gap-3 rounded-2xl border-gold/40 p-4">
           <div>
             <p className="text-xs font-black uppercase tracking-wide text-gold">{t("play.resumeBannerTitle")}</p>
-            <p className="mt-1 text-sm text-muted">{t("play.resumeMatchBody", { mode: activeMatch.modeLabel })}</p>
+            <p className="mt-1 text-sm text-muted">{t("play.resumeMatchBody", { mode: gameModeLabel(t, activeMatch.mode, activeMatch.modeLabel) })}</p>
           </div>
           <button onClick={resumeMatch} className="btn-game hud-corner shrink-0 rounded-full px-4 py-2 text-sm">
             {t("play.resumeButton")}
@@ -558,8 +559,8 @@ function ModeCard({
         <div className="flex items-center gap-3">
           <GameModeIcon icon={MODE_ICON[mode]} accentColor={theme.accent} />
           <div>
-            <p className="font-bold">{row.label}</p>
-            <p className="text-xs text-muted">{row.description}</p>
+            <p className="font-bold">{gameModeLabel(t, mode, row.label)}</p>
+            <p className="text-xs text-muted">{gameModeDescription(t, mode, row.description)}</p>
           </div>
         </div>
         <span className="shrink-0 rounded-full bg-panel-2 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-gold">
@@ -618,7 +619,7 @@ function IncomingInvitations({ onJoined }: { onJoined: (lobbyId: string) => void
         <div key={inv.id} className="game-panel hud-corner glow-gold rounded-2xl border-gold/40 p-3.5 text-sm">
           <p>
             <span className="font-bold">{shortAddress}</span>{" "}
-            {t("play.invitationText", { fee: inv.entryFeeUsdt, mode: inv.modeLabel })}
+            {t("play.invitationText", { fee: inv.entryFeeUsdt, mode: gameModeLabel(t, inv.mode, inv.modeLabel) })}
           </p>
           <div className="mt-2 flex gap-2">
             <button

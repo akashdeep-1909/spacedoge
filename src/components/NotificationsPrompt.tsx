@@ -1,8 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { isPushSupported, isPushSubscribed, enablePushNotifications } from "@/lib/pushClient";
-import { useLocale } from "@/lib/i18n/LocaleProvider";
+import { isPushSupported, isPushSubscribed, enablePushNotifications, type PushErrorCode } from "@/lib/pushClient";
+import { useLocale, type TranslationKey } from "@/lib/i18n/LocaleProvider";
+
+// See PushErrorCode's own doc-comment in pushClient.ts for why this
+// lives here rather than there.
+const PUSH_ERROR_KEY: Record<PushErrorCode, TranslationKey> = {
+  unsupported: "notificationsPrompt.unsupportedError",
+  not_configured: "notificationsPrompt.notConfiguredError",
+  permission_denied: "notificationsPrompt.permissionDeniedError",
+  permission_not_granted: "notificationsPrompt.permissionNotGrantedError",
+  save_failed: "notificationsPrompt.saveFailedError",
+  enable_failed: "notificationsPrompt.couldNotEnable",
+};
 
 const DISMISS_KEY = "notifications-prompt-dismissed";
 
@@ -40,7 +51,7 @@ export function NotificationsPrompt() {
     if (result.ok) {
       setVisible(false);
     } else {
-      setError(result.error ?? t("notificationsPrompt.couldNotEnable"));
+      setError(t(result.error ? PUSH_ERROR_KEY[result.error] : "notificationsPrompt.couldNotEnable"));
     }
   }
 

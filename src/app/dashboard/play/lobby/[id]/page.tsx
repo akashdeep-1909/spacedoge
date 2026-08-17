@@ -14,6 +14,7 @@ import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { THEME_BY_MODE } from "@/lib/game-config";
 import type { GameMode } from "@/generated/prisma/enums";
 import { MatchResultReveal, type MatchParticipantResult, type MatchPoolSummary } from "@/components/game/MatchResultReveal";
+import { gameModeLabel } from "@/lib/game-mode-labels";
 import {
   useLobby,
   useInviteToLobby,
@@ -252,7 +253,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
             startElapsedSec={startElapsedSec}
             onComplete={handleComplete}
             fullscreen
-            missionTitle={lobby.modeLabel}
+            missionTitle={gameModeLabel(t, lobby.mode, lobby.modeLabel)}
             prizePoolUsdt={lobby.nominalRoomPoolUsdt}
             walletAddress={address}
             nickname={session?.nickname}
@@ -291,7 +292,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
             startElapsedSec={startElapsedSec}
             onComplete={() => {}}
             fullscreen
-            missionTitle={lobby.modeLabel}
+            missionTitle={gameModeLabel(t, lobby.mode, lobby.modeLabel)}
             prizePoolUsdt={lobby.nominalRoomPoolUsdt}
             walletAddress={address}
             nickname={session?.nickname}
@@ -323,7 +324,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
     return (
       <MatchResultReveal
         participants={result.participants}
-        modeLabel={lobby.modeLabel}
+        modeLabel={gameModeLabel(t, lobby.mode, lobby.modeLabel)}
         onPlayAgain={() => router.push("/dashboard/play")}
         dashboardHref="/dashboard"
       />
@@ -361,7 +362,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
         <div>
           <h2 className="text-glow-gold text-2xl font-black uppercase tracking-wide">{t("lobby.heading")}</h2>
           <p className="mt-1 text-sm text-muted">
-            {t("lobby.summaryLine", { mode: lobby.modeLabel, fee: lobby.entryFeeUsdt, code: lobby.roomCode })}
+            {t("lobby.summaryLine", { mode: gameModeLabel(t, lobby.mode, lobby.modeLabel), fee: lobby.entryFeeUsdt, code: lobby.roomCode })}
           </p>
         </div>
         {lobby.status === "WAITING" && (

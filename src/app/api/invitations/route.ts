@@ -32,6 +32,7 @@ export async function GET() {
       lobbyId: inv.lobbyId,
       roomCode: inv.lobby.roomCode,
       otherAddress,
+      mode: inv.lobby.mode,
       modeLabel: cfg.label,
       entryFeeUsdt: Number(inv.lobby.entryFeeUsdt),
       status: inv.status,

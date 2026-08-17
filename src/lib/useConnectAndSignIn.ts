@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useConnect } from "wagmi";
 import { useAuth, isUserRejectionError } from "@/lib/auth-context";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { walletLog, errorDetails } from "@/lib/walletLog";
 import { waitForInjectedProvider } from "@/lib/wagmi";
 import { isStaleWalletConnectError, recoverFromStaleWalletConnectSession } from "@/lib/walletConnectReset";
@@ -45,6 +46,7 @@ async function delay(ms: number) {
 }
 
 export function useConnectAndSignIn() {
+  const { t } = useLocale();
   const { connectAsync, connectors } = useConnect();
   const { signIn, markWalletAction, claimConnectAttempt, releaseConnectAttempt, cancelSignIn } = useAuth();
   const [connectFailure, setConnectFailure] = useState<string | null>(null);
@@ -88,8 +90,8 @@ export function useConnectAndSignIn() {
       releaseConnectAttempt();
       setConnectFailure(
         injectedAvailable
-          ? "No wallet extension found."
-          : "No wallet extension found, and mobile wallet connect isn't configured yet, open this page inside your wallet app's own browser instead."
+          ? t("connectWalletButton.noWalletExtensionError")
+          : t("connectWalletButton.mobileWalletNotConfiguredError")
       );
       return;
     }
@@ -163,19 +165,19 @@ export function useConnectAndSignIn() {
           walletLog("connector already connected, signing in directly", { attemptId: myAttemptId, address: freshAddress, chainId: freshChainId });
           if (attemptIdRef.current === myAttemptId) await signIn(freshAddress, freshChainId);
         } else if (attemptIdRef.current === myAttemptId) {
-          setConnectFailure("Failed to connect wallet.");
+          setConnectFailure(t("connectWalletButton.failedToConnectError"));
         }
       } else if (attemptIdRef.current === myAttemptId) {
         setConnectFailure(
           isTransientRelayError(err)
-            ? "Couldn't reach the wallet network, check your connection and try again."
+            ? t("connectWalletButton.networkUnreachableError")
             : isRequestAlreadyPendingError(err)
-              ? "Your wallet already has a connection request open, open the extension (or your wallet app) and approve or dismiss it, then tap Connect Wallet again."
+              ? t("connectWalletButton.requestAlreadyPendingError")
               : isUserRejectionError(err)
-                ? "Connection request declined. If your wallet showed a \"could not verify this site\" warning, look past it for the actual connect request, then tap Connect Wallet again."
+                ? t("connectWalletButton.connectionDeclinedError")
                 : err instanceof Error
                   ? err.message
-                  : "Failed to connect wallet."
+                  : t("connectWalletButton.failedToConnectError")
         );
       }
     } finally {

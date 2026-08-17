@@ -1852,6 +1852,7 @@ export interface InvitationRow {
   lobbyId: string;
   roomCode: string;
   otherAddress: string;
+  mode: string;
   modeLabel: string;
   entryFeeUsdt: number;
   status: string;

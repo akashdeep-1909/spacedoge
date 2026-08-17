@@ -25,16 +25,30 @@ export async function isPushSubscribed(): Promise<boolean> {
   return sub !== null;
 }
 
-export async function enablePushNotifications(): Promise<{ ok: boolean; error?: string }> {
+// A CODE, not a display string — this file has no access to the i18n
+// context (it's a plain client lib, not a component, and is only ever
+// awaited from one, see NotificationsPrompt.tsx), so it used to return
+// raw hardcoded English sentences that got rendered as-is regardless of
+// locale. The caller (which DOES have `t()`) maps this to a translated
+// message — same data/UI split as balance-labels.ts's balanceTypeLabel.
+export type PushErrorCode =
+  | "unsupported"
+  | "not_configured"
+  | "permission_denied"
+  | "permission_not_granted"
+  | "save_failed"
+  | "enable_failed";
+
+export async function enablePushNotifications(): Promise<{ ok: boolean; error?: PushErrorCode }> {
   if (!isPushSupported()) {
-    return { ok: false, error: "Notifications aren't supported in this browser." };
+    return { ok: false, error: "unsupported" };
   }
   const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-  if (!vapidKey) return { ok: false, error: "Push notifications aren't configured." };
+  if (!vapidKey) return { ok: false, error: "not_configured" };
 
   const permission = await Notification.requestPermission();
   if (permission !== "granted") {
-    return { ok: false, error: permission === "denied" ? "Notification permission denied." : "Permission not granted." };
+    return { ok: false, error: permission === "denied" ? "permission_denied" : "permission_not_granted" };
   }
 
   try {
@@ -55,10 +69,10 @@ export async function enablePushNotifications(): Promise<{ ok: boolean; error?: 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ endpoint: subJson.endpoint, keys: subJson.keys }),
     });
-    if (!res.ok) return { ok: false, error: "Failed to save subscription." };
+    if (!res.ok) return { ok: false, error: "save_failed" };
     return { ok: true };
   } catch {
-    return { ok: false, error: "Failed to enable notifications." };
+    return { ok: false, error: "enable_failed" };
   }
 }
 
