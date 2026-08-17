@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { MobileNav } from "@/components/MobileNav";
 import { DesktopMoreNav } from "@/components/DesktopMoreNav";
@@ -31,6 +32,12 @@ const PRIMARY_NAV_LINKS = [
 
 export function DashboardChrome({ children }: { children: ReactNode }) {
   const { t } = useLocale();
+  // Exact match, not startsWith — /dashboard itself is a distinct page
+  // from /dashboard/play etc., so a startsWith check would wrongly keep
+  // "Dashboard" highlighted as active on every other dashboard page
+  // too, since they all share that same prefix. Same exact-match rule
+  // MobileNav/DesktopMoreNav/BottomTabBar already use.
+  const pathname = usePathname();
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-background pb-16 text-foreground lg:pb-0">
@@ -50,15 +57,21 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
           </div>
         </Link>
         <nav className="hidden min-w-0 flex-1 items-center justify-center gap-1 rounded-full border border-line bg-panel p-1 text-xs font-semibold lg:flex">
-          {PRIMARY_NAV_LINKS.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="shrink-0 rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold"
-            >
-              {t(l.key)}
-            </Link>
-          ))}
+          {PRIMARY_NAV_LINKS.map((l) => {
+            const active = pathname === l.href;
+            return (
+              <Link
+                key={l.href}
+                href={l.href}
+                aria-current={active ? "page" : undefined}
+                className={`shrink-0 rounded-full px-2.5 py-1.5 uppercase transition hover:bg-panel-2 hover:text-gold ${
+                  active ? "bg-gold-soft text-gold" : "text-muted"
+                }`}
+              >
+                {t(l.key)}
+              </Link>
+            );
+          })}
           <DesktopMoreNav />
         </nav>
         {/* min-w-0 + overflow-x-auto is a safety net, not the primary
