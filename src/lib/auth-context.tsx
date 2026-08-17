@@ -24,7 +24,7 @@ import {
   consumeWalletConnectAutoRecoveredFlag,
   recoverFromStaleWalletConnectSession,
 } from "@/lib/walletConnectReset";
-import { markWalletReturnPath } from "@/lib/walletReturnPath";
+import { markWalletReturnPath, clearWalletReturnPath } from "@/lib/walletReturnPath";
 import { revokeInjectedPermissions } from "@/lib/wagmi";
 
 // iOS Safari kills in-flight fetch() connections when a tab backgrounds
@@ -119,6 +119,25 @@ interface AuthContextValue {
   // Escape hatch for a stuck "signing"/"verifying" state — resets status
   // immediately and invalidates any in-flight signIn() call.
   cancelSignIn: () => void;
+  // A SHARED connect-attempt mutex — was previously a useRef local to
+  // useConnectAndSignIn(), which meant every separate call site of that
+  // hook (ConnectWalletButton, and every GatedLink — CoinRushContent
+  // alone renders 6 of them) got its OWN ref. Tapping two different
+  // Connect-triggering elements in quick succession (e.g. a marketing
+  // page's "Play" CTA, then the header's Connect Wallet button before
+  // the first visibly did anything) fired two fully concurrent
+  // connectAsync() calls, colliding on the wallet's single-flight-per-
+  // origin request slot (-32002, the exact class of bug this pattern
+  // exists to prevent — just from a different source than a double-tap
+  // on the SAME button). Lives here instead so every caller shares one
+  // slot. Also read directly by the mobile-resume handler below (see
+  // its own comment) so a resume signal can never race a connect this
+  // claims, from the very first synchronous line of the attempt —
+  // config.state.status alone doesn't flip to "connecting" until
+  // connectAsync() itself starts, which can be up to ~1.5s later
+  // (waitForInjectedProvider's wait).
+  claimConnectAttempt: () => boolean;
+  releaseConnectAttempt: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -147,6 +166,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // "Connect Wallet" button that looks like nothing is happening.
   const [resuming, setResuming] = useState(false);
   const resumeGenerationRef = useRef(0);
+  // See claimConnectAttempt's own doc-comment on AuthContextValue above.
+  const connectInFlightRef = useRef(false);
+  const claimConnectAttempt = useCallback(() => {
+    if (connectInFlightRef.current) return false;
+    connectInFlightRef.current = true;
+    return true;
+  }, []);
+  const releaseConnectAttempt = useCallback(() => {
+    connectInFlightRef.current = false;
+  }, []);
   // Timestamp of the last user-initiated wallet action (tapping Connect,
   // or signIn() starting) — the resume handler below only runs its
   // extended retry-with-backoff (and shows "Reconnecting…") within a
@@ -328,21 +357,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // reconnectAsync() is for RESUMING an already-established session
       // after an app-switch — it has no business running while a BRAND
-      // NEW connectAsync() (from ConnectWalletButton/useConnectAndSignIn)
-      // is still awaiting approval in the wallet app. config.state.status
-      // is "connecting" for exactly that window. Confirmed live as a real
-      // bug, not just a redundant call: focus/visibilitychange fire
-      // repeatedly during a mobile wallet round-trip (each app-switch
-      // prompt, each return, etc.), so this loop was calling
-      // reconnectAsync() dozens of times over the better part of a
-      // minute while a Bitget Wallet connect request sat pending — and
-      // the pending WalletConnect session proposal ultimately came back
-      // rejected with "Connection request reset. Please try again.",
-      // exactly the kind of reset a concurrent reconnectAsync() call
-      // against the same pairing would cause. Skip entirely here; once
-      // the fresh connect settles (success or failure), status moves off
-      // "connecting" and a later resume signal is handled normally.
-      if (config.state.status === "connecting") {
+      // NEW connectAsync() (from ConnectWalletButton/useConnectAndSignIn/
+      // WalletDepositButton's reconnect()) is still awaiting approval in
+      // the wallet app. Confirmed live as a real bug, not just a
+      // redundant call: focus/visibilitychange fire repeatedly during a
+      // mobile wallet round-trip (each app-switch prompt, each return,
+      // etc.), so this loop was calling reconnectAsync() dozens of times
+      // over the better part of a minute while a Bitget Wallet connect
+      // request sat pending — and the pending WalletConnect session
+      // proposal ultimately came back rejected with "Connection request
+      // reset. Please try again.", exactly the kind of reset a
+      // concurrent reconnectAsync() call against the same pairing would
+      // cause.
+      //
+      // Checks connectInFlightRef FIRST, not just config.state.status —
+      // the ref is set synchronously the instant claimConnectAttempt()
+      // runs (the very first line of connectAndSignIn()/reconnect()),
+      // while config.state.status doesn't flip to "connecting" until
+      // connectAsync() itself actually starts, up to ~1.5s later
+      // (waitForInjectedProvider's wait) — a resume signal landing in
+      // that gap previously slipped through this same check. Kept
+      // config.state.status too as a fallback for a "connecting" state
+      // this ref didn't cause (wagmi's own internal reconnect machinery).
+      if (connectInFlightRef.current || config.state.status === "connecting") {
         walletLog("resume signal ignored — a fresh connect is already in flight", source);
         return;
       }
@@ -375,6 +412,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
           }
           if (myGeneration !== resumeGenerationRef.current) return;
+          // Re-checked on every iteration, not just once at entry — the
+          // retry loop's own delays (up to ~13.7s total across all five
+          // attempts) are plenty of time for the user to tap Connect
+          // Wallet AFTER this loop already started (e.g. it began for an
+          // ordinary, unrelated app-switch, and the user only then
+          // noticed nothing happened and tapped Connect) — the entry
+          // check above can't see a claim that happens later.
+          if (connectInFlightRef.current) {
+            walletLog("resume retry loop stopping — a fresh connect started mid-loop", { attempt });
+            return;
+          }
           try {
             const connections = await reconnectAsync();
             walletLog("reconnectAsync resolved", { attempt, count: connections.length });
@@ -563,6 +611,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (connection && typeof connection.connector.getChainId === "function") break;
         await new Promise((resolve) => setTimeout(resolve, 150));
       }
+      // Re-confirm the account directly against the LIVE connector right
+      // before requesting the signature — not just trusting
+      // `signInAddress` (which can be a stale useAccount() snapshot for
+      // the auto-continue effect's call above, or an override captured
+      // back when useConnectAndSignIn's own connectAsync() resolved, up
+      // to ~3s+ before this line thanks to the connector-ready wait loop
+      // just above). Same staleness class WalletDepositButton.tsx's
+      // deposit() already guards against via its own fresh
+      // getAccounts() call right before sending — this is the sign-in
+      // side twin of that. Deliberately best-effort, not a hard
+      // requirement: only blocks when getAccounts() actually returns a
+      // DIFFERENT address, since some connectors can transiently return
+      // nothing here without that meaning anything is actually wrong,
+      // and this function's own existing retry paths already handle a
+      // genuinely dead connector further down. Catching this here with
+      // a clear message beats letting a mismatched signature fail
+      // opaquely at /api/auth/verify's own recovery check instead.
+      const liveConnection = config.state.connections.get(config.state.current ?? "");
+      const freshAccounts = await liveConnection?.connector.getAccounts?.().catch(() => undefined);
+      const freshAddress = freshAccounts?.[0];
+      if (freshAddress && freshAddress.toLowerCase() !== signInAddress.toLowerCase()) {
+        throw new Error("Your wallet's active account changed. Please reconnect and try again.");
+      }
       // Bounded the same way ConnectWalletButton.tsx bounds connectAsync
       // (CONNECT_TIMEOUT_MS) — without this, a signMessageAsync() whose
       // resolution gets silently dropped during the MetaMask app-switch
@@ -611,16 +682,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(verifyBody.error ?? "Sign-in verification failed.");
       }
 
+      // Clear BEFORE refresh()/setSession — a caller like GatedLink
+      // navigates onward (router.push) the moment it sees `session`
+      // flip authenticated, which happens synchronously off refresh()
+      // below. See clearWalletReturnPath's own doc-comment for why this
+      // has to happen here, not just rely on WalletReturnPathRedirector's
+      // normal page-mount consume.
+      clearWalletReturnPath();
       await refresh();
       if (!isCurrent()) return;
       setStatus("idle");
       walletLog("signIn complete", { address: signInAddress });
-      // No explicit "restore the pre-connect path" call here anymore —
-      // WalletReturnPathRedirector (mounted app-wide) now handles that
-      // unconditionally on every page mount, not gated behind signIn()
-      // reaching this exact success point. See
-      // src/lib/walletReturnPath.ts's own doc-comment for why: a new
-      // tab's auto-reconnect routinely never gets this far at all.
     } catch (err) {
       // A failed signature/verification is an AUTH failure, not a wallet
       // CONNECTION failure — deliberately no disconnect() call here.
@@ -710,7 +782,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, status, error, resuming, justAutoRecovered, signIn, signOut, refresh, markWalletAction, cancelSignIn }}
+      value={{
+        session,
+        status,
+        error,
+        resuming,
+        justAutoRecovered,
+        signIn,
+        signOut,
+        refresh,
+        markWalletAction,
+        cancelSignIn,
+        claimConnectAttempt,
+        releaseConnectAttempt,
+      }}
     >
       {children}
     </AuthContext.Provider>

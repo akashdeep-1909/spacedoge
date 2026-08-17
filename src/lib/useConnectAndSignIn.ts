@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useAccount, useConnect } from "wagmi";
+import { useConnect } from "wagmi";
 import { useAuth, isUserRejectionError } from "@/lib/auth-context";
 import { walletLog, errorDetails } from "@/lib/walletLog";
 import { waitForInjectedProvider } from "@/lib/wagmi";
@@ -45,29 +45,30 @@ async function delay(ms: number) {
 }
 
 export function useConnectAndSignIn() {
-  const { address, chainId } = useAccount();
   const { connectAsync, connectors } = useConnect();
-  const { signIn, markWalletAction } = useAuth();
+  const { signIn, markWalletAction, claimConnectAttempt, releaseConnectAttempt, cancelSignIn } = useAuth();
   const [connectFailure, setConnectFailure] = useState<string | null>(null);
   const [attempting, setAttempting] = useState(false);
   const attemptIdRef = useRef(0);
-  // Synchronous re-entrancy guard, set at the very top of the function
-  // before any `await`. `attempting` (React state) can't do this job on
-  // its own: it only flips true after waitForInjectedProvider's own
-  // await (up to 1.5s), leaving a real window where the Connect button
-  // isn't disabled yet and an impatient extra click/tap fires a second,
-  // fully concurrent connectAndSignIn() — two overlapping connectAsync()
-  // calls hitting the wallet's single-flight-per-origin request queue at
-  // once, the same class of "already pending" collision documented on
-  // isRequestAlreadyPendingError below, just from a different source.
-  const inFlightRef = useRef(false);
 
   async function connectAndSignIn() {
-    if (inFlightRef.current) {
+    // claimConnectAttempt is a SHARED mutex (lives in AuthContext, see
+    // its own doc-comment) — not a ref local to this hook instance.
+    // Synchronous, set at the very top before any `await`: `attempting`
+    // (React state) can't do this job alone, since it only flips true
+    // after waitForInjectedProvider's own await (up to 1.5s), leaving a
+    // real window where an impatient extra tap — on this SAME button, or
+    // any OTHER Connect-triggering element on the page, since every
+    // GatedLink/ConnectWalletButton gets its own instance of this hook —
+    // fires a second, fully concurrent connectAndSignIn(). Two
+    // overlapping connectAsync() calls hit the wallet's single-flight-
+    // per-origin request queue at once, the same class of "already
+    // pending" collision documented on isRequestAlreadyPendingError
+    // below, just from a different source.
+    if (!claimConnectAttempt()) {
       walletLog("connectAndSignIn skipped — already in flight");
       return;
     }
-    inFlightRef.current = true;
     const myAttemptId = ++attemptIdRef.current;
     markWalletAction();
     setConnectFailure(null);
@@ -84,7 +85,7 @@ export function useConnectAndSignIn() {
     });
 
     if (!targetConnector) {
-      inFlightRef.current = false;
+      releaseConnectAttempt();
       setConnectFailure(
         injectedAvailable
           ? "No wallet extension found."
@@ -146,9 +147,24 @@ export function useConnectAndSignIn() {
         recoverFromStaleWalletConnectSession("connectAsync");
         return;
       }
-      if (isAlreadyConnectedError(err) && address && chainId != null) {
-        walletLog("connector already connected, signing in directly", { attemptId: myAttemptId, address, chainId });
-        if (attemptIdRef.current === myAttemptId) await signIn(address, chainId);
+      if (isAlreadyConnectedError(err)) {
+        // Read fresh off the connector, not the address/chainId this
+        // closure captured back when the user tapped Connect — this
+        // catch can run up to CONNECT_TIMEOUT_MS (120s) later, plenty of
+        // time for the account to have changed in the wallet, or for
+        // useAccount() to simply not have hydrated yet at click time
+        // (same class of staleness WalletDepositButton.tsx's deposit()
+        // already guards against via its own fresh getAccounts() call
+        // right before sending — this is the connect-side twin of that).
+        const freshAccounts = await targetConnector.getAccounts?.().catch(() => undefined);
+        const freshChainId = await targetConnector.getChainId?.().catch(() => undefined);
+        const freshAddress = freshAccounts?.[0];
+        if (freshAddress && freshChainId != null) {
+          walletLog("connector already connected, signing in directly", { attemptId: myAttemptId, address: freshAddress, chainId: freshChainId });
+          if (attemptIdRef.current === myAttemptId) await signIn(freshAddress, freshChainId);
+        } else if (attemptIdRef.current === myAttemptId) {
+          setConnectFailure("Failed to connect wallet.");
+        }
       } else if (attemptIdRef.current === myAttemptId) {
         setConnectFailure(
           isTransientRelayError(err)
@@ -163,7 +179,7 @@ export function useConnectAndSignIn() {
         );
       }
     } finally {
-      inFlightRef.current = false;
+      releaseConnectAttempt();
       if (attemptIdRef.current === myAttemptId) setAttempting(false);
     }
   }
@@ -189,9 +205,18 @@ export function useConnectAndSignIn() {
   // a clear, actionable message for, rather than another silent hang.
   function cancelConnect() {
     attemptIdRef.current++;
-    inFlightRef.current = false;
+    releaseConnectAttempt();
     setAttempting(false);
     setConnectFailure(null);
+    // connectAndSignIn() awaits signIn() INSIDE its own try block (see
+    // above), so `attempting` — and this ✕ button — stays visible all
+    // the way through the signature step too, not just the connect
+    // step. Without also cancelling sign-in here, tapping ✕ during that
+    // window cleared this button's own state but left status stuck at
+    // "signing"/"verifying" underneath (ConnectWalletButton's `busy`
+    // still includes that), taking away the escape hatch the user just
+    // tried to use while leaving them exactly as stuck as before.
+    cancelSignIn();
     walletLog("connect attempt cancelled by user");
   }
 

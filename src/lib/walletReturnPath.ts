@@ -67,6 +67,29 @@ export function markWalletReturnPath() {
 // user lands back on the right page even if they still need to tap
 // Connect Wallet again there, and the flag can never be clobbered by a
 // later attempt that started from the wrong place.
+// Called from the SUCCESS path of a connect/sign-in attempt (auth-
+// context.tsx's signIn(), right before it navigates the caller onward)
+// — a connect that completes without ever actually leaving this tab
+// (desktop extension, or a wallet's own in-app browser: no app-switch
+// at all) never triggers WalletReturnPathRedirector's normal path
+// (that only runs on a PAGE MOUNT, i.e. an actual navigation/reload).
+// Without this, the mark from markWalletReturnPath() at the start of
+// this same attempt was still sitting in storage when the caller then
+// did its own router.push() to wherever it actually wanted to go —
+// WalletReturnPathRedirector's effect re-runs on that very navigation
+// (its deps include pathname), consumes the stale mark, and redirects
+// the user straight back to the page they started on instead of where
+// they just asked to go. Confirmed live: tapping a marketing page's
+// "Play" GatedLink signed in in-place, navigated to /dashboard/play,
+// then immediately bounced back to the marketing page.
+export function clearWalletReturnPath() {
+  try {
+    window.localStorage.removeItem(KEY);
+  } catch {
+    // non-fatal — see markWalletReturnPath's own catch
+  }
+}
+
 export function consumeWalletReturnPath(): string | null {
   try {
     const raw = window.localStorage.getItem(KEY);

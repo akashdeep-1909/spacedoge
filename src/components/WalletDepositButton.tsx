@@ -7,6 +7,8 @@ import { waitForInjectedProvider, type wagmiConfig } from "@/lib/wagmi";
 import { isUserRejectionError, useAuth } from "@/lib/auth-context";
 import { useVerifyDeposit } from "@/lib/hooks";
 import { markPendingDepositReturn, clearPendingDepositReturn } from "@/lib/depositReturn";
+import { isStaleWalletConnectError, recoverFromStaleWalletConnectSession } from "@/lib/walletConnectReset";
+import { walletLog } from "@/lib/walletLog";
 import { DepositTimeline } from "@/components/DepositTimeline";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 
@@ -82,7 +84,7 @@ export function WalletDepositButton({
   const { t } = useLocale();
   const { address, chainId: connectedChainId, isConnected, connector: activeConnector } = useAccount();
   const { connectAsync, connectors } = useConnect();
-  const { markWalletAction } = useAuth();
+  const { markWalletAction, claimConnectAttempt, releaseConnectAttempt } = useAuth();
   // Own bounded busy state, deliberately NOT useConnect()'s own
   // isPending — same reasoning as ConnectWalletButton.tsx's own
   // `attempting` vs isPending: isPending reflects ONE specific
@@ -290,6 +292,19 @@ export function WalletDepositButton({
   // "connect your wallet" message that contradicts the header.
   async function reconnect() {
     setError(null);
+    // Shared mutex from AuthContext (see claimConnectAttempt's own
+    // doc-comment there) — this button used to have NO re-entrancy
+    // guard of its own at all, meaning it raced every other
+    // Connect-triggering element on the page (the header's own
+    // ConnectWalletButton/GatedLink instances) for the wallet's single
+    // request slot with nothing stopping two connectAsync() calls from
+    // firing at once, the exact class of collision
+    // useConnectAndSignIn.ts's own claimConnectAttempt call already
+    // guards against everywhere else.
+    if (!claimConnectAttempt()) {
+      walletLog("deposit reconnect skipped — a connect attempt is already in flight");
+      return;
+    }
     // Tells auth-context.tsx's mobile-resume handler this app-switch is
     // wallet-related — without this, a WalletConnect app-switch
     // triggered from THIS button (rather than the main header Connect
@@ -311,6 +326,7 @@ export function WalletDepositButton({
       ? connectors.find((c) => c.type === "injected")
       : connectors.find((c) => c.type === "walletConnect");
     if (!targetConnector) {
+      releaseConnectAttempt();
       setError(injectedAvailable ? t("walletDepositButton.noWalletExtension") : t("walletDepositButton.mobileWalletNotConfigured"));
       return;
     }
@@ -331,8 +347,22 @@ export function WalletDepositButton({
         t("walletDepositButton.walletTimeoutError")
       );
     } catch (err) {
+      // Same self-heal as useConnectAndSignIn.ts's own connectAsync()
+      // catch block — this was a genuine third call site the audit
+      // found with none of this: a stale/corrupt WalletConnect session
+      // hit from THIS button (e.g. the user's own header Connect
+      // already left one half-finished, then they tried again from
+      // here) previously just showed the raw SDK error forever, since
+      // nothing at this call site ever cleared the corrupted storage
+      // causing it. Reloads on success, so nothing past this point in
+      // the current attempt matters.
+      if (err instanceof Error && isStaleWalletConnectError(err.message)) {
+        recoverFromStaleWalletConnectSession("depositReconnect");
+        return;
+      }
       setError(err instanceof Error ? err.message : t("walletDepositButton.couldNotReconnect"));
     } finally {
+      releaseConnectAttempt();
       setReconnecting(false);
     }
   }
@@ -384,6 +414,31 @@ export function WalletDepositButton({
       if (address && freshAddress.toLowerCase() !== address.toLowerCase()) {
         throw new Error(t("walletDepositButton.accountChangedError"));
       }
+      // Re-check the LIVE chain the same way, right before sending —
+      // not just trusting `connectedChainId` from useAccount()'s own
+      // (possibly stale) cached state, the same staleness class the
+      // getAccounts() re-confirm above already guards against for the
+      // account. switchToChainWithRetry() above can itself trigger a
+      // mobile app-switch round trip, and the wallet can come back on a
+      // DIFFERENT chain than requested (the user switched manually
+      // inside the wallet's own UI while there, or the switch silently
+      // no-oped on a wallet that doesn't support
+      // wallet_switchEthereumChain for this chain at all). Passing
+      // `chainId` to writeContractAsync below only tells wagmi which
+      // connector state to route through — the wallet itself still
+      // executes against whatever chain it's actually on, so a mismatch
+      // here either fails on-chain or, worse, sends the same
+      // identically-shaped ERC20 transfer call on the WRONG chain. One
+      // more retry of the same switch is idempotent (a no-op if the
+      // wallet's already on the right chain by the time this runs) and
+      // closes that gap without a new dead-end error message.
+      const freshChainId = await activeConnector?.getChainId?.().catch(() => undefined);
+      if (freshChainId !== chainId) {
+        walletLog("deposit chain drifted before send, re-switching", { expected: chainId, freshChainId });
+        setStep("switching");
+        await switchToChainWithRetry();
+        setStep("sending");
+      }
       // Deliberately no watchAsset ("add token to wallet") step here
       // anymore — it was a SEPARATE wallet prompt before the real
       // transfer one, and on mobile each wallet prompt is its own full
@@ -398,18 +453,37 @@ export function WalletDepositButton({
       // CONNECT_TIMEOUT_MS: a user actually reading and approving a real
       // transfer inside their wallet app can easily take longer than 60
       // seconds, especially on mobile with an app-switch round trip.
-      const hash = await withTimeout(
-        writeContractAsync({
-          chainId: chainId as RegisteredChainId,
-          address: tokenContract as `0x${string}`,
-          abi: ERC20_TRANSFER_ABI,
-          functionName: "transfer",
-          args: [treasuryAddress as `0x${string}`, parseUnits(amount, tokenDecimals)],
-          account: freshAddress,
-        }),
-        120_000,
-        t("walletDepositButton.transactionTimeoutError")
-      );
+      const writePromise = writeContractAsync({
+        chainId: chainId as RegisteredChainId,
+        address: tokenContract as `0x${string}`,
+        abi: ERC20_TRANSFER_ABI,
+        functionName: "transfer",
+        args: [treasuryAddress as `0x${string}`, parseUnits(amount, tokenDecimals)],
+        account: freshAddress,
+      });
+      // Attached to the UNDERLYING promise, not the race below — a
+      // wallet that takes longer than 120s to respond (see withTimeout's
+      // own doc-comment: MetaMask's in-app browser can pause page JS
+      // entirely while its native confirm overlay is up) still
+      // eventually resolves this promise with a REAL broadcast
+      // transaction once the user approves, even after the race below
+      // has already thrown "Transaction timed out" and this function's
+      // own catch/finally have already run, wiping `step` back to idle.
+      // Without this, that transaction is real money leaving the user's
+      // wallet with NO local record of it at all — not even the manual
+      // "paste tx hash" box has anything to work from, since the user
+      // was never shown a hash to copy. rememberPending is idempotent
+      // (plain state + localStorage set), so it's harmless that this
+      // also fires on the normal fast path below.
+      writePromise
+        .then((hash) => rememberPending(hash, amountNum))
+        .catch(() => {
+          // Real rejections are already surfaced through the primary
+          // await below — this exists only so a rejection here (when it
+          // loses the race to the timeout) doesn't ALSO log as an
+          // unhandled promise rejection.
+        });
+      const hash = await withTimeout(writePromise, 120_000, t("walletDepositButton.transactionTimeoutError"));
       // Persisted immediately — not after also waiting for a receipt —
       // specifically so a mobile app-switch-triggered reload right after
       // this point (before this component would otherwise have gotten a
@@ -421,7 +495,24 @@ export function WalletDepositButton({
       setError(explainError(err));
     } finally {
       setStep("idle");
-      clearPendingDepositReturn();
+      // Only clear when THIS tab is demonstrably the one still active —
+      // see clearPendingDepositReturn's own doc-comment: its whole
+      // premise is "if a redirect happened, this JS context is
+      // abandoned and finally never runs." Confirmed false in one real
+      // case: a mobile wallet round-trip that opens a NEW tab (rather
+      // than reusing/reloading this one) leaves THIS tab merely
+      // backgrounded, not destroyed — its own switchChainAsync/
+      // writeContractAsync promise can still settle (reject on a stale
+      // prompt, or simply hit the 120s timeout) well after the new tab
+      // has already opened. That fires this same finally block in the
+      // background, wiping the shared localStorage flag out from under
+      // the new tab before it's even had a chance to mount and consume
+      // it — stranding the user on the homepage with a real transaction
+      // in flight. document.visibilityState is only ever read
+      // client-side (this function only runs from a click handler).
+      if (document.visibilityState === "visible") {
+        clearPendingDepositReturn();
+      }
     }
   }
 
