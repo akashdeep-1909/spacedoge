@@ -326,6 +326,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         wagmiCurrentConnector: config.state.current,
       });
 
+      // reconnectAsync() is for RESUMING an already-established session
+      // after an app-switch — it has no business running while a BRAND
+      // NEW connectAsync() (from ConnectWalletButton/useConnectAndSignIn)
+      // is still awaiting approval in the wallet app. config.state.status
+      // is "connecting" for exactly that window. Confirmed live as a real
+      // bug, not just a redundant call: focus/visibilitychange fire
+      // repeatedly during a mobile wallet round-trip (each app-switch
+      // prompt, each return, etc.), so this loop was calling
+      // reconnectAsync() dozens of times over the better part of a
+      // minute while a Bitget Wallet connect request sat pending — and
+      // the pending WalletConnect session proposal ultimately came back
+      // rejected with "Connection request reset. Please try again.",
+      // exactly the kind of reset a concurrent reconnectAsync() call
+      // against the same pairing would cause. Skip entirely here; once
+      // the fresh connect settles (success or failure), status moves off
+      // "connecting" and a later resume signal is handled normally.
+      if (config.state.status === "connecting") {
+        walletLog("resume signal ignored — a fresh connect is already in flight", source);
+        return;
+      }
+
       // Only run the extended retry-with-backoff (and show
       // "Reconnecting…") when a wallet action actually happened
       // recently — tapping Connect or starting sign-in both mark this.
