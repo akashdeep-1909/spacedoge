@@ -14,7 +14,7 @@ import {
 } from "@/lib/hooks";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import type { TranslationKey } from "@/lib/i18n/LocaleProvider";
-import { balanceTypeLabel } from "@/lib/balance-labels";
+import { balanceTypeLabel, balanceTypeUnit } from "@/lib/balance-labels";
 import { GAME_MODE_CONFIG } from "@/lib/game-config";
 import { RIG_DISPLAY_NAME } from "@/lib/mining-shared";
 import { chainIcon } from "@/components/icons/CoinIcons";
@@ -274,7 +274,7 @@ function ConversionTab() {
           <Right key="amount">
             <span className={r.amount >= 0 ? "text-mint" : "text-risk"}>
               {r.amount >= 0 ? "+" : ""}
-              {r.amount.toFixed(6)}
+              {r.amount.toFixed(6)} {balanceTypeUnit(r.balanceType)}
             </span>
           </Right>,
         ])}
@@ -303,7 +303,9 @@ function WithdrawalsTab() {
               {chainIcon(r.chain, 14)}
               {r.chain}
             </span>,
-            <Right key="amount">{`$${r.amount.toFixed(2)}`}</Right>,
+            <Right key="amount">
+              {r.amount.toFixed(balanceTypeUnit(r.source) === "DOGE" ? 4 : 2)} {balanceTypeUnit(r.source)}
+            </Right>,
             <StatusPill key="status" label={status.label} tone={status.tone} />,
             <Link key="details" href={`/dashboard/withdraw/${r.id}`} className="text-mint underline">
               {t("history.detailsArrowLink")}

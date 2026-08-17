@@ -18,3 +18,15 @@ export function balanceTypeLabel(t: (key: TranslationKey) => string, balanceType
   const key = BALANCE_TYPE_KEY[balanceType];
   return key ? t(key) : balanceType.replaceAll("_", " ");
 }
+
+// The actual currency unit a raw BalanceType amount is denominated in
+// — every BalanceType is one of exactly these three (see schema.prisma's
+// BalanceType enum), so this is exhaustive, not a guess. Used wherever
+// a bare number needs "USDT"/"DOGE"/"PTS" next to it instead of leaving
+// the reader to infer the unit from context (or, worse, an unconditional
+// "$" prefix that's flat wrong on a DOGE-denominated row).
+export function balanceTypeUnit(balanceType: string): "DOGE" | "PTS" | "USDT" {
+  if (balanceType.includes("DOGE")) return "DOGE";
+  if (balanceType === "PTS") return "PTS";
+  return "USDT";
+}

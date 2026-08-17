@@ -10,7 +10,7 @@ import { ReserveProofCard } from "@/components/wallet/ReserveProofCard";
 import { useBalances, useConvertQuote, useTransactions } from "@/lib/hooks";
 import { PTS_TO_USDT_RATE } from "@/lib/game-config";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
-import { balanceTypeLabel } from "@/lib/balance-labels";
+import { balanceTypeLabel, balanceTypeUnit } from "@/lib/balance-labels";
 
 function fmtUsdt(n: number) {
   return `$${n.toFixed(2)}`;
@@ -137,7 +137,8 @@ function WalletContent() {
               <span key="balance" className="text-muted">{balanceTypeLabel(t, tx.balanceType)}</span>,
               <span key="amount" className={tx.amount >= 0 ? "text-mint" : "text-risk"}>
                 {tx.amount >= 0 ? "+" : ""}
-                {tx.amount.toFixed(tx.balanceType.includes("DOGE") ? 6 : tx.balanceType === "PTS" ? 0 : 2)}
+                {tx.amount.toFixed(tx.balanceType.includes("DOGE") ? 6 : tx.balanceType === "PTS" ? 0 : 2)}{" "}
+                {balanceTypeUnit(tx.balanceType)}
               </span>,
             ])}
           />
