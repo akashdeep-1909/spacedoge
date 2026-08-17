@@ -213,19 +213,44 @@ function buildWagmiConfig(walletConnectProjectId?: string) {
               description: "Wallet-first Coin Rush Arena with verifiable Scrypt cloud-mining rewards.",
               url: effectiveAppUrl || "https://spacedoge.app",
               icons: effectiveAppUrl ? [`${effectiveAppUrl}/notification-icon.png`] : [],
-              // Deliberately no `redirect` here — that option tells the
-              // wallet app to auto-send the user back to a browser after
-              // they approve, but it has no way to target the SPECIFIC
-              // tab/app they actually came from (see the removed
-              // window.location.href attempt this used to try, and note
-              // below on iOS 17+ blocking it at the OS level anyway); it
-              // can only jump to some browser via a generic universal
-              // link, which on Android in particular can land the user
-              // in a different browser than the one they started in —
-              // confirmed reported as worse than no redirect at all.
-              // Explicitly requested: no auto-redirect: the user
-              // switches back to the browser manually after approving in
-              // the wallet app.
+              // RESTORED after a real regression: removing this (in an
+              // earlier attempt to stop wallets auto-jumping back to the
+              // wrong browser/tab) broke the connect flow itself for at
+              // least Bitget Wallet — confirmed live as "WalletConnect
+              // connection failed" plus, on the runs where the session
+              // did establish, connectAsync() never resolving/chaining
+              // into signIn() after approving in the wallet app. This
+              // metadata isn't purely cosmetic UX polish — some wallets
+              // use it as part of completing the WalletConnect session
+              // handshake itself, not just as an optional "here's a nice
+              // link back." The "wrong browser on Android" downside noted
+              // below is real, but a broken connect is worse than an
+              // imperfect redirect target.
+              //
+              // The bare origin, deliberately NOT the exact current page
+              // URL — an earlier version tried window.location.href
+              // reasoning that Safari/Chrome match a universal-link
+              // target against already-open tabs by exact URL. That
+              // reasoning was right but the implementation couldn't work:
+              // this whole metadata object is only read ONCE, whenever
+              // WalletConnect's underlying provider first initializes
+              // (effectively on app boot, in Providers.tsx — see
+              // @wagmi/connectors' walletConnect.js getProvider(), which
+              // memoizes the provider instance permanently after the
+              // first call). Since this app navigates client-side with no
+              // full reloads, window.location.href at that one moment is
+              // frozen for the rest of the session — it was still stale
+              // for every page visited after the first, just a different
+              // (still wrong) stale value than the bare origin would be.
+              // The origin is at least always a VALID, correct URL rather
+              // than an arbitrary frozen snapshot; perfect same-tab reuse
+              // on every OS/browser isn't achievable from app code alone
+              // regardless (iOS 17+ blocks automatic return-to-browser
+              // redirect entirely at the OS level — confirmed against
+              // WalletConnect's and MetaMask's own docs/issue tracker).
+              // src/lib/walletReturnPath.ts is the compensating mechanism
+              // for landing on the wrong PAGE within this app once back.
+              redirect: effectiveAppUrl ? { universal: effectiveAppUrl } : undefined,
             },
           }),
         ]
