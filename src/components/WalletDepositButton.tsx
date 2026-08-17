@@ -8,7 +8,7 @@ import { isUserRejectionError, useAuth } from "@/lib/auth-context";
 import { useVerifyDeposit } from "@/lib/hooks";
 import { markPendingDepositReturn, clearPendingDepositReturn } from "@/lib/depositReturn";
 import { isStaleWalletConnectError, recoverFromStaleWalletConnectSession } from "@/lib/walletConnectReset";
-import { walletLog } from "@/lib/walletLog";
+import { walletLog, errorDetails } from "@/lib/walletLog";
 import { DepositTimeline } from "@/components/DepositTimeline";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 
@@ -439,16 +439,13 @@ export function WalletDepositButton({
         await switchToChainWithRetry();
         setStep("sending");
       }
-      // Deliberately no watchAsset ("add token to wallet") step here
-      // anymore — it was a SEPARATE wallet prompt before the real
-      // transfer one, and on mobile each wallet prompt is its own full
-      // app-switch round trip. Two prompts meant two round trips
-      // (confirmed live as "very inconvenient": add-token screen, back
-      // to spacedoge, back to the wallet again for the actual confirm).
-      // It was already purely cosmetic (nicer "10 USDT" vs "10 Unknown"
-      // on the confirm screen) — not worth doubling the app-switch cost
-      // of every single deposit for.
-      //
+      // Best-effort wallet_watchAsset, injected connectors only — see
+      // maybeWatchAsset's own doc-comment for the full "why" (this
+      // controls the confirm screen showing "0.1 USDT" instead of "0.1
+      // Unknown"). Never blocks/fails the actual deposit: any rejection,
+      // timeout, or unsupported-method error is swallowed inside
+      // maybeWatchAsset itself.
+      await maybeWatchAsset();
       // 120s, not 60 — same reasoning as ConnectWalletButton.tsx's
       // CONNECT_TIMEOUT_MS: a user actually reading and approving a real
       // transfer inside their wallet app can easily take longer than 60
@@ -512,6 +509,76 @@ export function WalletDepositButton({
       // client-side (this function only runs from a click handler).
       if (document.visibilityState === "visible") {
         clearPendingDepositReturn();
+      }
+    }
+  }
+
+  // wallet_watchAsset — lets the wallet's OWN confirm screen show
+  // "0.1 USDT" instead of "0.1 Unknown". MetaMask (and most wallets)
+  // decode a raw ERC20 transfer() call's amount/decimals fine either
+  // way — that part already works — they just have no ticker/logo to
+  // attach to a token they've never seen before, since the confirm
+  // screen isn't reading that from the contract, only from the
+  // wallet's OWN locally "watched" asset list. Confirmed live: "the
+  // deposit on BSC chain metamask show 0,1 Unknown."
+  //
+  // Injected connectors ONLY, deliberately — this used to run
+  // unconditionally for every connector, and was removed entirely
+  // (see git history) after it was confirmed live as "very
+  // inconvenient" on mobile: wallet_watchAsset shows its OWN separate
+  // confirm prompt, which for a WalletConnect session (MetaMask/
+  // Trust/Bitget's mobile app via deep link) is a SECOND full
+  // app-switch round trip stacked right before the transfer prompt's
+  // own round trip. For an injected connector (a desktop extension, or
+  // a wallet's own in-app mobile browser with window.ethereum injected
+  // directly into this same tab), there's no app-switch at all — it's
+  // one more popup in the SAME window, not a second round trip — so
+  // the cosmetic win is worth asking for there without reintroducing
+  // the mobile regression this once was.
+  //
+  // Cached per chain in localStorage so a returning user is only ever
+  // asked once, not on every single deposit — wallet_watchAsset has no
+  // "is this already watched" read the dapp side can query first, and
+  // repeatedly re-prompting for a token the user already added (or
+  // already dismissed) would just be noise.
+  async function maybeWatchAsset() {
+    if (activeConnector?.type !== "injected") return;
+    const watchedKey = `spacedoge:watched-asset:${chainKey}`;
+    try {
+      if (window.localStorage.getItem(watchedKey) === "1") return;
+    } catch {
+      // localStorage unavailable — fall through and ask anyway, just
+      // means this can't remember the answer for next time.
+    }
+    try {
+      const provider = (await activeConnector?.getProvider?.()) as
+        | { request?: (args: { method: string; params: unknown }) => Promise<unknown> }
+        | undefined;
+      // Bounded the same way every other wallet-prompting call in this
+      // file is — an ignored/un-acted-on prompt shouldn't hold up the
+      // real deposit behind it forever. Short timeout, not 120s: this
+      // is same-window (injected only, see above), so a real user
+      // response is fast; anything slower almost certainly means the
+      // prompt is being ignored in favor of just going straight to the
+      // transfer, which is fine — this step is purely cosmetic.
+      await withTimeout(
+        provider?.request?.({
+          method: "wallet_watchAsset",
+          params: { type: "ERC20", options: { address: tokenContract, symbol: "USDT", decimals: tokenDecimals } },
+        }) ?? Promise.resolve(),
+        15_000,
+        "wallet_watchAsset timed out"
+      );
+    } catch (err) {
+      // Rejected, unsupported (older wallets/some in-app browsers don't
+      // implement this method), or timed out — every case is fine to
+      // silently drop. Never lets this affect the real deposit below.
+      walletLog("wallet_watchAsset skipped (non-fatal)", errorDetails(err));
+    } finally {
+      try {
+        window.localStorage.setItem(watchedKey, "1");
+      } catch {
+        // non-fatal — worst case this asks again next time
       }
     }
   }
