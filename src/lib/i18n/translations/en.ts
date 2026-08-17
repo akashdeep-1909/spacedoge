@@ -34,6 +34,7 @@ const en = {
   },
   nav: {
     dashboard: "Dashboard",
+    home: "Home",
     play: "Play",
     miningRig: "Mining Rig",
     wallet: "Wallet",

@@ -18,6 +18,7 @@ const fil = {
   },
   nav: {
     dashboard: "Dashboard",
+    home: "Home",
     play: "Maglaro",
     miningRig: "Mining Rig",
     wallet: "Wallet",

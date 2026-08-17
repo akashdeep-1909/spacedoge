@@ -18,6 +18,7 @@ const ko = {
   },
   nav: {
     dashboard: "대시보드",
+    home: "홈",
     play: "플레이",
     miningRig: "채굴 장비",
     wallet: "지갑",

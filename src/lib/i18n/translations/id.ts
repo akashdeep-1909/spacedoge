@@ -18,6 +18,7 @@ const id = {
   },
   nav: {
     dashboard: "Dasbor",
+    home: "Beranda",
     play: "Main",
     miningRig: "Rig Penambangan",
     wallet: "Dompet",

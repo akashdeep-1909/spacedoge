@@ -18,6 +18,7 @@ const ru = {
   },
   nav: {
     dashboard: "Панель управления",
+    home: "Главная",
     play: "Играть",
     miningRig: "Майнинг-ферма",
     wallet: "Кошелёк",

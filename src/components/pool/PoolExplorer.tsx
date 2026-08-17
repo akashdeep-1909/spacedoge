@@ -7,7 +7,7 @@ import { ShieldCheck, Landmark, Fingerprint, ChevronDown } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { DogeIcon } from "@/components/icons/CoinIcons";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
-import { GatedLink } from "@/components/GatedLink";
+import { useAuth } from "@/lib/auth-context";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { SocialLinks } from "@/components/SocialLinks";
@@ -255,6 +255,7 @@ export function PoolExplorer({
   dogeNetworkStats: { difficulty: number; networkHashratePhs: number; fetchedAt: string } | null;
 }) {
   const { t } = useLocale();
+  const { session } = useAuth();
 
   // Chart wants oldest -> newest; the table below wants newest first,
   // so the two share the same `epochs` prop without either needing
@@ -326,14 +327,27 @@ export function PoolExplorer({
                 back on Dashboard, home etc" — kept visible at every
                 width, not hidden below a breakpoint like the brand
                 text above, since this is the actual fix for that
-                report, not a nice-to-have. GatedLink (not a plain
-                Link) because this page is ALSO reachable by a
-                never-signed-in visitor following a public link to it —
-                same connect+SIWE-then-navigate fallback every other
-                marketing-page "Dashboard" CTA already uses. */}
-            <GatedLink href="/dashboard" className="btn-game-outline shrink-0 rounded-full px-3 py-1.5 text-xs">
-              {t("nav.dashboard")}
-            </GatedLink>
+                report, not a nice-to-have.
+                Two different destinations depending on session state
+                (not GatedLink's own connect-then-navigate fallback,
+                which would launch a full connect+SIWE flow off a
+                simple "go home" tap): signed in → straight to
+                /dashboard, the button read as "how do I get back to
+                the app"; not signed in → the public homepage, which is
+                where every OTHER un-signed-in nav surface on the site
+                already sends a "go back" tap (the logo link right next
+                to this, SiteHeader's own logo, etc.) — the whole point
+                is a plain, no-friction way out of this page, not one
+                more prompt on top of the one they didn't ask for. */}
+            {session?.authenticated ? (
+              <Link href="/dashboard" className="btn-game-outline shrink-0 rounded-full px-3 py-1.5 text-xs">
+                {t("nav.dashboard")}
+              </Link>
+            ) : (
+              <Link href="/" className="btn-game-outline shrink-0 rounded-full px-3 py-1.5 text-xs">
+                {t("nav.home")}
+              </Link>
+            )}
             <LanguageSwitcher />
             <ConnectWalletButton />
           </div>

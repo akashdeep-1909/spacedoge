@@ -18,6 +18,7 @@ const zh = {
   },
   nav: {
     dashboard: "仪表盘",
+    home: "首页",
     play: "游戏",
     miningRig: "挖矿设备",
     wallet: "钱包",

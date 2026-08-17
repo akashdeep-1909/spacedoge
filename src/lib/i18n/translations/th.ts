@@ -18,6 +18,7 @@ const th = {
   },
   nav: {
     dashboard: "แดชบอร์ด",
+    home: "หน้าแรก",
     play: "เล่น",
     miningRig: "อุปกรณ์ขุด",
     wallet: "กระเป๋าเงิน",

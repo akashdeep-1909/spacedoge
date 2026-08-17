@@ -18,6 +18,7 @@ const vi = {
   },
   nav: {
     dashboard: "Bảng điều khiển",
+    home: "Trang Chủ",
     play: "Chơi",
     miningRig: "Giàn đào",
     wallet: "Ví",

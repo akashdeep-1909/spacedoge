@@ -18,6 +18,7 @@ const zhTW = {
   },
   nav: {
     dashboard: "儀表板",
+    home: "首頁",
     play: "遊戲",
     miningRig: "挖礦設備",
     wallet: "錢包",

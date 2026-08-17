@@ -18,6 +18,7 @@ const km = {
   },
   nav: {
     dashboard: "ផ្ទាំងគ្រប់គ្រង",
+    home: "ទំព័រដើម",
     play: "លេង",
     miningRig: "ឧបករណ៍ជីកយក",
     wallet: "កាបូប",
