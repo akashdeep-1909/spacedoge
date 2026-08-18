@@ -160,7 +160,12 @@ function BulkDemoPanel() {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const bulkSetDemo = useBulkSetDemo();
-  const [result, setResult] = useState<{ updatedCount: number; unmatched: string[] } | null>(null);
+  // isDemo carried alongside the result — confirmed live as a real gap:
+  // "not even show proper success message is marked demo or marked
+  // undemo" — {updatedCount} alone reads identically whichever button
+  // was clicked, with nothing distinguishing "5 wallet(s) MARKED demo"
+  // from "5 wallet(s) UNMARKED".
+  const [result, setResult] = useState<{ updatedCount: number; unmatched: string[]; isDemo: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function parseIdentifiers(): string[] {
@@ -177,7 +182,15 @@ function BulkDemoPanel() {
     if (identifiers.length === 0) return;
     try {
       const res = await bulkSetDemo.mutateAsync({ identifiers, isDemo });
-      setResult(res);
+      setResult({ ...res, isDemo });
+      // Cleared only on success, not on a failed attempt — a failure
+      // means nothing actually happened, so the admin still needs
+      // their pasted list sitting there to retry rather than having to
+      // re-paste it from scratch. Confirmed live as a real gap: the box
+      // never cleared even on a genuinely successful update, leaving no
+      // visible confirmation that anything had changed beyond a small
+      // text line easy to miss.
+      if (res.updatedCount > 0) setText("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to bulk-update demo flag.");
     }
@@ -221,7 +234,11 @@ function BulkDemoPanel() {
           {error && <p className="text-xs text-risk">{error}</p>}
           {result && (
             <p className="text-xs">
-              <span className="text-mint">{result.updatedCount} wallet(s) updated.</span>
+              <span className={result.updatedCount > 0 ? "text-mint" : "text-muted"}>
+                {result.updatedCount === 0
+                  ? "No wallets matched."
+                  : `${result.updatedCount} wallet(s) ${result.isDemo ? "marked as Demo" : "unmarked from Demo"}.`}
+              </span>
               {result.unmatched.length > 0 && (
                 <span className="ml-2 text-risk">
                   {result.unmatched.length} not found: {result.unmatched.join(", ")}
