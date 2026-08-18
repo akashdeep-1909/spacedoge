@@ -72,7 +72,15 @@ export async function GET(request: NextRequest) {
       take: 8,
       include: { walletProfile: { select: { address: true } } },
     }),
-    db.withdrawal.groupBy({ by: ["status"], _sum: { amount: true }, _count: true }),
+    // Grouped by balanceType too, not just status — a withdrawal's
+    // `amount` is either raw USDT (RECYCLED_USDT/REFERRAL_USDT/
+    // GAME_REWARD_USDT source) or raw DOGE (AVAILABLE_DOGE source, the
+    // DOGE chain's only valid source — see /api/wallet/withdraw's own
+    // doc-comment). Summing both into one number and labeling it "$"
+    // was silently adding literal DOGE token counts on top of a USDT
+    // total — confirmed live: "if USDT withdrawal show USDT if DOGE
+    // show DOGE."
+    db.withdrawal.groupBy({ by: ["status", "balanceType"], _sum: { amount: true }, _count: true }),
     db.withdrawal.aggregate({ where: { status: "COMPLETED" }, _sum: { networkFeeUsdt: true } }),
     db.withdrawal.findMany({
       where: { createdAt: { gte: since } },
@@ -109,9 +117,22 @@ export async function GET(request: NextRequest) {
     depositTotals.map((r) => [r.status, { count: r._count, amount: Number(r._sum.amount ?? 0) }])
   ) as Record<DepositStatus, { count: number; amount: number }>;
 
-  const withdrawalByStatus = Object.fromEntries(
-    withdrawalTotals.map((r) => [r.status, { count: r._count, amount: Number(r._sum.amount ?? 0) }])
-  ) as Record<WithdrawalStatus, { count: number; amount: number }>;
+  // Two currency buckets per status, not one — see the groupBy's own
+  // doc-comment above. AVAILABLE_DOGE is the DOGE chain's only source;
+  // everything else withdrawable (RECYCLED_USDT/REFERRAL_USDT/
+  // GAME_REWARD_USDT) is USDT.
+  const emptyCurrencyBucket = () => ({ usdt: { count: 0, amount: 0 }, doge: { count: 0, amount: 0 } });
+  const withdrawalByStatus: Record<WithdrawalStatus, { usdt: { count: number; amount: number }; doge: { count: number; amount: number } }> = {
+    PENDING: emptyCurrencyBucket(),
+    COMPLETED: emptyCurrencyBucket(),
+  };
+  for (const row of withdrawalTotals) {
+    const bucket = withdrawalByStatus[row.status];
+    if (!bucket) continue;
+    const target = row.balanceType === BalanceType.AVAILABLE_DOGE ? bucket.doge : bucket.usdt;
+    target.count += row._count;
+    target.amount += Number(row._sum.amount ?? 0);
+  }
 
   const depositBuckets = new Map<string, { unmatched: number; pending: number; credited: number }>();
   for (const day of emptySeries(days)) depositBuckets.set(day, { unmatched: 0, pending: 0, credited: 0 });
@@ -185,14 +206,21 @@ export async function GET(request: NextRequest) {
     },
     withdrawals: {
       totals: {
-        pending: withdrawalByStatus.PENDING ?? { count: 0, amount: 0 },
-        completed: withdrawalByStatus.COMPLETED ?? { count: 0, amount: 0 },
+        pending: withdrawalByStatus.PENDING,
+        completed: withdrawalByStatus.COMPLETED,
       },
+      // Always genuinely USDT regardless of which coin a given
+      // withdrawal moved — the admin records this on completion as the
+      // real broadcast tx's cost, in USDT-equivalent terms, even for a
+      // DOGE withdrawal (schema: "networkFeeUsdt... real cost of the
+      // broadcast tx"). No currency split needed here, unlike the
+      // totals above.
       feesCollected: Number(withdrawalFeeAgg._sum.networkFeeUsdt ?? 0),
       series: withdrawalSeries,
       recent: withdrawalRecent.map((w) => ({
         id: w.id,
         amount: Number(w.amount),
+        balanceType: w.balanceType,
         networkFeeUsdt: w.networkFeeUsdt !== null ? Number(w.networkFeeUsdt) : null,
         status: w.status,
         address: w.walletProfile.address,

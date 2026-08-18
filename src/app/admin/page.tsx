@@ -1,15 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartTooltip } from "@/components/ChartTooltip";
 import { CompositionBar } from "@/components/CompositionBar";
 import { CHART } from "@/lib/chart-theme";
 import { useAdminOverview, type AdminOverview } from "@/lib/hooks";
+import { balanceTypeUnit } from "@/lib/balance-labels";
 
 function fmtUsdt(n: number) {
   return `$${n.toFixed(2)}`;
+}
+function fmtDoge(n: number) {
+  return `${n.toFixed(4)} DOGE`;
 }
 function fmtUsdtShort(n: number) {
   return `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -76,8 +80,8 @@ export default function AdminOverviewPage() {
         <StatCard label="Available Balance" value={fmtUsdt(data.availableUsdt)} tone="mint" />
         <StatCard
           label="Pending Withdrawals"
-          value={`${pendingWithdrawals.count} · ${fmtUsdt(pendingWithdrawals.amount)}`}
-          tone={pendingWithdrawals.count > 0 ? "gold" : undefined}
+          value={<CurrencyBucketValue usdt={pendingWithdrawals.usdt} doge={pendingWithdrawals.doge} />}
+          tone={pendingWithdrawals.usdt.count > 0 || pendingWithdrawals.doge.count > 0 ? "gold" : undefined}
         />
         <StatCard
           label="Deposits Needing Review"
@@ -135,7 +139,7 @@ export default function AdminOverviewPage() {
   );
 }
 
-function StatCard({ label, value, tone }: { label: string; value: string; tone?: "mint" | "risk" | "gold" }) {
+function StatCard({ label, value, tone }: { label: string; value: ReactNode; tone?: "mint" | "risk" | "gold" }) {
   const toneClass =
     tone === "mint" ? "border-mint/25 text-mint" : tone === "risk" ? "border-risk/25 text-risk" : tone === "gold" ? "border-gold/25 text-gold" : "";
   return (
@@ -143,6 +147,30 @@ function StatCard({ label, value, tone }: { label: string; value: string; tone?:
       <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{label}</p>
       <p className="stat-value mt-1.5 text-lg">{value}</p>
     </div>
+  );
+}
+
+// USDT and DOGE withdrawals are two genuinely different funds, not one
+// number with an ambiguous unit — see WithdrawalsSection's own
+// doc-comment. Renders both, stacked, always (even a zero DOGE line is
+// shown rather than hidden) so it never looks like the DOGE side was
+// silently rolled into the USDT figure above it.
+function CurrencyBucketValue({
+  usdt,
+  doge,
+}: {
+  usdt: { count: number; amount: number };
+  doge: { count: number; amount: number };
+}) {
+  return (
+    <>
+      <span className="block">
+        {usdt.count} · {fmtUsdt(usdt.amount)}
+      </span>
+      <span className="block text-sm opacity-80">
+        {doge.count} · {fmtDoge(doge.amount)}
+      </span>
+    </>
   );
 }
 
@@ -245,7 +273,12 @@ const WITHDRAWAL_FILTERS = ["All", "Requested", "Completed"] as const;
 function WithdrawalsSection({ data }: { data: AdminOverview }) {
   const [filter, setFilter] = useState<(typeof WITHDRAWAL_FILTERS)[number]>("All");
   const { pending, completed } = data.withdrawals.totals;
-  const netSent = completed.amount - data.withdrawals.feesCollected;
+  // feesCollected is always USDT-denominated bookkeeping (see the API
+  // route's own doc-comment), so it only ever nets against the USDT
+  // side of completed withdrawals — DOGE has no fee figure to subtract
+  // against at all, it's shown as its own raw total.
+  const netUsdtSent = completed.usdt.amount - data.withdrawals.feesCollected;
+  const netDogeSent = completed.doge.amount;
 
   const recentFilterStatus = filter === "Requested" ? "PENDING" : filter === "Completed" ? "COMPLETED" : null;
   const recent = useMemo(
@@ -272,11 +305,12 @@ function WithdrawalsSection({ data }: { data: AdminOverview }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Pending" value={`${pending.count} · ${fmtUsdt(pending.amount)}`} tone="gold" />
-        <StatCard label="Completed (lifetime)" value={`${completed.count} · ${fmtUsdt(completed.amount)}`} tone="mint" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <StatCard label="Pending" value={<CurrencyBucketValue usdt={pending.usdt} doge={pending.doge} />} tone="gold" />
+        <StatCard label="Completed (lifetime)" value={<CurrencyBucketValue usdt={completed.usdt} doge={completed.doge} />} tone="mint" />
         <StatCard label="Fees Collected" value={fmtUsdt(data.withdrawals.feesCollected)} />
-        <StatCard label="Net Sent (completed − fees)" value={fmtUsdt(netSent)} tone="mint" />
+        <StatCard label="Net USDT Sent (completed − fees)" value={fmtUsdt(netUsdtSent)} tone="mint" />
+        <StatCard label="Net DOGE Sent (completed)" value={fmtDoge(netDogeSent)} tone="mint" />
       </div>
 
       <div className="game-panel hud-corner mt-3 rounded-2xl p-4">
@@ -315,7 +349,9 @@ function WithdrawalsSection({ data }: { data: AdminOverview }) {
                       {w.status}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 font-semibold">{fmtUsdt(w.amount)}</td>
+                  <td className="px-4 py-2.5 font-semibold">
+                    {balanceTypeUnit(w.balanceType) === "DOGE" ? fmtDoge(w.amount) : fmtUsdt(w.amount)}
+                  </td>
                   <td className="px-4 py-2.5 text-muted">
                     {w.networkFeeUsdt !== null ? `fee ${fmtUsdt(w.networkFeeUsdt)}` : "fee -"}
                   </td>

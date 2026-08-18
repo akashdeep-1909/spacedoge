@@ -677,6 +677,12 @@ export interface AdminRecentDeposit {
 export interface AdminRecentWithdrawal {
   id: string;
   amount: number;
+  // Which balance this withdrawal actually debited — AVAILABLE_DOGE
+  // means `amount` is raw DOGE, everything else (RECYCLED_USDT/
+  // REFERRAL_USDT/GAME_REWARD_USDT) means raw USDT. Needed to show the
+  // right unit next to `amount`, see balanceTypeUnit (src/lib/
+  // balance-labels.ts).
+  balanceType: string;
   networkFeeUsdt: number | null;
   status: "PENDING" | "COMPLETED";
   address: string;
@@ -712,9 +718,12 @@ export interface AdminOverview {
     recent: AdminRecentDeposit[];
   };
   withdrawals: {
+    // Split by currency, not one combined figure — see the API route's
+    // own doc-comment on why (a raw DOGE amount and a raw USDT amount
+    // can't be summed into one meaningful number).
     totals: {
-      pending: { count: number; amount: number };
-      completed: { count: number; amount: number };
+      pending: { usdt: { count: number; amount: number }; doge: { count: number; amount: number } };
+      completed: { usdt: { count: number; amount: number }; doge: { count: number; amount: number } };
     };
     feesCollected: number;
     series: AdminWithdrawalSeriesPoint[];
