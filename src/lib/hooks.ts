@@ -836,8 +836,7 @@ export interface AdminUserRow {
   address: string;
   isBot: boolean;
   // Admin-flagged demo/marketing account — see WalletProfile.isDemo's
-  // own doc-comment in schema.prisma. Hidden from the default list/
-  // count the same way bots are, opted into via includeDemo below.
+  // own doc-comment in schema.prisma.
   isDemo: boolean;
   riskFlag: string | null;
   isKol: boolean;
@@ -846,16 +845,24 @@ export interface AdminUserRow {
   balances: WalletBalances;
 }
 
-export function useAdminUsers(query: string, includeBots = false, includeDemo = false) {
+// demoOnly is an EITHER/OR view switch (Real Users vs Demo Accounts,
+// src/app/admin/users/page.tsx's own tab pair), not an additive reveal
+// like includeBots — see the API route's own doc-comment for why that
+// distinction matters here specifically.
+export function useAdminUsers(query: string, includeBots = false, demoOnly = false) {
   return useQuery({
-    queryKey: ["admin", "users", query, includeBots, includeDemo],
+    queryKey: ["admin", "users", query, includeBots, demoOnly],
     queryFn: async (): Promise<{ rows: AdminUserRow[]; totalUserCount: number }> => {
       const params = new URLSearchParams();
       if (query) params.set("q", query);
       if (includeBots) params.set("includeBots", "true");
-      if (includeDemo) params.set("includeDemo", "true");
+      if (demoOnly) params.set("demoOnly", "true");
       const qs = params.toString();
-      const res = await fetch(`/api/admin/users${qs ? `?${qs}` : ""}`);
+      // no-store — this list changes the moment an admin marks/unmarks
+      // a wallet demo (or credits a balance, flags risk, etc.), and a
+      // stale cached response here is exactly the kind of thing that
+      // would look identical to a genuinely broken filter.
+      const res = await fetch(`/api/admin/users${qs ? `?${qs}` : ""}`, { cache: "no-store" });
       if (!res.ok) {
         // Surface the server's own error text (e.g. a Prisma error
         // message) instead of a generic string that hides it — see

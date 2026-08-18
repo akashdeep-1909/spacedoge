@@ -35,11 +35,22 @@ const BALANCE_TYPE_LABEL: Record<(typeof CREDITABLE_BALANCE_TYPES)[number], stri
   REFERRAL_USDT: "Referral USDT",
 };
 
+const USER_VIEWS = ["Real Users", "Demo Accounts"] as const;
+
 export default function AdminUsersPage() {
   const [query, setQuery] = useState("");
   const [showBots, setShowBots] = useState(false);
-  const [showDemo, setShowDemo] = useState(false);
-  const { data, isLoading, error } = useAdminUsers(query, showBots, showDemo);
+  // A real either/or SEPARATION between real and demo wallets, not a
+  // checkbox that mixes demo accounts into the same list (that's what
+  // "Show bot accounts" below still does, deliberately — bots and demo
+  // wallets are different concepts: every bot is synthetic/obviously
+  // not a user either way, so revealing them IN PLACE alongside real
+  // ones is fine; a demo wallet is a real address an admin is
+  // specifically trying to keep OUT of the "real users" picture, which
+  // needs an actual separate view, not a toggle that adds it back in).
+  const [view, setView] = useState<(typeof USER_VIEWS)[number]>("Real Users");
+  const demoOnly = view === "Demo Accounts";
+  const { data, isLoading, error } = useAdminUsers(query, showBots, demoOnly);
   const paged = usePagination(data?.rows ?? []);
 
   return (
@@ -47,7 +58,9 @@ export default function AdminUsersPage() {
       <div>
         <h1 className="text-lg font-black uppercase tracking-wide">Users</h1>
         <p className="mt-1 text-sm text-muted">
-          {data ? `${data.totalUserCount} ${showBots ? "row" : "user"}${data.totalUserCount === 1 ? "" : "s"} total. ` : ""}
+          {data
+            ? `${data.totalUserCount} ${demoOnly ? "demo account" : showBots ? "row" : "user"}${data.totalUserCount === 1 ? "" : "s"} total. `
+            : ""}
           Search by wallet address, or browse the most recent sign-ups. Every balance field is
           shown per user, and any balance can be manually credited or corrected below.
         </p>
@@ -65,30 +78,40 @@ export default function AdminUsersPage() {
           placeholder="Search address…"
           className="w-full max-w-sm rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm"
         />
-        <label className="flex items-center gap-1.5 text-xs text-muted">
-          <input
-            type="checkbox"
-            checked={showBots}
-            onChange={(e) => {
-              setShowBots(e.target.checked);
-              paged.setPage(1);
-            }}
-            className="h-3.5 w-3.5 accent-mint"
-          />
-          Show bot accounts
-        </label>
-        <label className="flex items-center gap-1.5 text-xs text-muted">
-          <input
-            type="checkbox"
-            checked={showDemo}
-            onChange={(e) => {
-              setShowDemo(e.target.checked);
-              paged.setPage(1);
-            }}
-            className="h-3.5 w-3.5 accent-gold"
-          />
-          Show demo accounts
-        </label>
+        <div className="flex gap-1 rounded-full border border-line bg-panel p-1 text-xs font-semibold">
+          {USER_VIEWS.map((v) => (
+            <button
+              key={v}
+              onClick={() => {
+                setView(v);
+                paged.setPage(1);
+              }}
+              className={`rounded-full px-3 py-1.5 transition ${
+                view === v ? "bg-gold-soft text-gold" : "text-muted hover:text-foreground"
+              }`}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+        {/* Only meaningful on the Real Users side — the Demo Accounts
+            view is already its own exclusive filter, a bot could
+            technically also be marked isDemo but that's not a real
+            scenario worth a 2x2 toggle matrix for. */}
+        {!demoOnly && (
+          <label className="flex items-center gap-1.5 text-xs text-muted">
+            <input
+              type="checkbox"
+              checked={showBots}
+              onChange={(e) => {
+                setShowBots(e.target.checked);
+                paged.setPage(1);
+              }}
+              className="h-3.5 w-3.5 accent-mint"
+            />
+            Show bot accounts
+          </label>
+        )}
       </div>
 
       <div className="flex flex-col gap-3">
@@ -169,8 +192,8 @@ function BulkDemoPanel() {
         <div className="mt-3 flex flex-col gap-2">
           <p className="text-xs text-muted">
             Paste a list of wallet IDs or addresses (any mix, one per line or separated by commas/spaces). Marking a
-            wallet Demo has no effect on what it can do or see — it only hides it from this page&rsquo;s default list
-            and count.
+            wallet Demo has no effect on what it can do or see — it only moves it out of the &ldquo;Real Users&rdquo;
+            tab above and into its own separate &ldquo;Demo Accounts&rdquo; tab.
           </p>
           <textarea
             value={text}
@@ -246,24 +269,20 @@ function UserCard({ row }: { row: AdminUserRow }) {
 
   return (
     <div className={`game-panel hud-corner relative rounded-2xl p-4 ${row.isBot ? "opacity-70" : ""}`}>
-      {(row.isBot || row.isDemo) && (
-        <span className="absolute right-3 top-3 z-10 flex items-center gap-1.5">
-          {row.isDemo && (
-            <span
-              className="rounded-full border border-gold/30 bg-gold-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold"
-              title="Admin-flagged demo/marketing account — real wallet, excluded from the default Users list/count only"
-            >
-              🎭 Demo
-            </span>
-          )}
-          {row.isBot && (
-            <span
-              className="rounded-full border border-line bg-panel-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted"
-              title="AI-controlled opponent, not a real player"
-            >
-              🤖 Bot
-            </span>
-          )}
+      {/* Absolute-positioned corner badge — bots ONLY. Bots never show
+          the action-buttons row below (see !row.isBot further down),
+          so this corner is always free for them. isDemo used to also
+          render here, but a demo-flagged wallet is a REAL user and
+          DOES show that full button row — the two competed for the
+          same corner and visibly overlapped (confirmed live via
+          screenshot). isDemo now renders inline in the header instead,
+          alongside riskFlag/isKol, where there's no collision. */}
+      {row.isBot && (
+        <span
+          className="absolute right-3 top-3 z-10 rounded-full border border-line bg-panel-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted"
+          title="AI-controlled opponent, not a real player"
+        >
+          🤖 Bot
         </span>
       )}
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -283,6 +302,14 @@ function UserCard({ row }: { row: AdminUserRow }) {
                 title="Key Opinion Leader, referrals through this wallet unlock the KOL_REFERRAL_BONUS free-play gift"
               >
                 KOL
+              </span>
+            )}
+            {row.isDemo && (
+              <span
+                className="rounded-full border border-gold/30 bg-gold-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold"
+                title="Admin-flagged demo/marketing account — real wallet, only separated out on this admin page"
+              >
+                🎭 Demo
               </span>
             )}
           </p>

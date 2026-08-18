@@ -3,9 +3,9 @@ import { requireAdminSession } from "@/lib/admin";
 import { db } from "@/lib/db";
 import { getWalletBalances } from "@/lib/balances";
 
-// GET /api/admin/users?q=0xabc&includeBots=true — search by address
-// substring, or list most-recently-created wallets when no query is
-// given.
+// GET /api/admin/users?q=0xabc&includeBots=true&demoOnly=true — search
+// by address substring, or list most-recently-created wallets when no
+// query is given.
 //
 // Excludes synthetic "bot:<mapSeed>:<i>" profiles (src/app/api/matches/
 // route.ts) by default — every match spawns AI opponents that need a
@@ -17,23 +17,28 @@ import { getWalletBalances } from "@/lib/balances";
 // badge them clearly rather than mixing silently into the real list.
 // Always excludes the "platform:treasury" pseudo-wallet (src/lib/
 // treasury.ts) either way — that's never a "user" in any sense.
+//
+// demoOnly is a hard EITHER/OR on WalletProfile.isDemo, not an
+// additive "also include" toggle like includeBots above — always
+// exactly one of `isDemo: false` (default, "Real Users" tab) or
+// `isDemo: true` (demoOnly=true, "Demo Accounts" tab), never both
+// mixed in the same result set. Confirmed live this was the actual
+// intent, not the bots-style "reveal within the same list" behavior
+// an earlier version of this route had: "so like this i will separate
+// the real users and Demo User" / "if demo check on also show
+// undemo" (a complaint that the mixed version showed non-demo rows
+// too, when a real SEPARATION was wanted).
 export async function GET(request: NextRequest) {
   const session = await requireAdminSession();
   if (!session) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
   const q = request.nextUrl.searchParams.get("q")?.trim().toLowerCase();
   const includeBots = request.nextUrl.searchParams.get("includeBots") === "true";
-  // Same "hidden unless opted into" convention as includeBots above —
-  // a demo/marketing wallet (WalletProfile.isDemo, see its own
-  // doc-comment) is a real, non-bot address an admin has manually
-  // flagged as not-a-real-user, so it needs a separate opt-in toggle
-  // from bots rather than reusing includeBots (src/app/admin/users/
-  // page.tsx's own "Show demo accounts" checkbox).
-  const includeDemo = request.nextUrl.searchParams.get("includeDemo") === "true";
+  const demoOnly = request.nextUrl.searchParams.get("demoOnly") === "true";
   const where = {
     AND: [
       ...(includeBots ? [] : [{ address: { not: { startsWith: "bot:" } } }]),
-      ...(includeDemo ? [] : [{ isDemo: false }]),
+      { isDemo: demoOnly },
       { address: { not: { startsWith: "platform:" } } },
       ...(q ? [{ address: { contains: q } }] : []),
     ],
