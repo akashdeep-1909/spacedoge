@@ -856,7 +856,14 @@ export function useAdminUsers(query: string, includeBots = false, includeDemo = 
       if (includeDemo) params.set("includeDemo", "true");
       const qs = params.toString();
       const res = await fetch(`/api/admin/users${qs ? `?${qs}` : ""}`);
-      if (!res.ok) throw new Error("Failed to load users");
+      if (!res.ok) {
+        // Surface the server's own error text (e.g. a Prisma error
+        // message) instead of a generic string that hides it — see
+        // admin/users/page.tsx's own error-rendering doc-comment for
+        // why this matters here specifically.
+        const body = await res.json().catch(() => ({}) as { error?: string });
+        throw new Error(body.error ?? "Failed to load users");
+      }
       return res.json();
     },
   });

@@ -39,41 +39,54 @@ export async function GET(request: NextRequest) {
     ],
   };
 
-  // 500 covers every real wallet for the foreseeable pre-launch scale
-  // this app is at — the admin UI paginates client-side over this same
-  // batch (src/app/admin/users/page.tsx), same convention as the
-  // Deposits/Withdrawals/Lobbies admin tables. With includeBots on this
-  // caps at the 500 most recent rows overall (bots included), same as
-  // the real-users-only view — not raised further since this is an
-  // explicit opt-in debugging view, not the primary one.
-  const [profiles, totalUserCount] = await Promise.all([
-    db.walletProfile.findMany({ where, orderBy: { createdAt: "desc" }, take: 500 }),
-    db.walletProfile.count({ where }),
-  ]);
+  // Wrapped in try/catch specifically so a DB-level failure (e.g. a
+  // migration not yet applied on this server, referencing a column
+  // that doesn't exist yet — exactly the class of bug this closes)
+  // comes back as this route's own {error: "..."} JSON body instead of
+  // a bare framework 500 with no message. Without this, the client
+  // (useAdminUsers in src/lib/hooks.ts) had nothing to show but a
+  // generic "Failed to load users" — confirmed live as a real gap:
+  // "here are no user show" gave no hint that the request was actually
+  // failing, not just returning zero rows.
+  try {
+    // 500 covers every real wallet for the foreseeable pre-launch scale
+    // this app is at — the admin UI paginates client-side over this same
+    // batch (src/app/admin/users/page.tsx), same convention as the
+    // Deposits/Withdrawals/Lobbies admin tables. With includeBots on this
+    // caps at the 500 most recent rows overall (bots included), same as
+    // the real-users-only view — not raised further since this is an
+    // explicit opt-in debugging view, not the primary one.
+    const [profiles, totalUserCount] = await Promise.all([
+      db.walletProfile.findMany({ where, orderBy: { createdAt: "desc" }, take: 500 }),
+      db.walletProfile.count({ where }),
+    ]);
 
-  // One extra query, not one per row — batch-looked-up the same way
-  // batchLookupMiningReferrals (src/lib/referrals.ts) avoids an N+1 for
-  // the settlement loop, same reasoning here since this list can be up
-  // to 500 rows.
-  const referralRows = await db.referral.findMany({
-    where: { referredProfileId: { in: profiles.map((p) => p.id) } },
-    include: { referrer: { select: { address: true } } },
-  });
-  const referrerByReferredId = new Map(referralRows.map((r) => [r.referredProfileId, r.referrer.address]));
+    // One extra query, not one per row — batch-looked-up the same way
+    // batchLookupMiningReferrals (src/lib/referrals.ts) avoids an N+1 for
+    // the settlement loop, same reasoning here since this list can be up
+    // to 500 rows.
+    const referralRows = await db.referral.findMany({
+      where: { referredProfileId: { in: profiles.map((p) => p.id) } },
+      include: { referrer: { select: { address: true } } },
+    });
+    const referrerByReferredId = new Map(referralRows.map((r) => [r.referredProfileId, r.referrer.address]));
 
-  const rows = await Promise.all(
-    profiles.map(async (p) => ({
-      id: p.id,
-      address: p.address,
-      isBot: p.address.startsWith("bot:"),
-      isDemo: p.isDemo,
-      riskFlag: p.riskFlag,
-      isKol: p.isKol,
-      createdAt: p.createdAt,
-      referredByAddress: referrerByReferredId.get(p.id) ?? null,
-      balances: await getWalletBalances(p.id),
-    }))
-  );
+    const rows = await Promise.all(
+      profiles.map(async (p) => ({
+        id: p.id,
+        address: p.address,
+        isBot: p.address.startsWith("bot:"),
+        isDemo: p.isDemo,
+        riskFlag: p.riskFlag,
+        isKol: p.isKol,
+        createdAt: p.createdAt,
+        referredByAddress: referrerByReferredId.get(p.id) ?? null,
+        balances: await getWalletBalances(p.id),
+      }))
+    );
 
-  return NextResponse.json({ rows, totalUserCount });
+    return NextResponse.json({ rows, totalUserCount });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Failed to load users" }, { status: 500 });
+  }
 }

@@ -25,24 +25,28 @@ export async function POST(request: NextRequest) {
 
   const identifiers = [...new Set(parsed.data.identifiers.map((s) => s.toLowerCase()))];
 
-  // Resolved first (rather than a single blind updateMany) so the
-  // response can tell the admin exactly which pasted lines didn't
-  // match anything — a silent no-op on a typo'd address/id would
-  // otherwise look identical to success.
-  const matched = await db.walletProfile.findMany({
-    where: { OR: [{ id: { in: identifiers } }, { address: { in: identifiers } }] },
-    select: { id: true, address: true },
-  });
-
-  if (matched.length > 0) {
-    await db.walletProfile.updateMany({
-      where: { id: { in: matched.map((m) => m.id) } },
-      data: { isDemo: parsed.data.isDemo },
+  try {
+    // Resolved first (rather than a single blind updateMany) so the
+    // response can tell the admin exactly which pasted lines didn't
+    // match anything — a silent no-op on a typo'd address/id would
+    // otherwise look identical to success.
+    const matched = await db.walletProfile.findMany({
+      where: { OR: [{ id: { in: identifiers } }, { address: { in: identifiers } }] },
+      select: { id: true, address: true },
     });
+
+    if (matched.length > 0) {
+      await db.walletProfile.updateMany({
+        where: { id: { in: matched.map((m) => m.id) } },
+        data: { isDemo: parsed.data.isDemo },
+      });
+    }
+
+    const matchedSet = new Set(matched.flatMap((m) => [m.id.toLowerCase(), m.address.toLowerCase()]));
+    const unmatched = identifiers.filter((i) => !matchedSet.has(i));
+
+    return NextResponse.json({ updatedCount: matched.length, unmatched });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Failed to bulk-update demo flag" }, { status: 500 });
   }
-
-  const matchedSet = new Set(matched.flatMap((m) => [m.id.toLowerCase(), m.address.toLowerCase()]));
-  const unmatched = identifiers.filter((i) => !matchedSet.has(i));
-
-  return NextResponse.json({ updatedCount: matched.length, unmatched });
 }

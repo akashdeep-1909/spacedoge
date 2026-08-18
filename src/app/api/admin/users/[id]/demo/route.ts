@@ -16,10 +16,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid isDemo" }, { status: 400 });
 
-  await db.walletProfile.update({
-    where: { id },
-    data: { isDemo: parsed.data.isDemo },
-  });
-
-  return NextResponse.json({ ok: true });
+  // Try/catch so a DB-level failure comes back as this route's own
+  // {error: "..."} JSON body, not a bare framework 500 with no
+  // message the client can't parse — see /api/admin/users' own
+  // doc-comment on why this matters (same class of "click does
+  // nothing, no error shown anywhere" bug this closes).
+  try {
+    await db.walletProfile.update({
+      where: { id },
+      data: { isDemo: parsed.data.isDemo },
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Failed to update demo flag" }, { status: 500 });
+  }
 }

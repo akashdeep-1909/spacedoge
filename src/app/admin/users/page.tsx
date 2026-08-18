@@ -39,7 +39,7 @@ export default function AdminUsersPage() {
   const [query, setQuery] = useState("");
   const [showBots, setShowBots] = useState(false);
   const [showDemo, setShowDemo] = useState(false);
-  const { data, isLoading } = useAdminUsers(query, showBots, showDemo);
+  const { data, isLoading, error } = useAdminUsers(query, showBots, showDemo);
   const paged = usePagination(data?.rows ?? []);
 
   return (
@@ -94,6 +94,16 @@ export default function AdminUsersPage() {
       <div className="flex flex-col gap-3">
         {isLoading ? (
           <p className="game-panel hud-corner rounded-2xl p-5 text-sm text-muted">Loading…</p>
+        ) : error ? (
+          // A fetch failure used to render as an indistinguishable
+          // "No users found." — confirmed live as part of a real bug
+          // report ("no user show"): that made a genuine server error
+          // look identical to "there just aren't any," with nothing
+          // telling the admin (or whoever's debugging it) what actually
+          // went wrong.
+          <p className="game-panel hud-corner rounded-2xl p-5 text-sm text-risk">
+            {error instanceof Error ? error.message : "Failed to load users."}
+          </p>
         ) : !data?.rows.length ? (
           <p className="game-panel hud-corner rounded-2xl p-5 text-sm text-muted">No users found.</p>
         ) : (
@@ -128,6 +138,7 @@ function BulkDemoPanel() {
   const [text, setText] = useState("");
   const bulkSetDemo = useBulkSetDemo();
   const [result, setResult] = useState<{ updatedCount: number; unmatched: string[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   function parseIdentifiers(): string[] {
     return text
@@ -138,10 +149,15 @@ function BulkDemoPanel() {
 
   async function apply(isDemo: boolean) {
     setResult(null);
+    setError(null);
     const identifiers = parseIdentifiers();
     if (identifiers.length === 0) return;
-    const res = await bulkSetDemo.mutateAsync({ identifiers, isDemo });
-    setResult(res);
+    try {
+      const res = await bulkSetDemo.mutateAsync({ identifiers, isDemo });
+      setResult(res);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to bulk-update demo flag.");
+    }
   }
 
   return (
@@ -179,6 +195,7 @@ function BulkDemoPanel() {
               Unmark Demo
             </button>
           </div>
+          {error && <p className="text-xs text-risk">{error}</p>}
           {result && (
             <p className="text-xs">
               <span className="text-mint">{result.updatedCount} wallet(s) updated.</span>
@@ -344,6 +361,18 @@ function UserCard({ row }: { row: AdminUserRow }) {
           )}
         </div>
       </div>
+      {/* Every other admin action here (Credit Balance, referrer)
+          already shows its own error inline — this one silently had
+          none at all, so a failed request looked identical to a
+          successful one. Confirmed live as a real gap: "if one user
+          demo button click not undemo and not demo work" — with no
+          error surfaced, there was no way to tell whether the click
+          did nothing or the request failed and why. */}
+      {setDemo.error && (
+        <p className="mt-1.5 text-[11px] text-risk">
+          {setDemo.error instanceof Error ? setDemo.error.message : "Failed to update demo flag."}
+        </p>
+      )}
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {BALANCE_FIELDS.map((f) => (
