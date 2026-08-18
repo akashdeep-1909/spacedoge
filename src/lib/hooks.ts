@@ -835,6 +835,10 @@ export interface AdminUserRow {
   id: string;
   address: string;
   isBot: boolean;
+  // Admin-flagged demo/marketing account — see WalletProfile.isDemo's
+  // own doc-comment in schema.prisma. Hidden from the default list/
+  // count the same way bots are, opted into via includeDemo below.
+  isDemo: boolean;
   riskFlag: string | null;
   isKol: boolean;
   createdAt: string;
@@ -842,17 +846,61 @@ export interface AdminUserRow {
   balances: WalletBalances;
 }
 
-export function useAdminUsers(query: string, includeBots = false) {
+export function useAdminUsers(query: string, includeBots = false, includeDemo = false) {
   return useQuery({
-    queryKey: ["admin", "users", query, includeBots],
+    queryKey: ["admin", "users", query, includeBots, includeDemo],
     queryFn: async (): Promise<{ rows: AdminUserRow[]; totalUserCount: number }> => {
       const params = new URLSearchParams();
       if (query) params.set("q", query);
       if (includeBots) params.set("includeBots", "true");
+      if (includeDemo) params.set("includeDemo", "true");
       const qs = params.toString();
       const res = await fetch(`/api/admin/users${qs ? `?${qs}` : ""}`);
       if (!res.ok) throw new Error("Failed to load users");
       return res.json();
+    },
+  });
+}
+
+export function useSetDemo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, isDemo }: { id: string; isDemo: boolean }) => {
+      const res = await fetch(`/api/admin/users/${id}/demo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isDemo }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to update demo flag");
+      return body;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "user-detail"] });
+    },
+  });
+}
+
+// Bulk variant — src/app/admin/users/page.tsx's "paste a list, mark
+// them all" box. Each identifier can be a WalletProfile.id or a wallet
+// address, see the route's own doc-comment.
+export function useBulkSetDemo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ identifiers, isDemo }: { identifiers: string[]; isDemo: boolean }) => {
+      const res = await fetch("/api/admin/users/demo-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifiers, isDemo }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to bulk-update demo flag");
+      return body as { updatedCount: number; unmatched: string[] };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "user-detail"] });
     },
   });
 }
@@ -1040,6 +1088,7 @@ export interface AdminUserDetail {
     nickname: string | null;
     riskFlag: string | null;
     isKol: boolean;
+    isDemo: boolean;
     dogeAddress: string | null;
     countryCode: string | null;
     createdAt: string;

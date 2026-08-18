@@ -49,6 +49,18 @@ model WalletProfile {
   // the referred wallet (src/lib/referrals.ts checkKolBonusEligibility,
   // src/app/api/matches/[id]/settle/route.ts).
   isKol              Boolean   @default(false)
+  // Admin-flagged "this wallet is a demo/marketing account, not a real
+  // user" (src/app/admin/users/page.tsx). Deliberately invisible to
+  // this wallet ITSELF and to every other player — nothing in
+  // dashboard/**, the game, or any API a signed-in wallet calls ever
+  // reads this field; it exists purely so admin-side counts/lists can
+  // separate real users from demo ones without touching how a demo
+  // wallet experiences the app (same data, same balances, same
+  // everything, from its own point of view). Scope deliberately kept
+  // narrow to the admin Users list/count only, not every admin
+  // aggregate (Overview totals, mining stats, CSV/PDF reports) — see
+  // this field's addition commit for the explicit scoping decision.
+  isDemo             Boolean   @default(false)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 

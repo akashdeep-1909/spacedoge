@@ -23,9 +23,17 @@ export async function GET(request: NextRequest) {
 
   const q = request.nextUrl.searchParams.get("q")?.trim().toLowerCase();
   const includeBots = request.nextUrl.searchParams.get("includeBots") === "true";
+  // Same "hidden unless opted into" convention as includeBots above —
+  // a demo/marketing wallet (WalletProfile.isDemo, see its own
+  // doc-comment) is a real, non-bot address an admin has manually
+  // flagged as not-a-real-user, so it needs a separate opt-in toggle
+  // from bots rather than reusing includeBots (src/app/admin/users/
+  // page.tsx's own "Show demo accounts" checkbox).
+  const includeDemo = request.nextUrl.searchParams.get("includeDemo") === "true";
   const where = {
     AND: [
       ...(includeBots ? [] : [{ address: { not: { startsWith: "bot:" } } }]),
+      ...(includeDemo ? [] : [{ isDemo: false }]),
       { address: { not: { startsWith: "platform:" } } },
       ...(q ? [{ address: { contains: q } }] : []),
     ],
@@ -58,6 +66,7 @@ export async function GET(request: NextRequest) {
       id: p.id,
       address: p.address,
       isBot: p.address.startsWith("bot:"),
+      isDemo: p.isDemo,
       riskFlag: p.riskFlag,
       isKol: p.isKol,
       createdAt: p.createdAt,

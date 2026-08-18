@@ -66,6 +66,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       nickname: profile.nickname,
       riskFlag: profile.riskFlag,
       isKol: profile.isKol,
+      isDemo: profile.isDemo,
       dogeAddress: profile.dogeAddress,
       countryCode: profile.countryCode,
       createdAt: profile.createdAt,

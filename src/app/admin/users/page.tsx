@@ -4,7 +4,16 @@ import { useState } from "react";
 import Link from "next/link";
 import { PaginationControls } from "@/components/PaginationControls";
 import { usePagination } from "@/lib/usePagination";
-import { useAdminUsers, useSetRiskFlag, useSetKol, useSetReferrer, useCreditUserBalance, type AdminUserRow } from "@/lib/hooks";
+import {
+  useAdminUsers,
+  useSetRiskFlag,
+  useSetKol,
+  useSetDemo,
+  useBulkSetDemo,
+  useSetReferrer,
+  useCreditUserBalance,
+  type AdminUserRow,
+} from "@/lib/hooks";
 
 const CREDITABLE_BALANCE_TYPES = [
   "PLAY_USDT",
@@ -29,7 +38,8 @@ const BALANCE_TYPE_LABEL: Record<(typeof CREDITABLE_BALANCE_TYPES)[number], stri
 export default function AdminUsersPage() {
   const [query, setQuery] = useState("");
   const [showBots, setShowBots] = useState(false);
-  const { data, isLoading } = useAdminUsers(query, showBots);
+  const [showDemo, setShowDemo] = useState(false);
+  const { data, isLoading } = useAdminUsers(query, showBots, showDemo);
   const paged = usePagination(data?.rows ?? []);
 
   return (
@@ -42,6 +52,8 @@ export default function AdminUsersPage() {
           shown per user, and any balance can be manually credited or corrected below.
         </p>
       </div>
+
+      <BulkDemoPanel />
 
       <div className="flex flex-wrap items-center gap-3">
         <input
@@ -64,6 +76,18 @@ export default function AdminUsersPage() {
             className="h-3.5 w-3.5 accent-mint"
           />
           Show bot accounts
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-muted">
+          <input
+            type="checkbox"
+            checked={showDemo}
+            onChange={(e) => {
+              setShowDemo(e.target.checked);
+              paged.setPage(1);
+            }}
+            className="h-3.5 w-3.5 accent-gold"
+          />
+          Show demo accounts
         </label>
       </div>
 
@@ -93,6 +117,84 @@ const RISK_STYLE: Record<string, string> = {
   review: "border-gold/25 bg-gold-soft text-gold",
 };
 
+// Paste a list of wallet IDs and/or addresses (one per line, or
+// comma/space-separated — split on any whitespace/comma) to mark them
+// all as demo/marketing accounts in one go, rather than opening each
+// user's card individually. Collapsed by default — most visits to this
+// page aren't doing a bulk operation, and a permanently-open textarea
+// pushed the actual user list further down for zero benefit.
+function BulkDemoPanel() {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const bulkSetDemo = useBulkSetDemo();
+  const [result, setResult] = useState<{ updatedCount: number; unmatched: string[] } | null>(null);
+
+  function parseIdentifiers(): string[] {
+    return text
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  async function apply(isDemo: boolean) {
+    setResult(null);
+    const identifiers = parseIdentifiers();
+    if (identifiers.length === 0) return;
+    const res = await bulkSetDemo.mutateAsync({ identifiers, isDemo });
+    setResult(res);
+  }
+
+  return (
+    <div className="game-panel hud-corner rounded-2xl p-4">
+      <button onClick={() => setOpen((v) => !v)} className="text-xs font-bold uppercase tracking-widest text-gold">
+        {open ? "▾" : "▸"} Bulk mark demo accounts
+      </button>
+      {open && (
+        <div className="mt-3 flex flex-col gap-2">
+          <p className="text-xs text-muted">
+            Paste a list of wallet IDs or addresses (any mix, one per line or separated by commas/spaces). Marking a
+            wallet Demo has no effect on what it can do or see — it only hides it from this page&rsquo;s default list
+            and count.
+          </p>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={4}
+            placeholder={"0xabc...\ncmXXXXXXXXXXXXXXXXXXXXXXXX\n..."}
+            className="rounded-lg border border-line bg-panel-2 px-3 py-2 font-mono text-xs"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => apply(true)}
+              disabled={bulkSetDemo.isPending || parseIdentifiers().length === 0}
+              className="btn-game-outline rounded-full px-4 py-1.5 text-xs disabled:opacity-50"
+            >
+              {bulkSetDemo.isPending ? "Applying…" : "Mark as Demo"}
+            </button>
+            <button
+              onClick={() => apply(false)}
+              disabled={bulkSetDemo.isPending || parseIdentifiers().length === 0}
+              className="rounded-full border border-line px-4 py-1.5 text-xs text-muted hover:text-foreground disabled:opacity-50"
+            >
+              Unmark Demo
+            </button>
+          </div>
+          {result && (
+            <p className="text-xs">
+              <span className="text-mint">{result.updatedCount} wallet(s) updated.</span>
+              {result.unmatched.length > 0 && (
+                <span className="ml-2 text-risk">
+                  {result.unmatched.length} not found: {result.unmatched.join(", ")}
+                </span>
+              )}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // `hint` mirrors the exact tooltip copy a real user sees on their own
 // dashboard (src/lib/i18n/translations/en.ts's dashboardHome.*Hint /
 // wallet.ptsHint) — the admin panel has no InfoTooltip wiring anywhere
@@ -121,17 +223,30 @@ const BALANCE_FIELDS: { key: keyof AdminUserRow["balances"]; label: string; hint
 function UserCard({ row }: { row: AdminUserRow }) {
   const setRiskFlag = useSetRiskFlag();
   const setKol = useSetKol();
+  const setDemo = useSetDemo();
   const [showCredit, setShowCredit] = useState(false);
   const [showReferrer, setShowReferrer] = useState(false);
 
   return (
     <div className={`game-panel hud-corner relative rounded-2xl p-4 ${row.isBot ? "opacity-70" : ""}`}>
-      {row.isBot && (
-        <span
-          className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-full border border-line bg-panel-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted"
-          title="AI-controlled opponent, not a real player"
-        >
-          🤖 Bot
+      {(row.isBot || row.isDemo) && (
+        <span className="absolute right-3 top-3 z-10 flex items-center gap-1.5">
+          {row.isDemo && (
+            <span
+              className="rounded-full border border-gold/30 bg-gold-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold"
+              title="Admin-flagged demo/marketing account — real wallet, excluded from the default Users list/count only"
+            >
+              🎭 Demo
+            </span>
+          )}
+          {row.isBot && (
+            <span
+              className="rounded-full border border-line bg-panel-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted"
+              title="AI-controlled opponent, not a real player"
+            >
+              🤖 Bot
+            </span>
+          )}
         </span>
       )}
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -210,6 +325,14 @@ function UserCard({ row }: { row: AdminUserRow }) {
               className="rounded-full border border-gold/40 bg-panel px-2.5 py-1 text-[11px] font-semibold text-gold transition hover:bg-gold-soft disabled:opacity-40"
             >
               {row.isKol ? "Unmark KOL" : "Mark KOL"}
+            </button>
+            <button
+              onClick={() => setDemo.mutate({ id: row.id, isDemo: !row.isDemo })}
+              disabled={setDemo.isPending}
+              title="Admin-only classification — has no effect on what this wallet itself sees or can do"
+              className="rounded-full border border-gold/40 bg-panel px-2.5 py-1 text-[11px] font-semibold text-gold transition hover:bg-gold-soft disabled:opacity-40"
+            >
+              {row.isDemo ? "Unmark Demo" : "Mark Demo"}
             </button>
             <button
               onClick={() => setShowReferrer((v) => !v)}

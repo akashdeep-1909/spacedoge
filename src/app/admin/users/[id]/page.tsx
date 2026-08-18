@@ -2,7 +2,7 @@
 
 import { use } from "react";
 import Link from "next/link";
-import { useAdminUserDetail, type AdminReportTable } from "@/lib/hooks";
+import { useAdminUserDetail, useSetDemo, type AdminReportTable } from "@/lib/hooks";
 
 const RISK_STYLE: Record<string, string> = {
   blocked: "border-risk/25 bg-risk-soft text-risk",
@@ -46,6 +46,7 @@ const EXPORTABLE_SECTIONS: Record<string, string> = {
 export default function AdminUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data, isLoading, error } = useAdminUserDetail(id);
+  const setDemo = useSetDemo();
 
   if (isLoading) return <p className="p-5 text-sm text-muted">Loading…</p>;
   if (error || !data) return <p className="p-5 text-sm text-risk">{error instanceof Error ? error.message : "User not found."}</p>;
@@ -70,6 +71,22 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               KOL
             </span>
           )}
+          {profile.isDemo && (
+            <span
+              className="rounded-full border border-gold/30 bg-gold-soft px-2 py-0.5 text-[10px] font-bold uppercase text-gold"
+              title="Admin-flagged demo/marketing account — real wallet, excluded from the default Users list/count only"
+            >
+              🎭 Demo
+            </span>
+          )}
+          <button
+            onClick={() => setDemo.mutate({ id: profile.id, isDemo: !profile.isDemo })}
+            disabled={setDemo.isPending}
+            title="Admin-only classification — has no effect on what this wallet itself sees or can do"
+            className="rounded-full border border-gold/40 bg-panel px-2.5 py-0.5 text-[10px] font-semibold text-gold transition hover:bg-gold-soft disabled:opacity-40"
+          >
+            {profile.isDemo ? "Unmark Demo" : "Mark Demo"}
+          </button>
         </div>
         {profile.nickname && <p className="mt-0.5 break-all text-xs text-muted">{profile.address}</p>}
         <p className="mt-1 text-xs text-muted">
