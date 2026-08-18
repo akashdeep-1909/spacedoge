@@ -16,11 +16,13 @@ export default function AdminWithdrawalsPage() {
         <p className="mt-1 text-sm text-muted">
           Requesting debits the user&rsquo;s balance immediately and creates a PENDING record.
           No treasury contract exists yet, so completing one is manual: send the real on-chain
-          USDT transfer yourself, then paste the resulting transaction hash below to mark it
+          transfer yourself — USDT for a USDT-chain row, DOGE for a DOGE-chain row, each row
+          below shows which — then paste the resulting transaction hash below to mark it
           COMPLETED, that&rsquo;s what makes the hash appear (as a clickable block-explorer
           link) on the user&rsquo;s own withdrawal page. The network fee comes <b>out of</b> the
-          requested amount (send Amount − Fee on-chain), not on top of it, fee is editable
-          any time, including after completion, in case it wasn&rsquo;t known when you sent it.
+          requested amount (send Amount − Fee on-chain, same unit as the row), not on top of
+          it, fee is editable any time, including after completion, in case it wasn&rsquo;t
+          known when you sent it.
         </p>
       </div>
 

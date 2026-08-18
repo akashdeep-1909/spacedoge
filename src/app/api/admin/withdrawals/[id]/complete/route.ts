@@ -9,12 +9,14 @@ const bodySchema = z.object({
 });
 
 // POST /api/admin/withdrawals/:id/complete — the manual step that
-// closes the loop: an admin actually sends the real on-chain USDT
-// transfer from the treasury wallet (outside this app, for now — no
-// treasury contract exists yet), then pastes the resulting tx hash
-// here. That's what flips the withdrawal from PENDING to COMPLETED and
-// makes the hash visible (as a clickable block-explorer link) on the
-// user's own withdrawal detail page.
+// closes the loop: an admin actually sends the real on-chain transfer
+// from the treasury wallet — USDT for a USDT-chain withdrawal, DOGE for
+// a DOGE-chain one (this route doesn't care which; the row's own
+// balanceType/chain already determined that) — outside this app, for
+// now (no treasury contract exists yet), then pastes the resulting tx
+// hash here. That's what flips the withdrawal from PENDING to
+// COMPLETED and makes the hash visible (as a clickable block-explorer
+// link) on the user's own withdrawal detail page.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireAdminSession();
   if (!session) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
