@@ -14,16 +14,21 @@ const RISK_STYLE: Record<string, string> = {
 // here rather than importing that one, since this page also wants
 // activeMiningPower/lifetimePaidPts labeled identically but doesn't
 // need the credit-form machinery that file bundles alongside it.
-const BALANCE_FIELDS: { key: string; label: string; fmt: (n: number) => string }[] = [
-  { key: "playUsdt", label: "Deposit USDT", fmt: (n) => `$${n.toFixed(2)}` },
-  { key: "gameRewardUsdt", label: "Game Reward USDT", fmt: (n) => `$${n.toFixed(2)}` },
-  { key: "recycledUsdt", label: "Mining Earnings", fmt: (n) => `$${n.toFixed(2)}` },
-  { key: "referralUsdt", label: "Referral USDT", fmt: (n) => `$${n.toFixed(2)}` },
-  { key: "pts", label: "PTS", fmt: (n) => n.toFixed(0) },
-  { key: "lifetimePaidPts", label: "Lifetime PTS", fmt: (n) => n.toFixed(0) },
-  { key: "pendingDoge", label: "Pending DOGE", fmt: (n) => n.toFixed(4) },
-  { key: "availableDoge", label: "Available DOGE", fmt: (n) => n.toFixed(4) },
-  { key: "activeMiningPower", label: "Hashrate", fmt: (n) => `${n.toFixed(1)} MH/s` },
+// `hint` mirrors src/app/admin/users/page.tsx's own BALANCE_FIELDS —
+// see that file's doc-comment for why this exists (admin has no
+// InfoTooltip anywhere; a `title` attribute is the plain-HTML
+// equivalent, reusing the exact copy a real user sees on their own
+// dashboard).
+const BALANCE_FIELDS: { key: string; label: string; hint: string; fmt: (n: number) => string }[] = [
+  { key: "playUsdt", label: "Deposit USDT", hint: "Play Game, Activate Mining, Buy Hashrate, Transfer — not withdrawable directly", fmt: (n) => `$${n.toFixed(2)}` },
+  { key: "gameRewardUsdt", label: "Game Reward USDT", hint: "From match wins/PTS conversion — Activate Mining, Buy Hashrate, Transfer, Withdrawable", fmt: (n) => `$${n.toFixed(2)}` },
+  { key: "recycledUsdt", label: "Mining Earnings", hint: "USDT from CONVERTED DOGE (see Available DOGE for the unconverted portion) — Withdrawable", fmt: (n) => `$${n.toFixed(2)}` },
+  { key: "referralUsdt", label: "Referral USDT", hint: "L1 5% + L2 2% of referred wallets' platform fee — Withdrawable", fmt: (n) => `$${n.toFixed(2)}` },
+  { key: "pts", label: "PTS", hint: "Spendable points from paid match wins — convert to Game Reward USDT at a fixed 1000:1 rate", fmt: (n) => n.toFixed(0) },
+  { key: "lifetimePaidPts", label: "Lifetime PTS", hint: "Total ever earned from paid matches — never decreases, separate from the spendable PTS balance", fmt: (n) => n.toFixed(0) },
+  { key: "pendingDoge", label: "Pending DOGE", hint: "Calculated mining allocation awaiting daily reconciliation — not yet spendable", fmt: (n) => n.toFixed(4) },
+  { key: "availableDoge", label: "Available DOGE", hint: "Reconciled raw DOGE mining output, still unconverted — Withdrawable, or convert to Mining Earnings (USDT)", fmt: (n) => n.toFixed(4) },
+  { key: "activeMiningPower", label: "Hashrate", hint: "Active, time-bound MH/s from unexpired mining contracts", fmt: (n) => `${n.toFixed(1)} MH/s` },
 ];
 
 // Report types with a real /api/admin/reports/* export route behind
@@ -90,7 +95,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {BALANCE_FIELDS.map((f) => (
-          <div key={f.key} className="rounded-lg border border-line bg-panel-2 px-2.5 py-1.5">
+          <div key={f.key} title={f.hint} className="rounded-lg border border-line bg-panel-2 px-2.5 py-1.5">
             <p className="text-[9px] font-bold uppercase tracking-widest text-muted">{f.label}</p>
             <p className="text-sm font-semibold tabular-nums">
               {f.fmt((balances as unknown as Record<string, number>)[f.key])}

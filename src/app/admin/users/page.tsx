@@ -93,16 +93,29 @@ const RISK_STYLE: Record<string, string> = {
   review: "border-gold/25 bg-gold-soft text-gold",
 };
 
-const BALANCE_FIELDS: { key: keyof AdminUserRow["balances"]; label: string; fmt: (n: number) => string }[] = [
-  { key: "playUsdt", label: "Deposit USDT", fmt: (n) => `$${n.toFixed(2)}` },
-  { key: "gameRewardUsdt", label: "Game Reward USDT", fmt: (n) => `$${n.toFixed(2)}` },
-  { key: "recycledUsdt", label: "Mining Earnings", fmt: (n) => `$${n.toFixed(2)}` },
-  { key: "referralUsdt", label: "Referral USDT", fmt: (n) => `$${n.toFixed(2)}` },
-  { key: "pts", label: "PTS", fmt: (n) => n.toFixed(0) },
-  { key: "lifetimePaidPts", label: "Lifetime PTS", fmt: (n) => n.toFixed(0) },
-  { key: "pendingDoge", label: "Pending DOGE", fmt: (n) => n.toFixed(4) },
-  { key: "availableDoge", label: "Available DOGE", fmt: (n) => n.toFixed(4) },
-  { key: "activeMiningPower", label: "Hashrate", fmt: (n) => `${n.toFixed(1)} MH/s` },
+// `hint` mirrors the exact tooltip copy a real user sees on their own
+// dashboard (src/lib/i18n/translations/en.ts's dashboardHome.*Hint /
+// wallet.ptsHint) — the admin panel has no InfoTooltip wiring anywhere
+// (it's plain English, no i18n, by established convention), so this
+// reuses that same copy as a native `title` attribute instead.
+// Confirmed live as a real gap: an admin looking at "Mining Earnings:
+// $35.00" with no explanation asked "why is this USDT, mining output
+// is only DOGE" — Mining Earnings (RECYCLED_USDT) IS genuinely USDT,
+// but only because it's DOGE the user already manually converted; the
+// still-unconverted portion sits separately in Available DOGE. Not a
+// math bug, a missing-context one — the hint makes that relationship
+// explicit without needing a whole tooltip component in a panel that
+// doesn't use them anywhere else.
+const BALANCE_FIELDS: { key: keyof AdminUserRow["balances"]; label: string; hint: string; fmt: (n: number) => string }[] = [
+  { key: "playUsdt", label: "Deposit USDT", hint: "Play Game, Activate Mining, Buy Hashrate, Transfer — not withdrawable directly", fmt: (n) => `$${n.toFixed(2)}` },
+  { key: "gameRewardUsdt", label: "Game Reward USDT", hint: "From match wins/PTS conversion — Activate Mining, Buy Hashrate, Transfer, Withdrawable", fmt: (n) => `$${n.toFixed(2)}` },
+  { key: "recycledUsdt", label: "Mining Earnings", hint: "USDT from CONVERTED DOGE (see Available DOGE for the unconverted portion) — Withdrawable", fmt: (n) => `$${n.toFixed(2)}` },
+  { key: "referralUsdt", label: "Referral USDT", hint: "L1 5% + L2 2% of referred wallets' platform fee — Withdrawable", fmt: (n) => `$${n.toFixed(2)}` },
+  { key: "pts", label: "PTS", hint: "Spendable points from paid match wins — convert to Game Reward USDT at a fixed 1000:1 rate", fmt: (n) => n.toFixed(0) },
+  { key: "lifetimePaidPts", label: "Lifetime PTS", hint: "Total ever earned from paid matches — never decreases, separate from the spendable PTS balance", fmt: (n) => n.toFixed(0) },
+  { key: "pendingDoge", label: "Pending DOGE", hint: "Calculated mining allocation awaiting daily reconciliation — not yet spendable", fmt: (n) => n.toFixed(4) },
+  { key: "availableDoge", label: "Available DOGE", hint: "Reconciled raw DOGE mining output, still unconverted — Withdrawable, or convert to Mining Earnings (USDT)", fmt: (n) => n.toFixed(4) },
+  { key: "activeMiningPower", label: "Hashrate", hint: "Active, time-bound MH/s from unexpired mining contracts", fmt: (n) => `${n.toFixed(1)} MH/s` },
 ];
 
 function UserCard({ row }: { row: AdminUserRow }) {
@@ -211,7 +224,7 @@ function UserCard({ row }: { row: AdminUserRow }) {
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {BALANCE_FIELDS.map((f) => (
-          <div key={f.key} className="rounded-lg border border-line bg-panel-2 px-2.5 py-1.5">
+          <div key={f.key} title={f.hint} className="rounded-lg border border-line bg-panel-2 px-2.5 py-1.5">
             <p className="text-[9px] font-bold uppercase tracking-widest text-muted">{f.label}</p>
             <p className="text-sm font-semibold tabular-nums">{f.fmt(row.balances[f.key])}</p>
           </div>
