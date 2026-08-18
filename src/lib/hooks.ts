@@ -1011,6 +1011,54 @@ export function useAdminSetWithdrawalFee() {
   });
 }
 
+// Generic shape every report table (deposits/withdrawals/matches/
+// mining/transfers/referral-downline/ledger) is already flattened to
+// server-side — see src/lib/adminReports.ts's own ReportTable. One
+// type covers every section of the user detail page below, and every
+// section renders through the same <ReportTableView> component
+// (src/app/admin/users/[id]/page.tsx) rather than a bespoke table per
+// section.
+export interface AdminReportTable {
+  title: string;
+  headers: string[];
+  rows: (string | number)[][];
+}
+
+export interface AdminUserDetail {
+  profile: {
+    id: string;
+    address: string;
+    nickname: string | null;
+    riskFlag: string | null;
+    isKol: boolean;
+    dogeAddress: string | null;
+    countryCode: string | null;
+    createdAt: string;
+    referredByAddress: string | null;
+    referralStatus: string | null;
+  };
+  balances: WalletBalances;
+  deposits: AdminReportTable;
+  withdrawals: AdminReportTable;
+  matches: AdminReportTable;
+  mining: AdminReportTable;
+  transfers: AdminReportTable;
+  referralDownline: AdminReportTable;
+  recentLedger: AdminReportTable;
+}
+
+export function useAdminUserDetail(id: string) {
+  return useQuery({
+    queryKey: ["admin", "user-detail", id],
+    queryFn: async (): Promise<AdminUserDetail> => {
+      const res = await fetch(`/api/admin/users/${id}/detail`);
+      if (!res.ok) throw new Error("Failed to load user detail");
+      return res.json();
+    },
+    enabled: Boolean(id),
+  });
+}
+
 export interface LeaderboardStanding {
   walletProfileId: string;
   address: string;

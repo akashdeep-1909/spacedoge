@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { PaginationControls } from "@/components/PaginationControls";
 import { usePagination } from "@/lib/usePagination";
 import { useAdminUsers, useSetRiskFlag, useSetKol, useSetReferrer, useCreditUserBalance, type AdminUserRow } from "@/lib/hooks";
@@ -123,7 +124,9 @@ function UserCard({ row }: { row: AdminUserRow }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="flex flex-wrap items-center gap-2 break-all font-semibold">
-            {row.address}
+            <Link href={`/admin/users/${row.id}`} className="hover:text-gold hover:underline">
+              {row.address}
+            </Link>
             {row.riskFlag && (
               <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${RISK_STYLE[row.riskFlag]}`}>
                 {row.riskFlag}
@@ -148,10 +151,17 @@ function UserCard({ row }: { row: AdminUserRow }) {
             )}
           </p>
         </div>
-        {/* Bots have no real balance to credit and no risk to flag —
-            those actions only make sense for real user wallets. */}
-        {!row.isBot && (
-          <div className="flex shrink-0 flex-wrap gap-1.5">
+        <div className="flex shrink-0 flex-wrap items-start gap-1.5">
+          <Link
+            href={`/admin/users/${row.id}`}
+            className="rounded-full border border-gold/40 bg-panel px-2.5 py-1 text-[11px] font-semibold text-gold transition hover:bg-gold-soft"
+          >
+            View Details
+          </Link>
+          {/* Bots have no real balance to credit and no risk to flag —
+              those actions only make sense for real user wallets. */}
+          {!row.isBot && (
+            <>
             <button
               onClick={() => setShowCredit((v) => !v)}
               className="rounded-full border border-mint/40 bg-panel px-2.5 py-1 text-[11px] font-semibold text-mint transition hover:bg-mint-soft"
@@ -194,8 +204,9 @@ function UserCard({ row }: { row: AdminUserRow }) {
             >
               {showReferrer ? "Cancel" : row.referredByAddress ? "Change Referrer" : "Set Referrer"}
             </button>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
