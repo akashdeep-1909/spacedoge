@@ -892,6 +892,12 @@ export function useSetDemo() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "user-detail"] });
+      // The Overview page's wallet count/deposits/withdrawals/matches/
+      // mining figures all now exclude isDemo wallets too (src/app/api/
+      // admin/overview/route.ts's REAL_USER_WALLET_FILTER) — without
+      // this, marking/unmarking a wallet here left that page showing
+      // stale numbers until its own 30s refetch/next visit.
+      queryClient.invalidateQueries({ queryKey: ["admin", "overview"] });
     },
   });
 }
@@ -915,6 +921,28 @@ export function useBulkSetDemo() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "user-detail"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "overview"] });
+    },
+  });
+}
+
+// One-button undo for a bulk-mark test/mistake — resets EVERY
+// currently demo-flagged wallet back to a real user. See the route's
+// own doc-comment for why this exists alongside the identifier-list
+// version above.
+export function useClearAllDemo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/admin/users/demo-clear-all", { method: "POST" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to clear demo flags");
+      return body as { clearedCount: number };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "user-detail"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "overview"] });
     },
   });
 }

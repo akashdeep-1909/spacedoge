@@ -10,6 +10,7 @@ import {
   useSetKol,
   useSetDemo,
   useBulkSetDemo,
+  useClearAllDemo,
   useSetReferrer,
   useCreditUserBalance,
   type AdminUserRow,
@@ -160,6 +161,22 @@ function BulkDemoPanel() {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const bulkSetDemo = useBulkSetDemo();
+  const clearAllDemo = useClearAllDemo();
+  const [clearedCount, setClearedCount] = useState<number | null>(null);
+
+  async function clearAll() {
+    setClearedCount(null);
+    // window.confirm, not a custom modal — matches every other
+    // destructive-feeling admin action in this codebase (none of them
+    // use a bespoke confirm dialog), and this one specifically needs
+    // one: it touches every currently demo-flagged wallet at once, no
+    // way to preview or undo other than manually re-marking them.
+    if (!window.confirm("Unmark ALL demo-flagged wallets and count them as real users again? This can't be undone in one click.")) {
+      return;
+    }
+    const res = await clearAllDemo.mutateAsync();
+    setClearedCount(res.clearedCount);
+  }
   // isDemo carried alongside the result — confirmed live as a real gap:
   // "not even show proper success message is marked demo or marked
   // undemo" — {updatedCount} alone reads identically whichever button
@@ -246,6 +263,25 @@ function BulkDemoPanel() {
               )}
             </p>
           )}
+
+          {/* Separate from the paste-a-list flow above — this needs no
+              input at all, it just resets EVERYONE currently flagged.
+              Confirmed live as a real need: an admin tried the bulk-mark
+              box above, ended up with 100+ real wallets flagged demo,
+              and had no way back short of re-gathering every one of
+              those addresses to paste in again. */}
+          <div className="mt-1 border-t border-line pt-2.5">
+            <button
+              onClick={clearAll}
+              disabled={clearAllDemo.isPending}
+              className="rounded-full border border-risk/40 px-4 py-1.5 text-xs text-risk hover:bg-risk-soft disabled:opacity-50"
+            >
+              {clearAllDemo.isPending ? "Clearing…" : "Unmark ALL Demo Accounts"}
+            </button>
+            {clearedCount !== null && (
+              <span className="ml-2 text-xs text-mint">{clearedCount} wallet(s) reset to real users.</span>
+            )}
+          </div>
         </div>
       )}
     </div>
