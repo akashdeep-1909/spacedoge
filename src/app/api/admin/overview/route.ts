@@ -4,6 +4,28 @@ import { db } from "@/lib/db";
 import { BalanceType, DepositStatus, WithdrawalStatus } from "@/generated/prisma/enums";
 import { getMiningProtectionReserveBalanceUsdt } from "@/lib/mining-settings";
 
+// Shared "is this a real player" fragment, used via relation filters
+// (walletProfile: REAL_USER_WALLET_FILTER) everywhere this route reads
+// a table that's tied to a specific wallet — deposits, withdrawals,
+// mining contracts, match participants, lobby hosts. Excludes bots
+// (every match spawns synthetic "bot:<mapSeed>:<i>" opponents, see
+// admin/users/route.ts) and admin-flagged demo/marketing wallets
+// (WalletProfile.isDemo). Confirmed live as a real gap: "these all are
+// not correct, i need here all data of real users only" — every figure
+// on this page used to be a platform-wide sum with no such filter at
+// all, so a demo wallet's test deposits/matches/mining activity
+// silently inflated numbers meant to represent real usage. Doesn't
+// need an explicit "platform:" treasury exclusion — the treasury
+// pseudo-wallet never appears as a depositor/withdrawer/match
+// participant/lobby host through any normal flow, only ever receiving
+// ledger credits directly (see the separate, deliberately UNFILTERED
+// treasury/reserve/surplus figures below, which represent the
+// platform's own revenue, not a "user" at all).
+const REAL_USER_WALLET_FILTER = {
+  isDemo: false,
+  address: { not: { startsWith: "bot:" } },
+} as const;
+
 function dayKey(d: Date) {
   return d.toISOString().slice(0, 10);
 }
@@ -35,7 +57,8 @@ export async function GET(request: NextRequest) {
   const [
     walletCount,
     newWallets,
-    ledgerSums,
+    realUserLedgerSums,
+    treasuryLedgerSums,
     depositTotals,
     depositRowsInRange,
     depositRecent,
@@ -50,24 +73,46 @@ export async function GET(request: NextRequest) {
     surplusAgg,
   ] = await Promise.all([
     // Excludes synthetic "bot:<mapSeed>:<i>" profiles every match spawns
-    // for AI opponents, and the "platform:treasury" pseudo-wallet — not
-    // real users, see admin/users/route.ts.
+    // for AI opponents, the "platform:treasury" pseudo-wallet, and
+    // admin-flagged demo/marketing wallets — not real users, see
+    // admin/users/route.ts and REAL_USER_WALLET_FILTER's own doc-comment.
     db.walletProfile.count({
-      where: { AND: [{ address: { not: { startsWith: "bot:" } } }, { address: { not: { startsWith: "platform:" } } }] },
+      where: { AND: [{ address: { not: { startsWith: "bot:" } } }, { address: { not: { startsWith: "platform:" } } }, { isDemo: false }] },
     }),
     db.walletProfile.count({
       where: {
-        AND: [{ address: { not: { startsWith: "bot:" } } }, { address: { not: { startsWith: "platform:" } } }],
+        AND: [{ address: { not: { startsWith: "bot:" } } }, { address: { not: { startsWith: "platform:" } } }, { isDemo: false }],
         createdAt: { gte: since },
       },
     }),
-    db.ledgerEntry.groupBy({ by: ["balanceType"], _sum: { amount: true } }),
-    db.onchainDeposit.groupBy({ by: ["status"], _sum: { amount: true }, _count: true }),
+    // Real users' own balances only — the 7 player-facing balance
+    // types (PLAY_USDT/GAME_REWARD_USDT/PTS/PENDING_DOGE/
+    // AVAILABLE_DOGE/RECYCLED_USDT/REFERRAL_USDT). A demo wallet an
+    // admin credited test funds into used to inflate "Available
+    // Balance" etc. here.
+    db.ledgerEntry.groupBy({ by: ["balanceType"], where: { walletProfile: REAL_USER_WALLET_FILTER }, _sum: { amount: true } }),
+    // Deliberately UNFILTERED by REAL_USER_WALLET_FILTER — this is the
+    // platform's OWN revenue (PLATFORM_FEE_USDT/
+    // MINING_PROTECTION_RESERVE_USDT, both only ever held by the
+    // "platform:treasury" pseudo-wallet itself), not a "user" balance
+    // at all, so there's no bot/demo activity to exclude from it.
+    db.ledgerEntry.groupBy({ by: ["balanceType"], where: { balanceType: { in: [BalanceType.PLATFORM_FEE_USDT, BalanceType.MINING_PROTECTION_RESERVE_USDT] } }, _sum: { amount: true } }),
+    // Unmatched deposits (walletProfileId null — sender matched no
+    // WalletProfile at all) are kept regardless of the real-user
+    // filter: they aren't tied to ANY wallet yet, bot/demo/real alike,
+    // and still need admin review either way.
+    db.onchainDeposit.groupBy({
+      by: ["status"],
+      where: { OR: [{ walletProfileId: null }, { walletProfile: REAL_USER_WALLET_FILTER }] },
+      _sum: { amount: true },
+      _count: true,
+    }),
     db.onchainDeposit.findMany({
-      where: { createdAt: { gte: since } },
+      where: { createdAt: { gte: since }, OR: [{ walletProfileId: null }, { walletProfile: REAL_USER_WALLET_FILTER }] },
       select: { amount: true, status: true, createdAt: true },
     }),
     db.onchainDeposit.findMany({
+      where: { OR: [{ walletProfileId: null }, { walletProfile: REAL_USER_WALLET_FILTER }] },
       orderBy: { createdAt: "desc" },
       take: 8,
       include: { walletProfile: { select: { address: true } } },
@@ -79,36 +124,45 @@ export async function GET(request: NextRequest) {
     // doc-comment). Summing both into one number and labeling it "$"
     // was silently adding literal DOGE token counts on top of a USDT
     // total — confirmed live: "if USDT withdrawal show USDT if DOGE
-    // show DOGE."
-    db.withdrawal.groupBy({ by: ["status", "balanceType"], _sum: { amount: true }, _count: true }),
-    db.withdrawal.aggregate({ where: { status: "COMPLETED" }, _sum: { networkFeeUsdt: true } }),
+    // show DOGE." Withdrawal.walletProfileId is never null (every
+    // withdrawal belongs to a real requesting wallet), so this can
+    // filter directly with no OR-null case to preserve.
+    db.withdrawal.groupBy({ by: ["status", "balanceType"], where: { walletProfile: REAL_USER_WALLET_FILTER }, _sum: { amount: true }, _count: true }),
+    db.withdrawal.aggregate({ where: { status: "COMPLETED", walletProfile: REAL_USER_WALLET_FILTER }, _sum: { networkFeeUsdt: true } }),
     db.withdrawal.findMany({
-      where: { createdAt: { gte: since } },
+      where: { createdAt: { gte: since }, walletProfile: REAL_USER_WALLET_FILTER },
       select: { amount: true, networkFeeUsdt: true, status: true, createdAt: true, completedAt: true },
     }),
     db.withdrawal.findMany({
+      where: { walletProfile: REAL_USER_WALLET_FILTER },
       orderBy: { createdAt: "desc" },
       take: 8,
       include: { walletProfile: { select: { address: true } } },
     }),
     db.miningContract.aggregate({
-      where: { active: true, expiresAt: { gt: new Date() } },
+      where: { active: true, expiresAt: { gt: new Date() }, walletProfile: REAL_USER_WALLET_FILTER },
       _sum: { miningPower: true },
       _count: true,
     }),
     db.miningEpoch.findFirst({ orderBy: { epochDate: "desc" } }),
-    db.match.count(),
+    // A match counts as real activity if at least one real (non-bot,
+    // non-demo) human took part — instant-play is always exactly 1
+    // human + 3 bots, so this is "was the human side of this match a
+    // real player."
+    db.match.count({ where: { participants: { some: { isBot: false, walletProfile: REAL_USER_WALLET_FILTER } } } }),
     // "Play with Friends" lobbies still accepting/finalizing joins —
     // see src/lib/lobby.ts. Full detail lives at /admin/lobbies.
-    db.gameLobby.count({ where: { status: { in: ["WAITING", "FULL", "FILLING_AI", "STARTING"] } } }),
+    db.gameLobby.count({ where: { status: { in: ["WAITING", "FULL", "FILLING_AI", "STARTING"] }, host: REAL_USER_WALLET_FILTER } }),
     // Spec section 23: leftover prize pool (paid out < that match's
     // prizePoolUsdt) credited to treasury under its own reason code,
-    // by src/app/api/matches/[id]/results.
+    // by src/app/api/matches/[id]/results. Deliberately UNFILTERED,
+    // same reasoning as treasuryLedgerSums above — this lands on the
+    // treasury wallet, not a user's.
     db.ledgerEntry.aggregate({ where: { reason: "match_unused_prize_surplus" }, _sum: { amount: true } }),
   ]);
 
   const balances = Object.fromEntries(
-    ledgerSums.map((r) => [r.balanceType, Number(r._sum.amount ?? 0)])
+    [...realUserLedgerSums, ...treasuryLedgerSums].map((r) => [r.balanceType, Number(r._sum.amount ?? 0)])
   ) as Record<BalanceType, number>;
 
   const miningReserveBalanceUsdt = await getMiningProtectionReserveBalanceUsdt();
