@@ -3,6 +3,7 @@ import { requireAdminSession } from "@/lib/admin";
 import { db } from "@/lib/db";
 import { getWalletBalances } from "@/lib/balances";
 import { getDepositsReport, getWithdrawalsReport, getMatchesReport, getMiningReport, getTransfersReport } from "@/lib/adminReports";
+import { ledgerBalanceTypeLabel, ledgerReasonLabel } from "@/lib/adminLedgerLabels";
 
 // GET /api/admin/users/[id]/detail — the full per-user picture behind
 // src/app/admin/users/[id]/page.tsx: profile, every balance, and every
@@ -213,11 +214,17 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     },
     recentLedger: {
       title: "Recent Ledger Entries",
-      headers: ["Balance Type", "Amount", "Reason", "Ref Type", "Ref ID", "Admin Actor", "Note", "Created At (UTC)"],
+      // Balance Type/Reason are translated to plain English here (see
+      // ledgerBalanceTypeLabel/ledgerReasonLabel's own doc-comment for
+      // why this table specifically, not the 5 exportable report types
+      // above) — Ref Type/Ref ID stay raw, they're an internal pointer
+      // (e.g. "Match" + a cuid) an admin would cross-reference against
+      // the Matches section above, not a value with a nicer name.
+      headers: ["Balance Type", "Amount", "Activity", "Ref Type", "Ref ID", "Admin Actor", "Note", "Created At (UTC)"],
       rows: recentLedger.map((l) => [
-        l.balanceType,
+        ledgerBalanceTypeLabel(l.balanceType),
         Number(l.amount).toFixed(8),
-        l.reason,
+        ledgerReasonLabel(l.reason),
         l.refType ?? "",
         l.refId ?? "",
         l.adminActorAddress ?? "",
