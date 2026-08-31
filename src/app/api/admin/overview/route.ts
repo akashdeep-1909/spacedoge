@@ -3,6 +3,7 @@ import { requireAdminSession } from "@/lib/admin";
 import { db } from "@/lib/db";
 import { BalanceType, DepositStatus, WithdrawalStatus } from "@/generated/prisma/enums";
 import { getMiningProtectionReserveBalanceUsdt } from "@/lib/mining-settings";
+import { PTS_TO_USDT_RATE } from "@/lib/game-config";
 
 // Shared "is this a real player" fragment, used via relation filters
 // (walletProfile: REAL_USER_WALLET_FILTER) everywhere this route reads
@@ -99,6 +100,9 @@ export async function GET(request: NextRequest) {
     matchCount,
     activeLobbyCount,
     surplusAgg,
+    referralCommissionSums,
+    directReferralCount,
+    indirectReferralCount,
   ] = await Promise.all([
     // Excludes synthetic "bot:<mapSeed>:<i>" profiles every match spawns
     // for AI opponents, the "platform:treasury" pseudo-wallet, and
@@ -217,6 +221,42 @@ export async function GET(request: NextRequest) {
       where: { reason: "match_unused_prize_surplus", OR: [{ refId: null }, { refId: { notIn: demoMatchIds } }] },
       _sum: { amount: true },
     }),
+    // Referral commission, direct (L1) vs indirect (L2), game (USDT)
+    // vs mining (DOGE) — 4 numbers from one query, grouped by reason.
+    // Game commission (referral_l1/referral_l2, REFERRAL_USDT) is
+    // carved out of a match's own 30% platform fee at entry time
+    // (src/lib/referrals.ts distributeEntryFeeToTreasuryAndReferrals);
+    // mining commission (mining_referral_l1/mining_referral_l2,
+    // AVAILABLE_DOGE) is carved out of a contract's daily electricity-
+    // cost deduction (src/lib/referrals.ts creditMiningReferralDoge,
+    // called from settleEpochForDate). Filtered by walletProfile — the
+    // RECEIVING referrer's own wallet — same as every other "real
+    // user's own money" figure on this page, unlike Treasury/Surplus
+    // above (which had to trace back through Match.refId instead,
+    // since THEY land on the treasury pseudo-wallet, not a real
+    // person's own balance the way a referral commission does).
+    db.ledgerEntry.groupBy({
+      by: ["reason"],
+      where: {
+        reason: { in: ["referral_l1", "referral_l2", "mining_referral_l1", "mining_referral_l2"] },
+        walletProfile: REAL_USER_WALLET_FILTER,
+      },
+      _sum: { amount: true },
+    }),
+    // Direct (L1): every Referral edge where BOTH the referrer and the
+    // referred wallet are real users.
+    db.referral.count({ where: { referrer: REAL_USER_WALLET_FILTER, referred: REAL_USER_WALLET_FILTER } }),
+    // Indirect (L2): of those direct edges, how many go one hop
+    // further — the L1 referrer ALSO has their own upstream referrer
+    // (referralAsReferred, WalletProfile's own inbound-referral
+    // relation), who is also real. This is exactly the set of edges
+    // that ever produces an L2 mining/game commission payout.
+    db.referral.count({
+      where: {
+        referred: REAL_USER_WALLET_FILTER,
+        referrer: { ...REAL_USER_WALLET_FILTER, referralAsReferred: { is: { referrer: REAL_USER_WALLET_FILTER } } },
+      },
+    }),
   ]);
 
   const balances = Object.fromEntries(
@@ -245,6 +285,10 @@ export async function GET(request: NextRequest) {
     target.count += row._count;
     target.amount += Number(row._sum.amount ?? 0);
   }
+
+  const referralByReason = Object.fromEntries(
+    referralCommissionSums.map((r) => [r.reason, Number(r._sum.amount ?? 0)])
+  ) as Record<string, number>;
 
   const depositBuckets = new Map<string, { unmatched: number; pending: number; credited: number }>();
   for (const day of emptySeries(days)) depositBuckets.set(day, { unmatched: 0, pending: 0, credited: 0 });
@@ -291,6 +335,13 @@ export async function GET(request: NextRequest) {
       // balance type, so the raw ledger sum across all wallets is
       // already exactly the treasury's own total.
       treasuryUsdt: balances.PLATFORM_FEE_USDT ?? 0,
+      // PTS has no independent cash value of its own — it's always
+      // ultimately converted to Game Reward USDT at the same fixed
+      // 1000:1 rate /api/wallet/convert-pts uses (PTS_TO_USDT_RATE,
+      // src/lib/game-config.ts). Shown alongside the raw PTS count so
+      // an admin doesn't have to do that math by hand to see the
+      // platform's real-user PTS liability in USDT terms.
+      ptsAsUsdt: (balances.PTS ?? 0) * PTS_TO_USDT_RATE,
     },
     // The platform's user-withdrawable USDT liability — sum of the
     // exact three balance types /api/wallet/withdraw currently accepts
@@ -299,6 +350,18 @@ export async function GET(request: NextRequest) {
     // balances aren't directly cash-out-able either — keep this in
     // sync with that route's own z.enum.
     availableUsdt: (balances.RECYCLED_USDT ?? 0) + (balances.REFERRAL_USDT ?? 0) + (balances.GAME_REWARD_USDT ?? 0),
+    referrals: {
+      directCount: directReferralCount,
+      indirectCount: indirectReferralCount,
+      gameCommissionUsdt: {
+        direct: referralByReason.referral_l1 ?? 0,
+        indirect: referralByReason.referral_l2 ?? 0,
+      },
+      miningCommissionDoge: {
+        direct: referralByReason.mining_referral_l1 ?? 0,
+        indirect: referralByReason.mining_referral_l2 ?? 0,
+      },
+    },
     deposits: {
       totals: {
         unmatched: depositByStatus.UNMATCHED ?? { count: 0, amount: 0 },

@@ -701,6 +701,10 @@ export interface AdminOverview {
     playUsdt: number;
     gameRewardUsdt: number;
     pts: number;
+    // PTS's own value in USDT terms (PTS_TO_USDT_RATE) — PTS has no
+    // independent cash value, it's always eventually converted to Game
+    // Reward USDT at this same fixed rate.
+    ptsAsUsdt: number;
     pendingDoge: number;
     availableDoge: number;
     recycledUsdt: number;
@@ -708,6 +712,12 @@ export interface AdminOverview {
     treasuryUsdt: number;
   };
   availableUsdt: number;
+  referrals: {
+    directCount: number;
+    indirectCount: number;
+    gameCommissionUsdt: { direct: number; indirect: number };
+    miningCommissionDoge: { direct: number; indirect: number };
+  };
   deposits: {
     totals: {
       unmatched: { count: number; amount: number };

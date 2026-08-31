@@ -48,7 +48,6 @@ export default function AdminOverviewPage() {
     return <p className="text-sm text-muted">Loading…</p>;
   }
 
-  const needsReview = data.deposits.totals.unmatched.count;
   const pendingWithdrawals = data.withdrawals.totals.pending;
 
   return (
@@ -75,25 +74,82 @@ export default function AdminOverviewPage() {
         </div>
       </div>
 
-      {/* --- KPI row --------------------------------------------------- */}
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <StatCard label="Available Balance" value={fmtUsdt(data.availableUsdt)} tone="mint" />
-        <StatCard
-          label="Pending Withdrawals"
-          value={<CurrencyBucketValue usdt={pendingWithdrawals.usdt} doge={pendingWithdrawals.doge} />}
-          tone={pendingWithdrawals.usdt.count > 0 || pendingWithdrawals.doge.count > 0 ? "gold" : undefined}
-        />
-        <StatCard
-          label="Deposits Needing Review"
-          value={`${needsReview} · ${fmtUsdt(data.deposits.totals.unmatched.amount)}`}
-          tone={needsReview > 0 ? "risk" : undefined}
-        />
-        <StatCard label="Fees Collected (lifetime)" value={fmtUsdt(data.withdrawals.feesCollected)} />
-        <StatCard label="Platform Treasury" value={fmtUsdt(data.balances.treasuryUsdt)} tone="gold" />
-        <StatCard label="New Wallets" value={String(data.newWallets)} />
-        <StatCard label="Matches Played" value={String(data.matchCount)} />
-        <StatCard label="Active Lobbies" value={String(data.activeLobbyCount)} />
-        <StatCard label="Unused Prize Surplus" value={fmtUsdt(data.matchUnusedPrizeSurplusUsdt)} />
+      {/* Reorganized into labeled groups instead of one flat 9-card grid
+          — confirmed live as a real ask: "show all things very clear
+          for analysis." Every figure below appears in exactly ONE
+          place on this page (no card repeats the same number twice
+          under a different label) — Deposits Needing Review lives in
+          the Deposits section below (identical to that section's own
+          "Unmatched" figure), and the old top-level Pending/Completed/
+          Fees Collected cards moved into their own Withdrawals Summary
+          group here, no longer duplicated inside WithdrawalsSection's
+          own detail view further down. */}
+
+      {/* --- Real user balances ----------------------------------------- */}
+      <section>
+        <h2 className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-gold">▸ Real User Balances</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard label="Deposit USDT (all real users)" value={fmtUsdt(data.balances.playUsdt)} />
+          <StatCard label="Available USDT (all real users)" value={fmtUsdt(data.availableUsdt)} tone="mint" />
+          <StatCard label="PTS (raw points)" value={data.balances.pts.toFixed(0)} />
+          <StatCard label="PTS (≈ USDT value)" value={fmtUsdt(data.balances.ptsAsUsdt)} tone="mint" />
+        </div>
+      </section>
+
+      {/* --- Withdrawals summary ------------------------------------------ */}
+      <section>
+        <h2 className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-gold">▸ Withdrawals Summary</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard label="Pending — USDT" value={`${pendingWithdrawals.usdt.count} · ${fmtUsdt(pendingWithdrawals.usdt.amount)}`} tone="gold" />
+          <StatCard label="Pending — DOGE" value={`${pendingWithdrawals.doge.count} · ${fmtDoge(pendingWithdrawals.doge.amount)}`} tone="gold" />
+          <StatCard
+            label="Completed (lifetime) — USDT"
+            value={`${data.withdrawals.totals.completed.usdt.count} · ${fmtUsdt(data.withdrawals.totals.completed.usdt.amount)}`}
+            tone="mint"
+          />
+          <StatCard
+            label="Completed (lifetime) — DOGE"
+            value={`${data.withdrawals.totals.completed.doge.count} · ${fmtDoge(data.withdrawals.totals.completed.doge.amount)}`}
+            tone="mint"
+          />
+          <StatCard label="Gas Fee Collected (lifetime)" value={fmtUsdt(data.withdrawals.feesCollected)} />
+          <StatCard
+            label="Net USDT Sent (completed − fees)"
+            value={fmtUsdt(data.withdrawals.totals.completed.usdt.amount - data.withdrawals.feesCollected)}
+            tone="mint"
+          />
+          <StatCard label="Net DOGE Sent (completed)" value={fmtDoge(data.withdrawals.totals.completed.doge.amount)} tone="mint" />
+        </div>
+      </section>
+
+      {/* --- Referrals ----------------------------------------------------- */}
+      <section>
+        <h2 className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-gold">▸ Referrals</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard label="Direct Referrals (L1)" value={String(data.referrals.directCount)} />
+          <StatCard label="Indirect Referrals (L2)" value={String(data.referrals.indirectCount)} />
+        </div>
+        <p className="mb-2 mt-3 text-[10px] font-bold uppercase tracking-widest text-muted">
+          Commission Paid — Direct (L1) / Indirect (L2)
+        </p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard label="Game — Direct (USDT)" value={fmtUsdt(data.referrals.gameCommissionUsdt.direct)} tone="mint" />
+          <StatCard label="Game — Indirect (USDT)" value={fmtUsdt(data.referrals.gameCommissionUsdt.indirect)} tone="mint" />
+          <StatCard label="Mining — Direct (DOGE)" value={fmtDoge(data.referrals.miningCommissionDoge.direct)} tone="gold" />
+          <StatCard label="Mining — Indirect (DOGE)" value={fmtDoge(data.referrals.miningCommissionDoge.indirect)} tone="gold" />
+        </div>
+      </section>
+
+      {/* --- Platform -------------------------------------------------- */}
+      <section>
+        <h2 className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-gold">▸ Platform</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <StatCard label="Platform Treasury" value={fmtUsdt(data.balances.treasuryUsdt)} tone="gold" />
+          <StatCard label="New Wallets" value={String(data.newWallets)} />
+          <StatCard label="Matches Played" value={String(data.matchCount)} />
+          <StatCard label="Active Lobbies" value={String(data.activeLobbyCount)} />
+          <StatCard label="Unused Prize Surplus" value={fmtUsdt(data.matchUnusedPrizeSurplusUsdt)} />
+        </div>
       </section>
 
       {/* --- Balance composition ---------------------------------------- */}
@@ -110,8 +166,10 @@ export default function AdminOverviewPage() {
               { label: "Referral USDT", value: data.balances.referralUsdt, color: CHART.muted },
             ]}
           />
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            <StatCard label="PTS (raw points)" value={data.balances.pts.toFixed(0)} />
+          {/* PTS lives in the Real User Balances section above now, not
+              repeated here — this row is just the two DOGE balances
+              that section doesn't cover. */}
+          <div className="mt-4 grid grid-cols-2 gap-3">
             <StatCard label="Pending DOGE" value={data.balances.pendingDoge.toFixed(4)} />
             <StatCard label="Available DOGE" value={data.balances.availableDoge.toFixed(4)} tone="mint" />
           </div>
@@ -147,30 +205,6 @@ function StatCard({ label, value, tone }: { label: string; value: ReactNode; ton
       <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{label}</p>
       <p className="stat-value mt-1.5 text-lg">{value}</p>
     </div>
-  );
-}
-
-// USDT and DOGE withdrawals are two genuinely different funds, not one
-// number with an ambiguous unit — see WithdrawalsSection's own
-// doc-comment. Renders both, stacked, always (even a zero DOGE line is
-// shown rather than hidden) so it never looks like the DOGE side was
-// silently rolled into the USDT figure above it.
-function CurrencyBucketValue({
-  usdt,
-  doge,
-}: {
-  usdt: { count: number; amount: number };
-  doge: { count: number; amount: number };
-}) {
-  return (
-    <>
-      <span className="block">
-        {usdt.count} · {fmtUsdt(usdt.amount)}
-      </span>
-      <span className="block text-sm opacity-80">
-        {doge.count} · {fmtDoge(doge.amount)}
-      </span>
-    </>
   );
 }
 
@@ -272,13 +306,9 @@ const WITHDRAWAL_FILTERS = ["All", "Requested", "Completed"] as const;
 
 function WithdrawalsSection({ data }: { data: AdminOverview }) {
   const [filter, setFilter] = useState<(typeof WITHDRAWAL_FILTERS)[number]>("All");
-  const { pending, completed } = data.withdrawals.totals;
-  // feesCollected is always USDT-denominated bookkeeping (see the API
-  // route's own doc-comment), so it only ever nets against the USDT
-  // side of completed withdrawals — DOGE has no fee figure to subtract
-  // against at all, it's shown as its own raw total.
-  const netUsdtSent = completed.usdt.amount - data.withdrawals.feesCollected;
-  const netDogeSent = completed.doge.amount;
+  // Pending/Completed/Fees/Net figures live in the top-level
+  // "Withdrawals Summary" section now, not duplicated here — this
+  // section is purely the trend chart + recent activity drill-down.
 
   const recentFilterStatus = filter === "Requested" ? "PENDING" : filter === "Completed" ? "COMPLETED" : null;
   const recent = useMemo(
@@ -305,15 +335,7 @@ function WithdrawalsSection({ data }: { data: AdminOverview }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <StatCard label="Pending" value={<CurrencyBucketValue usdt={pending.usdt} doge={pending.doge} />} tone="gold" />
-        <StatCard label="Completed (lifetime)" value={<CurrencyBucketValue usdt={completed.usdt} doge={completed.doge} />} tone="mint" />
-        <StatCard label="Fees Collected" value={fmtUsdt(data.withdrawals.feesCollected)} />
-        <StatCard label="Net USDT Sent (completed − fees)" value={fmtUsdt(netUsdtSent)} tone="mint" />
-        <StatCard label="Net DOGE Sent (completed)" value={fmtDoge(netDogeSent)} tone="mint" />
-      </div>
-
-      <div className="game-panel hud-corner mt-3 rounded-2xl p-4">
+      <div className="game-panel hud-corner rounded-2xl p-4">
         <div className="h-56">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data.withdrawals.series} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} accessibilityLayer={false}>
