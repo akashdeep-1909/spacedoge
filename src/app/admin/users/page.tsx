@@ -11,6 +11,7 @@ import {
   useSetDemo,
   useBulkSetDemo,
   useClearAllDemo,
+  useSetWithdrawalRestriction,
   useSetReferrer,
   useCreditUserBalance,
   type AdminUserRow,
@@ -317,8 +318,10 @@ function UserCard({ row }: { row: AdminUserRow }) {
   const setRiskFlag = useSetRiskFlag();
   const setKol = useSetKol();
   const setDemo = useSetDemo();
+  const setWithdrawalRestriction = useSetWithdrawalRestriction();
   const [showCredit, setShowCredit] = useState(false);
   const [showReferrer, setShowReferrer] = useState(false);
+  const [showRestrict, setShowRestrict] = useState(false);
 
   return (
     <div className={`game-panel hud-corner relative rounded-2xl p-4 ${row.isBot ? "opacity-70" : ""}`}>
@@ -365,6 +368,14 @@ function UserCard({ row }: { row: AdminUserRow }) {
                 🎭 Demo
               </span>
             )}
+            {row.withdrawalRestricted && (
+              <span
+                className="rounded-full border border-risk/30 bg-risk-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-risk"
+                title={`Withdrawals blocked. Reason: ${row.withdrawalRestrictedNote ?? "(no note)"}`}
+              >
+                🚫 Withdrawal Restricted
+              </span>
+            )}
           </p>
           <p className="mt-0.5 text-xs text-muted">Joined {new Date(row.createdAt).toLocaleDateString()}</p>
           <p className="mt-0.5 text-xs text-muted">
@@ -375,6 +386,11 @@ function UserCard({ row }: { row: AdminUserRow }) {
               <span className="italic opacity-70">none</span>
             )}
           </p>
+          {row.withdrawalRestricted && (
+            <p className="mt-0.5 text-xs text-risk">
+              Withdrawal remark: <span className="font-semibold">{row.withdrawalRestrictedNote}</span>
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 flex-wrap items-start gap-1.5">
           <Link
@@ -437,6 +453,22 @@ function UserCard({ row }: { row: AdminUserRow }) {
             >
               {showReferrer ? "Cancel" : row.referredByAddress ? "Change Referrer" : "Set Referrer"}
             </button>
+            {row.withdrawalRestricted ? (
+              <button
+                onClick={() => setWithdrawalRestriction.mutate({ id: row.id, restricted: false })}
+                disabled={setWithdrawalRestriction.isPending}
+                className="rounded-full border border-mint/40 bg-panel px-2.5 py-1 text-[11px] font-semibold text-mint transition hover:bg-mint-soft disabled:opacity-40"
+              >
+                Unrestrict Withdrawal
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowRestrict((v) => !v)}
+                className="rounded-full border border-risk/40 bg-panel px-2.5 py-1 text-[11px] font-semibold text-risk transition hover:bg-risk-soft"
+              >
+                {showRestrict ? "Cancel" : "Restrict Withdrawal"}
+              </button>
+            )}
             </>
           )}
         </div>
@@ -453,6 +485,13 @@ function UserCard({ row }: { row: AdminUserRow }) {
           {setDemo.error instanceof Error ? setDemo.error.message : "Failed to update demo flag."}
         </p>
       )}
+      {setWithdrawalRestriction.error && (
+        <p className="mt-1.5 text-[11px] text-risk">
+          {setWithdrawalRestriction.error instanceof Error
+            ? setWithdrawalRestriction.error.message
+            : "Failed to update withdrawal restriction."}
+        </p>
+      )}
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {BALANCE_FIELDS.map((f) => (
@@ -467,6 +506,59 @@ function UserCard({ row }: { row: AdminUserRow }) {
       {showReferrer && (
         <ReferrerForm userId={row.id} currentReferrerAddress={row.referredByAddress} onDone={() => setShowReferrer(false)} />
       )}
+      {showRestrict && <RestrictWithdrawalForm userId={row.id} onDone={() => setShowRestrict(false)} />}
+    </div>
+  );
+}
+
+// Restricting a wallet's withdrawals always requires a note — see
+// WalletProfile.withdrawalRestricted's own doc-comment in
+// schema.prisma for why it's never left blank. Un-restricting is a
+// single-click action rendered directly on UserCard instead (no form
+// needed, nothing to type) — this component only covers the
+// restrict-with-a-reason direction.
+function RestrictWithdrawalForm({ userId, onDone }: { userId: string; onDone: () => void }) {
+  const setWithdrawalRestriction = useSetWithdrawalRestriction();
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    setError(null);
+    if (!note.trim()) {
+      setError("A remark is required so the user (and any admin later) knows why.");
+      return;
+    }
+    try {
+      await setWithdrawalRestriction.mutateAsync({ id: userId, restricted: true, note: note.trim() });
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to restrict withdrawal");
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-risk/25 bg-risk-soft/10 p-3">
+      <div className="grid gap-2">
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Remark — why is this wallet being restricted? (shown to the user)"
+          className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm"
+        />
+      </div>
+      <div className="mt-2 flex items-center gap-3">
+        <button
+          onClick={submit}
+          disabled={setWithdrawalRestriction.isPending || !note.trim()}
+          className="rounded-full border border-risk/40 bg-panel px-4 py-1.5 text-xs font-semibold text-risk transition hover:bg-risk-soft disabled:opacity-50"
+        >
+          {setWithdrawalRestriction.isPending ? "Restricting…" : "Restrict Withdrawal"}
+        </button>
+        <button onClick={onDone} className="rounded-full border border-line px-4 py-1.5 text-xs text-muted hover:text-foreground">
+          Cancel
+        </button>
+        {error && <span className="text-xs text-risk">{error}</span>}
+      </div>
     </div>
   );
 }

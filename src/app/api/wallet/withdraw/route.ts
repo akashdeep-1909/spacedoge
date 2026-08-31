@@ -51,6 +51,24 @@ export async function POST(request: NextRequest) {
   const { amount, chain } = parsed.data;
   const destinationAddress = parsed.data.destinationAddress.trim();
 
+  // Admin-set hard block on withdrawal REQUESTS specifically — see
+  // WalletProfile.withdrawalRestricted's own doc-comment in
+  // schema.prisma. Checked before anything else in this route (chain
+  // validation, balance, etc.) — a restricted wallet is rejected
+  // outright regardless of what else the request would otherwise have
+  // done, and the admin's own note comes back in the error so the user
+  // actually sees why, not just a generic failure.
+  const restriction = await db.walletProfile.findUnique({
+    where: { id: session.walletProfileId },
+    select: { withdrawalRestricted: true, withdrawalRestrictedNote: true },
+  });
+  if (restriction?.withdrawalRestricted) {
+    return NextResponse.json(
+      { error: `Withdrawals are currently restricted on this account. ${restriction.withdrawalRestrictedNote ?? ""}`.trim() },
+      { status: 403 }
+    );
+  }
+
   const chainConfig = await getWithdrawChainConfig(chain);
   if (!chainConfig || !chainConfig.enabled) {
     return NextResponse.json({ error: "That withdrawal chain isn't available." }, { status: 400 });

@@ -82,6 +82,8 @@ export async function GET(request: NextRequest) {
         address: p.address,
         isBot: p.address.startsWith("bot:"),
         isDemo: p.isDemo,
+        withdrawalRestricted: p.withdrawalRestricted,
+        withdrawalRestrictedNote: p.withdrawalRestrictedNote,
         riskFlag: p.riskFlag,
         isKol: p.isKol,
         createdAt: p.createdAt,

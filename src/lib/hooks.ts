@@ -848,6 +848,11 @@ export interface AdminUserRow {
   // Admin-flagged demo/marketing account — see WalletProfile.isDemo's
   // own doc-comment in schema.prisma.
   isDemo: boolean;
+  // Admin-set hard block on withdrawal requests — see
+  // WalletProfile.withdrawalRestricted's own doc-comment in
+  // schema.prisma. Note is non-null whenever restricted is true.
+  withdrawalRestricted: boolean;
+  withdrawalRestrictedNote: string | null;
   riskFlag: string | null;
   isKol: boolean;
   createdAt: string;
@@ -908,6 +913,33 @@ export function useSetDemo() {
       // this, marking/unmarking a wallet here left that page showing
       // stale numbers until its own 30s refetch/next visit.
       queryClient.invalidateQueries({ queryKey: ["admin", "overview"] });
+    },
+  });
+}
+
+// Admin-set hard block on withdrawal REQUESTS specifically — see
+// WalletProfile.withdrawalRestricted's own doc-comment in
+// schema.prisma. `note` is required when restricting (the API 400s
+// without one); omitted/ignored when un-restricting.
+export function useSetWithdrawalRestriction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      input: { id: string; restricted: true; note: string } | { id: string; restricted: false }
+    ) => {
+      const { id, ...body } = input;
+      const res = await fetch(`/api/admin/users/${id}/withdrawal-restrict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const responseBody = await res.json();
+      if (!res.ok) throw new Error(responseBody.error ?? "Failed to update withdrawal restriction");
+      return responseBody;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "user-detail"] });
     },
   });
 }
@@ -1141,6 +1173,9 @@ export interface AdminUserDetail {
     riskFlag: string | null;
     isKol: boolean;
     isDemo: boolean;
+    withdrawalRestricted: boolean;
+    withdrawalRestrictedNote: string | null;
+    withdrawalRestrictedAt: string | null;
     dogeAddress: string | null;
     countryCode: string | null;
     createdAt: string;

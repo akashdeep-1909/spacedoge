@@ -26,29 +26,29 @@ datasource db {
 // ---------------------------------------------------------------------
 
 model WalletProfile {
-  id                 String    @id @default(cuid())
-  address            String    @unique // lowercased EVM address
-  chainId            Int
-  countryCode        String? // access-control / jurisdiction screening
-  ageConfirmed       Boolean   @default(false)
-  termsVersion       String?
-  dogeAddress        String? // Phase 2 native DOGE payout destination, bound separately
-  dogeAddressBoundAt DateTime?
+  id                       String    @id @default(cuid())
+  address                  String    @unique // lowercased EVM address
+  chainId                  Int
+  countryCode              String? // access-control / jurisdiction screening
+  ageConfirmed             Boolean   @default(false)
+  termsVersion             String?
+  dogeAddress              String? // Phase 2 native DOGE payout destination, bound separately
+  dogeAddressBoundAt       DateTime?
   // Self-set, optional display name — shown in place of the wallet
   // address anywhere this player is identified to OTHER players (in-
   // game HUD, multiplayer match results, weekly leaderboard). Falls
   // back to the shortened wallet address whenever null, exactly like
   // before this existed. No uniqueness constraint — a low-stakes
   // cosmetic label, not an identity claim.
-  nickname           String?   @db.VarChar(24)
-  riskFlag           String? // null | "review" | "blocked" — set only by Risk Service, never by users
+  nickname                 String?   @db.VarChar(24)
+  riskFlag                 String? // null | "review" | "blocked" — set only by Risk Service, never by users
   // Admin-flagged Key Opinion Leader (src/app/admin/users/page.tsx).
   // Plain on/off toggle, not a tri-state like riskFlag — no "unset"
   // state makes sense here. A referral whose REFERRER has this set
   // unlocks the one-time 3-play / 300-PTS KOL_REFERRAL_BONUS gift for
   // the referred wallet (src/lib/referrals.ts checkKolBonusEligibility,
   // src/app/api/matches/[id]/settle/route.ts).
-  isKol              Boolean   @default(false)
+  isKol                    Boolean   @default(false)
   // Admin-flagged "this wallet is a demo/marketing account, not a real
   // user" (src/app/admin/users/page.tsx). Deliberately invisible to
   // this wallet ITSELF and to every other player — nothing in
@@ -60,9 +60,24 @@ model WalletProfile {
   // narrow to the admin Users list/count only, not every admin
   // aggregate (Overview totals, mining stats, CSV/PDF reports) — see
   // this field's addition commit for the explicit scoping decision.
-  isDemo             Boolean   @default(false)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  isDemo                   Boolean   @default(false)
+  // Admin-set hard block on withdrawal REQUESTS specifically — narrower
+  // than riskFlag "blocked" (that's a general risk classification with
+  // its own, separate meaning; this is a dedicated, single-purpose
+  // switch an admin flips from this one action, with its own required
+  // reason). Enforced in /api/wallet/withdraw/route.ts, which rejects
+  // a request outright if this is true and surfaces
+  // withdrawalRestrictedNote back to the user so they know why —
+  // doesn't touch anything else this wallet can do (play, deposit,
+  // convert, transfer all stay unaffected). The note is REQUIRED when
+  // an admin sets this true (src/app/api/admin/users/[id]/
+  // withdrawal-restrict/route.ts enforces that), so a restricted
+  // wallet is never left with no visible reason on either side.
+  withdrawalRestricted     Boolean   @default(false)
+  withdrawalRestrictedNote String?
+  withdrawalRestrictedAt   DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   ledgerEntries             LedgerEntry[]
   matchEntries              MatchParticipant[]
@@ -79,8 +94,8 @@ model WalletProfile {
   invitationsReceived       LobbyInvitation[]          @relation("InvitationRecipient")
   pushSubscriptions         PushSubscription[]
   reserveSnapshotLeaves     ReserveSnapshotLeaf[]
-  transfersSent             InternalTransfer[]          @relation("TransferFrom")
-  transfersReceived         InternalTransfer[]          @relation("TransferTo")
+  transfersSent             InternalTransfer[]         @relation("TransferFrom")
+  transfersReceived         InternalTransfer[]         @relation("TransferTo")
 }
 
 // Browser Web Push subscriptions — one row per device/browser a wallet
@@ -970,34 +985,34 @@ model WeeklyLeaderboardPayout {
 // the same $ minimum regardless of which chain sends it) and social
 // links.
 model PlatformSettings {
-  id                     String   @id @default("singleton") // exactly one row, ever
-  minUsdtWithdrawal      Decimal? @db.Decimal(18, 2) // overrides src/lib/withdrawals.ts DEFAULT_MIN_USDT_WITHDRAWAL
-  minDogeWithdrawal      Decimal? @db.Decimal(18, 8) // overrides src/lib/withdrawals.ts DEFAULT_MIN_DOGE_WITHDRAWAL
-  twitterUrl             String?
-  telegramUrl            String?
-  discordUrl             String?
-  youtubeUrl             String?
-  instagramUrl           String?
-  facebookUrl            String?
-  linkedinUrl            String?
-  redditUrl              String?
-  tiktokUrl              String?
-  mediumUrl              String?
+  id                        String    @id @default("singleton") // exactly one row, ever
+  minUsdtWithdrawal         Decimal?  @db.Decimal(18, 2) // overrides src/lib/withdrawals.ts DEFAULT_MIN_USDT_WITHDRAWAL
+  minDogeWithdrawal         Decimal?  @db.Decimal(18, 8) // overrides src/lib/withdrawals.ts DEFAULT_MIN_DOGE_WITHDRAWAL
+  twitterUrl                String?
+  telegramUrl               String?
+  discordUrl                String?
+  youtubeUrl                String?
+  instagramUrl              String?
+  facebookUrl               String?
+  linkedinUrl               String?
+  redditUrl                 String?
+  tiktokUrl                 String?
+  mediumUrl                 String?
   // Overrides NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID (src/lib/wagmi.ts) —
   // lets an admin set/rotate the WalletConnect Cloud (cloud.reown.com)
   // project ID at runtime, no redeploy. Blank/null falls back to the
   // env var; if that's also unset, the walletConnect connector is
   // omitted entirely and mobile users without an injected wallet get a
   // "open this in your wallet app's browser instead" message.
-  walletConnectProjectId String?
+  walletConnectProjectId    String?
   // Weekly leaderboard reward is OFF by default — no pool is paid out
   // until an admin explicitly enables it AND sets a pool amount here
   // (src/lib/leaderboard.ts's ensureWeekFinalized/getLiveStandings both
   // check this before crediting anything). With either left unset, the
   // page still shows real rankings computed from real settled matches —
   // it just never pays a reward.
-  weeklyLeaderboardEnabled  Boolean  @default(false)
-  weeklyLeaderboardPoolUsdt Decimal? @db.Decimal(24, 8)
+  weeklyLeaderboardEnabled  Boolean   @default(false)
+  weeklyLeaderboardPoolUsdt Decimal?  @db.Decimal(24, 8)
   // Android app distribution — a direct-download APK (no Play Store
   // listing) since this is sideloaded, not published through Google
   // Play. The file itself lives on disk (storage/uploads/apk/current.apk,
@@ -1006,18 +1021,18 @@ model PlatformSettings {
   // overwritten in place rather than versioned per-file, since there's
   // only ever one "current" build to offer. These columns are just the
   // metadata a page needs to render without touching the filesystem.
-  androidApkOriginalName  String?
-  androidApkVersionLabel  String?
-  androidApkFileSizeBytes Int?
-  androidApkUploadedAt    DateTime?
+  androidApkOriginalName    String?
+  androidApkVersionLabel    String?
+  androidApkFileSizeBytes   Int?
+  androidApkUploadedAt      DateTime?
   // Whole "Docs" nav dropdown is OFF by default — an admin turns it on
   // explicitly once there's something worth linking (see SiteDocument
   // below and src/components/DocsNavMenu.tsx). Kept separate from each
   // document's own `enabled` so the entire menu can be hidden in one
   // toggle without touching individual rows.
-  docsMenuEnabled        Boolean  @default(false)
-  updatedAt              DateTime @updatedAt
-  updatedByAddress       String? // lowercased EVM address of the admin who last saved
+  docsMenuEnabled           Boolean   @default(false)
+  updatedAt                 DateTime  @updatedAt
+  updatedByAddress          String? // lowercased EVM address of the admin who last saved
 }
 
 // Admin-uploaded downloadable documents (whitepaper, pitch deck, etc.)
