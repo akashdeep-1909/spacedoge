@@ -31,6 +31,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     referredBy,
     downline,
     recentLedger,
+    spentAgg,
+    directCount,
+    commissionSums,
   ] = await Promise.all([
     getWalletBalances(id),
     getDepositsReport(id),
@@ -57,7 +60,99 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       orderBy: { createdAt: "desc" },
       take: 300,
     }),
+    // Lifetime "spend" — every PLAY_USDT DEBIT (negative amount:
+    // reason "match_entry", plus mining activation/hashrate purchases
+    // that also draw from PLAY_USDT). The current balance alone
+    // doesn't show this: a wallet that deposited $50 and spent $45 on
+    // matches shows a $5 balance either way as a wallet that only ever
+    // deposited $5 — this is the lifetime OUTFLOW specifically.
+    db.ledgerEntry.aggregate({
+      where: { walletProfileId: id, balanceType: "PLAY_USDT", amount: { lt: 0 } },
+      _sum: { amount: true },
+    }),
+    // Same direct/indirect counting rule as /api/admin/overview —
+    // scoped to just this wallet as the referrer. Doesn't filter by
+    // REAL_USER_WALLET_FILTER the way the platform-wide Overview does:
+    // an admin looking at ONE specific user's own downline wants to
+    // see everyone they've actually referred, demo-flagged or not —
+    // that classification is about platform-wide reporting, not about
+    // hiding a real relationship on this user's own page. (indirectCount
+    // is computed further below, from `downline` — already being
+    // fetched in this same Promise.all — rather than as a second
+    // query here, which would otherwise have to `await` inline before
+    // this array literal even finishes evaluating, serializing it
+    // ahead of every other entry below instead of running in parallel.)
+    db.referral.count({ where: { referrerProfileId: id } }),
+    // This user's OWN referral earnings — game (USDT) and mining
+    // (DOGE) commission, direct (L1) and indirect (L2), same 4 reason
+    // codes the Overview page's referral section reads.
+    db.ledgerEntry.groupBy({
+      by: ["reason"],
+      where: { walletProfileId: id, reason: { in: ["referral_l1", "referral_l2", "mining_referral_l1", "mining_referral_l2"] } },
+      _sum: { amount: true },
+    }),
   ]);
+
+  // Per-downline-member game commission — only feasible for the GAME
+  // side (referral_l1 entries carry refType: "Match", refId: <that
+  // match's id>, and instant-play/lobby matches have exactly one real
+  // human participant, so a match maps 1:1 back to which referred
+  // wallet earned this admin the commission). Mining commission is
+  // NOT broken out per downline member here — creditMiningReferralDoge
+  // (src/lib/referrals.ts) credits ONE aggregated entry per (referrer,
+  // level, epoch), summed across every contract that referrer's whole
+  // downline ran that day, not one entry per contract/referred wallet
+  // — cleanly un-mixing that back into "how much did wallet X
+  // specifically earn me" would mean re-deriving each contract's own
+  // daily carve from MiningContractAllocation instead of reading the
+  // ledger, out of scope for this view. The referralSummary total
+  // below still covers mining commission at the whole-user level.
+  const directReferredIds = downline.map((r) => r.referredProfileId);
+  const gameCommissionByReferredWallet = new Map<string, number>();
+  if (directReferredIds.length > 0) {
+    const referredMatches = await db.matchParticipant.findMany({
+      where: { isBot: false, walletProfileId: { in: directReferredIds } },
+      select: { matchId: true, walletProfileId: true },
+    });
+    const matchIdToReferredWalletId = new Map(referredMatches.map((m) => [m.matchId, m.walletProfileId]));
+    if (matchIdToReferredWalletId.size > 0) {
+      const l1Entries = await db.ledgerEntry.findMany({
+        where: {
+          walletProfileId: id,
+          reason: "referral_l1",
+          refType: "Match",
+          refId: { in: [...matchIdToReferredWalletId.keys()] },
+        },
+        select: { refId: true, amount: true },
+      });
+      for (const entry of l1Entries) {
+        const referredWalletId = matchIdToReferredWalletId.get(entry.refId!);
+        if (!referredWalletId) continue;
+        gameCommissionByReferredWallet.set(
+          referredWalletId,
+          (gameCommissionByReferredWallet.get(referredWalletId) ?? 0) + Number(entry.amount)
+        );
+      }
+    }
+  }
+
+  // Indirect (L2) downline — everyone referred BY this user's own
+  // direct referrals. Shown as its own list (not folded into the L1
+  // one) since it's a different relationship: this user never
+  // interacted with these wallets directly, they only earn L2
+  // commission when one of them plays/mines.
+  const indirectDownline =
+    directReferredIds.length > 0
+      ? await db.referral.findMany({
+          where: { referrerProfileId: { in: directReferredIds } },
+          orderBy: { createdAt: "desc" },
+          include: { referred: { select: { address: true } }, referrer: { select: { address: true } } },
+        })
+      : [];
+
+  const commissionByReason = Object.fromEntries(
+    commissionSums.map((r) => [r.reason, Number(r._sum.amount ?? 0)])
+  ) as Record<string, number>;
 
   return NextResponse.json({
     profile: {
@@ -74,17 +169,43 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       referralStatus: referredBy?.status ?? null,
     },
     balances,
+    totalUsdtSpent: Math.abs(Number(spentAgg._sum.amount ?? 0)),
+    referralSummary: {
+      directCount,
+      indirectCount: indirectDownline.length,
+      gameCommissionUsdt: {
+        direct: commissionByReason.referral_l1 ?? 0,
+        indirect: commissionByReason.referral_l2 ?? 0,
+      },
+      miningCommissionDoge: {
+        direct: commissionByReason.mining_referral_l1 ?? 0,
+        indirect: commissionByReason.mining_referral_l2 ?? 0,
+      },
+    },
     deposits,
     withdrawals,
     matches,
     mining,
     transfers,
     referralDownline: {
-      title: "Referral Downline",
-      headers: ["Referred User ID", "Referred Wallet Address", "Status", "Qualified At (UTC)", "Joined At (UTC)"],
+      title: "Direct Referral Downline (L1)",
+      headers: ["Referred User ID", "Referred Wallet Address", "Status", "Game Commission Earned (USDT)", "Qualified At (UTC)", "Joined At (UTC)"],
       rows: downline.map((r) => [
         r.referredProfileId,
         r.referred.address,
+        r.status,
+        (gameCommissionByReferredWallet.get(r.referredProfileId) ?? 0).toFixed(8),
+        r.qualifiedAt ? r.qualifiedAt.toISOString() : "",
+        r.createdAt.toISOString(),
+      ]),
+    },
+    referralDownlineIndirect: {
+      title: "Indirect Referral Downline (L2)",
+      headers: ["Referred User ID", "Referred Wallet Address", "Came Through (My Direct Referral)", "Status", "Qualified At (UTC)", "Joined At (UTC)"],
+      rows: indirectDownline.map((r) => [
+        r.referredProfileId,
+        r.referred.address,
+        r.referrer.address,
         r.status,
         r.qualifiedAt ? r.qualifiedAt.toISOString() : "",
         r.createdAt.toISOString(),

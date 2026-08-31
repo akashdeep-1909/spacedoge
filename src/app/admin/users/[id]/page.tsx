@@ -119,15 +119,54 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             </p>
           </div>
         ))}
+        <div
+          title="Lifetime PLAY_USDT outflow — match entries, mining activation, hashrate purchases. The current balance alone doesn't show this."
+          className="rounded-lg border border-line bg-panel-2 px-2.5 py-1.5"
+        >
+          <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Total USDT Spent (lifetime)</p>
+          <p className="text-sm font-semibold tabular-nums">${data.totalUsdtSpent.toFixed(2)}</p>
+        </div>
       </div>
+
+      <section>
+        <h2 className="mb-2 text-xs font-black uppercase tracking-widest text-muted">▸ Referral Summary</h2>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          <SummaryTile label="Direct Referrals (L1)" value={String(data.referralSummary.directCount)} />
+          <SummaryTile label="Indirect Referrals (L2)" value={String(data.referralSummary.indirectCount)} />
+          <SummaryTile label="Game Commission — Direct" value={`$${data.referralSummary.gameCommissionUsdt.direct.toFixed(2)}`} />
+          <SummaryTile label="Game Commission — Indirect" value={`$${data.referralSummary.gameCommissionUsdt.indirect.toFixed(2)}`} />
+          <SummaryTile label="Mining Commission — Direct" value={`${data.referralSummary.miningCommissionDoge.direct.toFixed(4)} DOGE`} />
+          <SummaryTile label="Mining Commission — Indirect" value={`${data.referralSummary.miningCommissionDoge.indirect.toFixed(4)} DOGE`} />
+        </div>
+      </section>
 
       <ReportSection table={data.deposits} exportKey="deposits" walletId={id} />
       <ReportSection table={data.withdrawals} exportKey="withdrawals" walletId={id} />
       <ReportSection table={data.matches} exportKey="matches" walletId={id} />
       <ReportSection table={data.mining} exportKey="mining" walletId={id} />
       <ReportSection table={data.transfers} exportKey="transfers" walletId={id} />
+      {/* Game commission ("Game Commission Earned (USDT)" column) is
+          broken out per direct downline member — feasible since each
+          referral_l1 ledger entry is tied to one specific match, and a
+          match has exactly one real human participant. Mining
+          commission is NOT broken out per row here — see this table's
+          own headers/route doc-comment for why (creditMiningReferralDoge
+          aggregates a whole epoch's carve across a referrer's entire
+          downline into one ledger entry, not one per contract/referred
+          wallet) — the Referral Summary above still covers it at the
+          whole-user level. */}
       <ReportSection table={data.referralDownline} walletId={id} />
+      <ReportSection table={data.referralDownlineIndirect} walletId={id} />
       <ReportSection table={data.recentLedger} walletId={id} />
+    </div>
+  );
+}
+
+function SummaryTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-line bg-panel-2 px-2.5 py-1.5">
+      <p className="text-[9px] font-bold uppercase tracking-widest text-muted">{label}</p>
+      <p className="text-sm font-semibold tabular-nums">{value}</p>
     </div>
   );
 }

@@ -1148,12 +1148,23 @@ export interface AdminUserDetail {
     referralStatus: string | null;
   };
   balances: WalletBalances;
+  // Lifetime PLAY_USDT outflow (match entries, mining activation/
+  // hashrate purchases) — the current balance alone doesn't show this,
+  // see the route's own doc-comment.
+  totalUsdtSpent: number;
+  referralSummary: {
+    directCount: number;
+    indirectCount: number;
+    gameCommissionUsdt: { direct: number; indirect: number };
+    miningCommissionDoge: { direct: number; indirect: number };
+  };
   deposits: AdminReportTable;
   withdrawals: AdminReportTable;
   matches: AdminReportTable;
   mining: AdminReportTable;
   transfers: AdminReportTable;
   referralDownline: AdminReportTable;
+  referralDownlineIndirect: AdminReportTable;
   recentLedger: AdminReportTable;
 }
 
