@@ -115,80 +115,156 @@ export function playShieldBlockSound() {
 
 // --- Continuous rocket engine hum ----------------------------------------
 //
-// A PERSISTENT oscillator, not a one-shot tone() — its pitch and volume
-// are ramped every frame (see updateEngineSound) as the human ship's own
-// speed changes, so it reads as "the rocket accelerating," not a static
-// drone. Lazily created on first call (same gesture-gated getCtx() as
-// every other sound here); explicitly torn down by stopEngineSound(),
-// which the arena calls both when a run actually ends (finish()) and
-// when the component unmounts — left unstopped, the oscillator would
-// otherwise keep humming in the background after the player has already
-// left the page.
-let engineOsc: OscillatorNode | null = null;
-let engineGain: GainNode | null = null;
-let engineFilter: BiquadFilterNode | null = null;
+// PERSISTENT nodes, not one-shot tone()s — pitch/volume/tone are ramped
+// every frame (see updateEngineSound) as the human ship's own speed
+// changes, so it reads as "the rocket accelerating," not a static drone.
+// A single oscillator through a lowpass filter (the first version of
+// this) read thin and buzzy — confirmed live ("the rocket run sound is
+// not really good"). Rebuilt as two layers blended under one master
+// gain, the same basic recipe real engine/rocket SFX are built from:
+//   1. A filtered noise "rumble" (brown noise — a leaky integrator over
+//      white noise, smoother/deeper than raw hiss — through a bandpass
+//      filter whose center frequency rises with speed) for the actual
+//      thrust roar.
+//   2. Two detuned sawtooth oscillators through their own lowpass filter
+//      for a thicker tonal "growl" underneath the rumble — the slight
+//      detuning is what keeps it from sounding like a single flat
+//      oscillator beeping, the same reason a real synth patch layers
+//      multiple slightly-mistuned oscillators for width.
+// Lazily created on first call (same gesture-gated getCtx() as every
+// other sound here); explicitly torn down by stopEngineSound(), which
+// the arena calls both when a run actually ends (finish()) and when the
+// component unmounts — left unstopped, this would otherwise keep
+// rumbling in the background after the player has already left the page.
+let engineMasterGain: GainNode | null = null;
+let engineNoiseSource: AudioBufferSourceNode | null = null;
+let engineNoiseFilter: BiquadFilterNode | null = null;
+let engineNoiseGain: GainNode | null = null;
+let engineToneOsc1: OscillatorNode | null = null;
+let engineToneOsc2: OscillatorNode | null = null;
+let engineToneFilter: BiquadFilterNode | null = null;
+let engineToneGain: GainNode | null = null;
+
+// A few seconds of looping brown-ish noise (a leaky integrator over
+// white noise) — deeper and smoother than raw white noise, which reads
+// as harsh static rather than a rumble once run through a bandpass
+// filter.
+function createEngineNoiseBuffer(audio: AudioContext): AudioBuffer {
+  const seconds = 2;
+  const bufferSize = Math.max(1, Math.floor(audio.sampleRate * seconds));
+  const buffer = audio.createBuffer(1, bufferSize, audio.sampleRate);
+  const data = buffer.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < bufferSize; i++) {
+    const white = Math.random() * 2 - 1;
+    last = (last + 0.02 * white) / 1.02;
+    data[i] = last * 3.2; // compensates for the integrator's own gain loss
+  }
+  return buffer;
+}
 
 export function updateEngineSound(speedFrac: number) {
   const audio = getCtx();
   if (!audio) return;
   const clamped = Math.max(0, Math.min(1, speedFrac));
-  if (!engineOsc || !engineGain || !engineFilter) {
-    engineOsc = audio.createOscillator();
-    engineGain = audio.createGain();
-    engineFilter = audio.createBiquadFilter();
-    engineFilter.type = "lowpass";
-    engineFilter.frequency.value = 300;
-    engineOsc.type = "sawtooth";
-    engineOsc.frequency.value = 55;
-    engineGain.gain.value = 0;
-    engineOsc.connect(engineFilter);
-    engineFilter.connect(engineGain);
-    engineGain.connect(audio.destination);
-    engineOsc.start();
+
+  if (!engineMasterGain || !engineNoiseSource || !engineToneOsc1 || !engineToneOsc2) {
+    engineMasterGain = audio.createGain();
+    engineMasterGain.gain.value = 0;
+    engineMasterGain.connect(audio.destination);
+
+    engineNoiseSource = audio.createBufferSource();
+    engineNoiseSource.buffer = createEngineNoiseBuffer(audio);
+    engineNoiseSource.loop = true;
+    engineNoiseFilter = audio.createBiquadFilter();
+    engineNoiseFilter.type = "bandpass";
+    engineNoiseFilter.frequency.value = 90;
+    engineNoiseFilter.Q.value = 0.7;
+    engineNoiseGain = audio.createGain();
+    engineNoiseGain.gain.value = 0;
+    engineNoiseSource.connect(engineNoiseFilter);
+    engineNoiseFilter.connect(engineNoiseGain);
+    engineNoiseGain.connect(engineMasterGain);
+    engineNoiseSource.start();
+
+    engineToneOsc1 = audio.createOscillator();
+    engineToneOsc1.type = "sawtooth";
+    engineToneOsc1.frequency.value = 48;
+    engineToneOsc2 = audio.createOscillator();
+    engineToneOsc2.type = "sawtooth";
+    engineToneOsc2.frequency.value = 48;
+    engineToneOsc2.detune.value = 9; // slight beating — width, not a flat single-oscillator beep
+    engineToneFilter = audio.createBiquadFilter();
+    engineToneFilter.type = "lowpass";
+    engineToneFilter.frequency.value = 220;
+    engineToneGain = audio.createGain();
+    engineToneGain.gain.value = 0;
+    engineToneOsc1.connect(engineToneFilter);
+    engineToneOsc2.connect(engineToneFilter);
+    engineToneFilter.connect(engineToneGain);
+    engineToneGain.connect(engineMasterGain);
+    engineToneOsc1.start();
+    engineToneOsc2.start();
   }
+
   // Local non-null aliases — the module-level `let`s above are
   // reassigned by stopEngineSound() from a different call, so TS can't
-  // narrow them as non-null across statements the way a plain local
-  // variable would be; the lazy-init block just above guarantees all
-  // three are set by this point in the same call.
-  const osc = engineOsc;
-  const gain = engineGain;
-  const filter = engineFilter;
+  // narrow them as non-null across statements the way plain locals
+  // would be; the lazy-init block just above guarantees all of these
+  // are set by this point in the same call.
+  const master = engineMasterGain;
+  const noiseFilter = engineNoiseFilter!;
+  const noiseGain = engineNoiseGain!;
+  const toneOsc1 = engineToneOsc1;
+  const toneOsc2 = engineToneOsc2;
+  const toneFilter = engineToneFilter!;
+  const toneGain = engineToneGain!;
+
   const now = audio.currentTime;
-  // A faint idle hum even at a standstill (barely audible) so the
+  const idle = clamped <= 0.02;
+  // A faint idle presence even at a standstill (barely audible) so the
   // engine reads as "always running," rising clearly once the ship
   // actually starts moving and climbing further under Boost.
-  const targetFreq = 55 + clamped * 130;
-  const targetGain = clamped > 0.02 ? 0.015 + clamped * 0.05 : 0.006;
-  const targetFilterFreq = 300 + clamped * 900;
+  master.gain.setTargetAtTime(idle ? 0.05 : 0.09 + clamped * 0.16, now, 0.15);
+  noiseFilter.frequency.setTargetAtTime(90 + clamped * 260, now, 0.12);
+  noiseGain.gain.setTargetAtTime(idle ? 0.25 : 0.4 + clamped * 0.35, now, 0.15);
+  const toneFreq = 48 + clamped * 95;
   // setTargetAtTime (exponential approach), not setValueAtTime — a hard
   // jump every frame is exactly what produces the clicking/zipper noise
   // this smooths away.
-  osc.frequency.setTargetAtTime(targetFreq, now, 0.08);
-  gain.gain.setTargetAtTime(targetGain, now, 0.12);
-  filter.frequency.setTargetAtTime(targetFilterFreq, now, 0.1);
+  toneOsc1.frequency.setTargetAtTime(toneFreq, now, 0.08);
+  toneOsc2.frequency.setTargetAtTime(toneFreq, now, 0.08);
+  toneFilter.frequency.setTargetAtTime(220 + clamped * 700, now, 0.1);
+  toneGain.gain.setTargetAtTime(idle ? 0.12 : 0.25 + clamped * 0.3, now, 0.12);
 }
 
 export function stopEngineSound() {
   const audio = getCtx();
-  const osc = engineOsc;
-  const gain = engineGain;
-  const filter = engineFilter;
-  engineOsc = null;
-  engineGain = null;
-  engineFilter = null;
-  if (!osc || !gain) return;
-  if (audio) gain.gain.setTargetAtTime(0, audio.currentTime, 0.04);
+  const master = engineMasterGain;
+  const stoppable = [engineNoiseSource, engineToneOsc1, engineToneOsc2].filter(
+    (n): n is AudioBufferSourceNode | OscillatorNode => n !== null
+  );
+  engineMasterGain = null;
+  engineNoiseSource = null;
+  engineNoiseFilter = null;
+  engineNoiseGain = null;
+  engineToneOsc1 = null;
+  engineToneOsc2 = null;
+  engineToneFilter = null;
+  engineToneGain = null;
+  if (!master) return;
+  if (audio) master.gain.setTargetAtTime(0, audio.currentTime, 0.05);
   // Actual node teardown on a short delay so the fade-out above isn't
   // cut off abruptly (an immediate .stop() would click).
   setTimeout(() => {
-    try {
-      osc.stop();
-    } catch {
-      // already stopped — nothing to do
+    for (const n of stoppable) {
+      try {
+        n.stop();
+      } catch {
+        // already stopped — nothing to do
+      }
+      n.disconnect();
     }
-    osc.disconnect();
-    gain.disconnect();
-    filter?.disconnect();
-  }, 150);
+    master.disconnect();
+  }, 180);
 }
