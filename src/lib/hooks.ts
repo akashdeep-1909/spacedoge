@@ -1161,14 +1161,26 @@ export interface AdminMiningProfitReport {
   };
   // Rates every DOGE-equivalent figure above was computed from.
   rates: { avgHistoricalDogeUsdt: number; liveDogeUsdt: number };
+  // Echoes back whatever from/to this response was actually filtered
+  // by (raw query param strings, or null if unset) — lets the UI
+  // confirm the filter it applied is the one reflected in the data.
+  filter: { from: string | null; to: string | null };
   contracts: AdminMiningProfitContractRow[];
 }
 
-export function useAdminMiningProfit() {
+// from/to are optional YYYY-MM-DD strings — filters the WHOLE report
+// (revenue, output, referral, liability, profit, the contract table)
+// by when the underlying activity happened, see the route's own
+// doc-comment for exactly which date column each section uses.
+export function useAdminMiningProfit(from?: string, to?: string) {
   return useQuery({
-    queryKey: ["admin", "mining-profit"],
+    queryKey: ["admin", "mining-profit", from ?? "", to ?? ""],
     queryFn: async (): Promise<AdminMiningProfitReport> => {
-      const res = await fetch("/api/admin/mining-profit");
+      const params = new URLSearchParams();
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      const qs = params.toString();
+      const res = await fetch(`/api/admin/mining-profit${qs ? `?${qs}` : ""}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}) as { error?: string });
         throw new Error(body.error ?? "Failed to load mining profit report");

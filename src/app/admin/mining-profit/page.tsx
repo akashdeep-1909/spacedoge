@@ -29,7 +29,9 @@ function levelLabel(level: string) {
 type Selection = string | "total" | null;
 
 export default function AdminMiningProfitPage() {
-  const { data, isLoading, error } = useAdminMiningProfit();
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const { data, isLoading, isFetching, error } = useAdminMiningProfit(from || undefined, to || undefined);
   const [selected, setSelected] = useState<Selection>(null);
 
   return (
@@ -43,6 +45,8 @@ export default function AdminMiningProfitPage() {
           number with its USDT-equivalent valuation alongside it.
         </p>
       </div>
+
+      <DateRangeFilter from={from} to={to} setFrom={setFrom} setTo={setTo} loading={isFetching} />
 
       {isLoading ? (
         <p className="game-panel hud-corner rounded-2xl p-5 text-sm text-muted">Loading…</p>
@@ -71,6 +75,66 @@ export default function AdminMiningProfitPage() {
         </>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Date-range filter — narrows the WHOLE page (revenue, output,
+// referral, liability, profit, the contract table) to activity from
+// this range. Contract-based sections filter by when a contract was
+// created; the Mining Output waterfall filters by epoch (settlement)
+// date instead — see the route's own doc-comment for exactly why.
+// ---------------------------------------------------------------------
+
+function DateRangeFilter({
+  from,
+  to,
+  setFrom,
+  setTo,
+  loading,
+}: {
+  from: string;
+  to: string;
+  setFrom: (v: string) => void;
+  setTo: (v: string) => void;
+  loading: boolean;
+}) {
+  return (
+    <section className="game-panel hud-corner flex flex-wrap items-center gap-3 rounded-2xl p-3">
+      <label className="flex items-center gap-2 text-xs text-muted">
+        From
+        <input
+          type="date"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+          className="rounded-lg border border-line bg-panel-2 px-2 py-1 text-xs"
+        />
+      </label>
+      <label className="flex items-center gap-2 text-xs text-muted">
+        To
+        <input
+          type="date"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          className="rounded-lg border border-line bg-panel-2 px-2 py-1 text-xs"
+        />
+      </label>
+      {(from || to) && (
+        <button
+          onClick={() => {
+            setFrom("");
+            setTo("");
+          }}
+          className="rounded-full border border-line px-3 py-1 text-[11px] text-muted hover:text-foreground"
+        >
+          Clear
+        </button>
+      )}
+      {loading && <span className="text-[11px] text-muted">Filtering…</span>}
+      <span className="text-[10px] italic text-muted">
+        Contract-based sections filter by contract creation date; Mining Output filters by settlement (epoch) date.
+      </span>
+    </section>
   );
 }
 

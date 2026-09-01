@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin";
 import { db } from "@/lib/db";
 import { MiningLevel } from "@/generated/prisma/enums";
@@ -36,6 +36,17 @@ import { fetchDogeUsdtRate } from "@/lib/conversion";
 // since this is a forward-looking "what would the platform pay out
 // right now if every active contract's remaining term ended today"
 // figure, not a reconstruction of a past credit.
+//
+// ?from=YYYY-MM-DD&to=YYYY-MM-DD (both optional, either alone works)
+// filters the WHOLE page by when the underlying activity happened —
+// contract/activation creation date for Revenue/Distributed/Profit/
+// Liability/the contract table, epoch date for the Output waterfall.
+// `to` is inclusive of that whole day (internally converted to an
+// exclusive "start of the next day" bound). Liability's own "is this
+// contract still active" check always compares against the REAL
+// current time regardless of the filter — a date range narrows WHICH
+// contracts count, it doesn't pretend to evaluate their liability as
+// of some past moment.
 const LEVELS: MiningLevel[] = [
   MiningLevel.SPARK,
   MiningLevel.SCOUT,
@@ -52,21 +63,52 @@ const REAL_USER_WALLET_FILTER = {
 
 const CONTRACT_FETCH_LIMIT = 5000;
 
-export async function GET() {
+// Parses a `?from=`/`?to=` YYYY-MM-DD param into a UTC day boundary, or
+// null if absent/malformed — null just means "no bound on this side,"
+// never an error (an admin typing a partial date shouldn't 500 the
+// whole report). `to` is converted to the START of the FOLLOWING day
+// so a Prisma `lt` comparison includes that entire day, not just its
+// first instant.
+function parseDayParam(raw: string | null, endOfDayExclusive: boolean): Date | null {
+  if (!raw) return null;
+  const d = new Date(`${raw}T00:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  if (endOfDayExclusive) d.setUTCDate(d.getUTCDate() + 1);
+  return d;
+}
+
+export async function GET(request: NextRequest) {
   const session = await requireAdminSession();
   if (!session) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+
+  const fromDate = parseDayParam(request.nextUrl.searchParams.get("from"), false);
+  const toDateExclusive = parseDayParam(request.nextUrl.searchParams.get("to"), true);
+  // Prisma date-range fragment, spreadable into any `where` clause's
+  // date column — {} when a bound is absent, so an unset side imposes
+  // no constraint at all rather than an accidental always-false range.
+  const dateRange = {
+    ...(fromDate ? { gte: fromDate } : {}),
+    ...(toDateExclusive ? { lt: toDateExclusive } : {}),
+  };
+  const hasDateFilter = fromDate !== null || toDateExclusive !== null;
 
   try {
     const [contracts, referralAgg, activationAgg, epochAgg, liveRate] = await Promise.all([
       db.miningContract.findMany({
-        where: { walletProfile: REAL_USER_WALLET_FILTER },
+        where: {
+          walletProfile: REAL_USER_WALLET_FILTER,
+          ...(hasDateFilter ? { createdAt: dateRange } : {}),
+        },
         orderBy: { createdAt: "desc" },
         take: CONTRACT_FETCH_LIMIT,
         include: { walletProfile: { select: { address: true, nickname: true } } },
       }),
       db.ledgerEntry.groupBy({
         by: ["reason"],
-        where: { reason: { in: ["mining_referral_l1", "mining_referral_l2"] } },
+        where: {
+          reason: { in: ["mining_referral_l1", "mining_referral_l2"] },
+          ...(hasDateFilter ? { createdAt: dateRange } : {}),
+        },
         _sum: { amount: true },
       }),
       // Same one-time $1 "activate the mining dashboard" fee already
@@ -75,12 +117,21 @@ export async function GET() {
       // alongside package sales, and this page is meant to be the
       // complete mining revenue picture.
       db.ledgerEntry.aggregate({
-        where: { reason: "rig_activation_fee", walletProfile: REAL_USER_WALLET_FILTER },
+        where: {
+          reason: "rig_activation_fee",
+          walletProfile: REAL_USER_WALLET_FILTER,
+          ...(hasDateFilter ? { createdAt: dateRange } : {}),
+        },
         _sum: { amount: true },
         _count: true,
       }),
       db.miningEpoch.aggregate({
-        where: { epochDate: { gte: ECONOMICS_V2_CUTOFF_DATE } },
+        where: {
+          epochDate: {
+            gte: fromDate && fromDate > ECONOMICS_V2_CUTOFF_DATE ? fromDate : ECONOMICS_V2_CUTOFF_DATE,
+            ...(toDateExclusive ? { lt: toDateExclusive } : {}),
+          },
+        },
         _sum: {
           grossOutputDoge: true,
           poolProviderFeesDoge: true,
@@ -228,6 +279,7 @@ export async function GET() {
     const platformProfitDoge = avgDogeUsdtRate > 0 ? platformProfitUsdt / avgDogeUsdtRate : 0;
 
     return NextResponse.json({
+      filter: { from: request.nextUrl.searchParams.get("from"), to: request.nextUrl.searchParams.get("to") },
       activation: { usdt: activationUsdt, count: activationCount },
       contractPeriodDays: HASHRATE_TERM_DAYS,
       buckets: LEVELS.map((level) => ({ level, ...bucketsMap.get(level)! })),
