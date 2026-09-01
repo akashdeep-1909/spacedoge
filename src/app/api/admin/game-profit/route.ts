@@ -31,14 +31,27 @@ import { MatchStatus } from "@/generated/prisma/enums";
 // per lobby id nets out any released-then-rejoined holds to the actual
 // amount still collected for that lobby's finalized match.
 //
-// Deliberately NOT the same number as the "Platform Treasury" balance
-// shown elsewhere (src/app/api/admin/overview/route.ts) — that one is
-// PLATFORM_FEE_USDT net of referral commission already paid out to
-// referrers, i.e. what the platform is left holding after paying
-// everyone. This report answers a narrower, more intuitive question
-// (real entries collected vs. what players themselves walked away
-// with) and says nothing about referral payouts, which come out of
-// the platform's share afterward.
+// referralDirectUsdt/referralIndirectUsdt: the L1/L2 game-referral
+// commission this match's own entry fee funded (referral_l1/
+// referral_l2, REFERRAL_USDT, always refType "Match", refId = this
+// match's id — src/lib/referrals.ts distributeEntryFeeToTreasuryAndReferrals,
+// same lookup admin/overview's own referral figures use). Not excluded
+// by the demo-match filter above — that filter is about this match's
+// own human participant, not about who happens to be the upstream
+// referrer being paid. actualProfitUsdt = profitUsdt minus both of
+// these — what the platform is left with after also paying out
+// referral commission on this match's entry, which the plain
+// entries-minus-distributed profitUsdt figure doesn't yet account for.
+//
+// entriesUsdt/distributedUsdt/profitUsdt (before referral commission)
+// are deliberately NOT the same numbers as the "Platform Treasury"
+// balance shown elsewhere (src/app/api/admin/overview/route.ts) — that
+// one is PLATFORM_FEE_USDT already net of referral commission. Once
+// actualProfitUsdt nets that same commission out here too, the two
+// should track much more closely (though Treasury also includes
+// non-match sources like Unused Prize Surplus from bot-held winning
+// slots, which this per-match report folds into distributedUsdt/
+// profitUsdt instead of separating out).
 const SETTLED_STATUSES: MatchStatus[] = [MatchStatus.SETTLED_WIN, MatchStatus.SETTLED_LOSS, MatchStatus.SETTLED];
 
 // Generous cap on the underlying match list this report (and its
@@ -83,10 +96,11 @@ export async function GET() {
     });
 
     const qualifying = matches.filter((m) => !demoMatchIds.has(m.id));
+    const qualifyingMatchIds = qualifying.map((m) => m.id);
     const instantMatchIds = qualifying.filter((m) => !m.lobby).map((m) => m.id);
     const lobbyIds = qualifying.filter((m) => m.lobby).map((m) => m.lobby!.id);
 
-    const [instantEntryAgg, lobbyEntryAgg] = await Promise.all([
+    const [instantEntryAgg, lobbyEntryAgg, referralAgg] = await Promise.all([
       db.ledgerEntry.groupBy({
         by: ["refId"],
         where: { reason: "match_entry", refType: "Match", refId: { in: instantMatchIds } },
@@ -97,9 +111,22 @@ export async function GET() {
         where: { reason: { in: ["match_entry_hold", "match_entry_hold_release"] }, refType: "GameLobby", refId: { in: lobbyIds } },
         _sum: { amount: true },
       }),
+      db.ledgerEntry.groupBy({
+        by: ["refId", "reason"],
+        where: { reason: { in: ["referral_l1", "referral_l2"] }, refType: "Match", refId: { in: qualifyingMatchIds } },
+        _sum: { amount: true },
+      }),
     ]);
     const instantEntriesByMatchId = new Map(instantEntryAgg.map((r) => [r.refId, Math.abs(Number(r._sum.amount ?? 0))]));
     const lobbyEntriesByLobbyId = new Map(lobbyEntryAgg.map((r) => [r.refId, Math.abs(Number(r._sum.amount ?? 0))]));
+    const referralByMatchId = new Map<string, { direct: number; indirect: number }>();
+    for (const r of referralAgg) {
+      const entry = referralByMatchId.get(r.refId!) ?? { direct: 0, indirect: 0 };
+      const amount = Number(r._sum.amount ?? 0);
+      if (r.reason === "referral_l1") entry.direct += amount;
+      else entry.indirect += amount;
+      referralByMatchId.set(r.refId!, entry);
+    }
 
     const rows = qualifying.map((m) => {
       // Always 1-4 — the participants relation is pre-filtered to
@@ -108,6 +135,8 @@ export async function GET() {
       const entryFeeUsdt = Number(m.entryFeeUsdt);
       const entriesUsdt = m.lobby ? (lobbyEntriesByLobbyId.get(m.lobby.id) ?? 0) : (instantEntriesByMatchId.get(m.id) ?? 0);
       const distributedUsdt = m.participants.reduce((sum, p) => sum + Number(p.rewardUsdt), 0);
+      const profitUsdt = entriesUsdt - distributedUsdt;
+      const referral = referralByMatchId.get(m.id) ?? { direct: 0, indirect: 0 };
       return {
         id: m.id,
         mode: m.mode,
@@ -115,13 +144,24 @@ export async function GET() {
         entryFeeUsdt,
         entriesUsdt,
         distributedUsdt,
-        profitUsdt: entriesUsdt - distributedUsdt,
+        profitUsdt,
+        referralDirectUsdt: referral.direct,
+        referralIndirectUsdt: referral.indirect,
+        actualProfitUsdt: profitUsdt - referral.direct - referral.indirect,
         players: m.participants.map((p) => p.walletProfile.nickname || p.walletProfile.address),
         settledAt: (m.endedAt ?? m.createdAt).toISOString(),
       };
     });
 
-    const emptyBucket = () => ({ matchCount: 0, entriesUsdt: 0, distributedUsdt: 0, profitUsdt: 0 });
+    const emptyBucket = () => ({
+      matchCount: 0,
+      entriesUsdt: 0,
+      distributedUsdt: 0,
+      profitUsdt: 0,
+      referralDirectUsdt: 0,
+      referralIndirectUsdt: 0,
+      actualProfitUsdt: 0,
+    });
     const bucketsMap = new Map<number, ReturnType<typeof emptyBucket>>([
       [1, emptyBucket()],
       [2, emptyBucket()],
@@ -136,11 +176,17 @@ export async function GET() {
         b.entriesUsdt += r.entriesUsdt;
         b.distributedUsdt += r.distributedUsdt;
         b.profitUsdt += r.profitUsdt;
+        b.referralDirectUsdt += r.referralDirectUsdt;
+        b.referralIndirectUsdt += r.referralIndirectUsdt;
+        b.actualProfitUsdt += r.actualProfitUsdt;
       }
       total.matchCount += 1;
       total.entriesUsdt += r.entriesUsdt;
       total.distributedUsdt += r.distributedUsdt;
       total.profitUsdt += r.profitUsdt;
+      total.referralDirectUsdt += r.referralDirectUsdt;
+      total.referralIndirectUsdt += r.referralIndirectUsdt;
+      total.actualProfitUsdt += r.actualProfitUsdt;
     }
 
     return NextResponse.json({

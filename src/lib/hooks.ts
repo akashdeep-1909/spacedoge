@@ -1015,6 +1015,12 @@ export interface AdminGameProfitBucket {
   entriesUsdt: number;
   distributedUsdt: number;
   profitUsdt: number;
+  // L1/L2 game-referral commission funded by this bucket's own match
+  // entries — see the route's own doc-comment. actualProfitUsdt =
+  // profitUsdt minus both of these.
+  referralDirectUsdt: number;
+  referralIndirectUsdt: number;
+  actualProfitUsdt: number;
 }
 
 export interface AdminGameProfitMatchRow {
@@ -1025,13 +1031,24 @@ export interface AdminGameProfitMatchRow {
   entriesUsdt: number;
   distributedUsdt: number;
   profitUsdt: number;
+  referralDirectUsdt: number;
+  referralIndirectUsdt: number;
+  actualProfitUsdt: number;
   players: string[];
   settledAt: string;
 }
 
 export interface AdminGameProfitReport {
   buckets: AdminGameProfitBucket[];
-  total: { matchCount: number; entriesUsdt: number; distributedUsdt: number; profitUsdt: number };
+  total: {
+    matchCount: number;
+    entriesUsdt: number;
+    distributedUsdt: number;
+    profitUsdt: number;
+    referralDirectUsdt: number;
+    referralIndirectUsdt: number;
+    actualProfitUsdt: number;
+  };
   // Every underlying match this report is built from (capped, newest
   // first — see the route's own doc-comment) — the client groups these
   // by humanCount itself for the "click a total, see every match"

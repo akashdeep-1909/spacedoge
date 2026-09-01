@@ -33,10 +33,13 @@ export default function AdminGameProfitPage() {
           1 human against 3 bots. &ldquo;Entries Collected&rdquo; is read straight off the real entry-fee ledger
           debits for that match, not just a theoretical player-count × entry-fee guess; &ldquo;Distributed&rdquo;
           is what real players actually walked away with as PTS (bots never get a real credit even when they
-          display a winning rank); &ldquo;Platform Profit&rdquo; is the difference. This is gross, before
-          referral commission is paid out of the platform&apos;s own share — it won&apos;t match the Platform
-          Treasury balance on the Overview page, which is already net of that. Click any card to see the exact
-          matches behind its numbers.
+          display a winning rank); &ldquo;Platform Profit&rdquo; is entries minus distributed, before referral
+          commission. &ldquo;Referral Direct/Indirect&rdquo; is the L1/L2 game-referral commission those same
+          entries funded; &ldquo;Actual Profit&rdquo; is Platform Profit minus both of those — what the
+          platform is really left with after paying referrers too. Actual Profit still won&apos;t exactly match
+          the Platform Treasury balance on the Overview page (that one also folds in Unused Prize Surplus from
+          bot-held winning slots, tracked separately there). Click any card to see the exact matches behind its
+          numbers.
         </p>
       </div>
 
@@ -112,6 +115,15 @@ function BucketCard({
         <p className="text-xs text-muted">
           Profit: <span className="stat-value text-gold">{fmtUsdt(bucket.profitUsdt)}</span>
         </p>
+        <p className="text-xs text-muted">
+          Referral — Direct: <span className="stat-value text-foreground">{fmtUsdt(bucket.referralDirectUsdt)}</span>
+        </p>
+        <p className="text-xs text-muted">
+          Referral — Indirect: <span className="stat-value text-foreground">{fmtUsdt(bucket.referralIndirectUsdt)}</span>
+        </p>
+        <p className="text-xs text-muted">
+          Actual Profit: <span className="stat-value text-gold">{fmtUsdt(bucket.actualProfitUsdt)}</span>
+        </p>
       </div>
       <p className="mt-2 text-[10px] uppercase tracking-wide text-muted underline">
         {active ? "Hide details" : "View details"}
@@ -132,7 +144,20 @@ function MatchDrillDown({ title, matches, onClose }: { title: string; matches: A
         </button>
       </div>
       <DataTable
-        columns={["Match ID", "Mode", "Players", "Entry Fee", "Entries Collected", "Distributed", "Profit", "Settled At", "Real Players"]}
+        columns={[
+          "Match ID",
+          "Mode",
+          "Players",
+          "Entry Fee",
+          "Entries Collected",
+          "Distributed",
+          "Profit",
+          "Referral Direct",
+          "Referral Indirect",
+          "Actual Profit",
+          "Settled At",
+          "Real Players",
+        ]}
         empty="No matches in this group yet."
         rows={matches.map((m) => [
           <span key="id" className="font-mono text-[11px]">
@@ -145,8 +170,11 @@ function MatchDrillDown({ title, matches, onClose }: { title: string; matches: A
           <span key="dist" className="text-mint">
             {fmtUsdt(m.distributedUsdt)}
           </span>,
-          <span key="profit" className="text-gold">
-            {fmtUsdt(m.profitUsdt)}
+          fmtUsdt(m.profitUsdt),
+          fmtUsdt(m.referralDirectUsdt),
+          fmtUsdt(m.referralIndirectUsdt),
+          <span key="actual-profit" className="text-gold">
+            {fmtUsdt(m.actualProfitUsdt)}
           </span>,
           new Date(m.settledAt).toLocaleString(),
           <span key="players" className="text-[11px] text-muted">
