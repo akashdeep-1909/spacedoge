@@ -888,6 +888,17 @@ export function useAdminUsers(query: string, includeBots = false, demoOnly = fal
       }
       return res.json();
     },
+    // Without this, a card here can go stale indefinitely — this query
+    // only re-fetches on mutation (mark demo/credit/etc. from THIS
+    // admin session) or a manual page reload, so any balance change
+    // from the wallet's own actual activity (deposits, spend, mining
+    // output) elsewhere never shows up until then. Same 20s cadence
+    // useAdminDeposits/useAdminOverview already poll at. Confirmed
+    // live as a real gap: an admin card showing $120 Game Reward Balance
+    // + 0 MH/s hashrate sat untouched in an open tab while the wallet's
+    // own dashboard (which DOES poll) had already moved on to $0 Game
+    // Reward + 125 MH/s active, from activating mining in between.
+    refetchInterval: 20_000,
   });
 }
 
@@ -1212,6 +1223,12 @@ export function useAdminUserDetail(id: string) {
       return res.json();
     },
     enabled: Boolean(id),
+    // Same staleness gap as useAdminUsers above, on the single-user
+    // detail page specifically — an admin reviewing one wallet's full
+    // history (e.g. deciding whether to restrict a withdrawal) needs
+    // its balances/deposits/mining to reflect what that wallet's
+    // actually done, not a snapshot from whenever the page was opened.
+    refetchInterval: 20_000,
   });
 }
 
