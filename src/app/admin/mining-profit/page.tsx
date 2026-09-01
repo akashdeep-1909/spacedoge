@@ -412,12 +412,23 @@ function ContractDrillDown({
 // ---------------------------------------------------------------------
 
 function AllContractsSection({ data }: { data: AdminMiningProfitReport }) {
-  const sorted = [...data.contracts].sort((a, b) => a.wallet.localeCompare(b.wallet));
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const filtered = q ? data.contracts.filter((c) => c.wallet.toLowerCase().includes(q) || c.id.toLowerCase().includes(q)) : data.contracts;
+  const sorted = [...filtered].sort((a, b) => a.wallet.localeCompare(b.wallet));
   return (
     <section>
-      <h2 className="mb-2 text-xs font-black uppercase tracking-widest text-muted">
-        ▸ All Contracts, A-Z by Wallet <span className="text-foreground">({sorted.length})</span>
-      </h2>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-xs font-black uppercase tracking-widest text-muted">
+          ▸ All Contracts, A-Z by Wallet <span className="text-foreground">({sorted.length})</span>
+        </h2>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search wallet address, nickname, or contract ID…"
+          className="w-full max-w-xs rounded-lg border border-line bg-panel-2 px-3 py-1.5 text-xs"
+        />
+      </div>
       <ContractTable contracts={sorted} />
     </section>
   );
