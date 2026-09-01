@@ -43,6 +43,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <Link href="/admin/game-profit" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
                 Game Profit
               </Link>
+              <Link href="/admin/mining-profit" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
+                Mining Profit
+              </Link>
               <Link href="/admin/waitlist" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
                 Waitlist
               </Link>

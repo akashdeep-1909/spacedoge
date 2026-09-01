@@ -1071,6 +1071,58 @@ export function useAdminGameProfit() {
   });
 }
 
+// --- Mining profit (package revenue vs. distributed) ---
+
+export interface AdminMiningProfitBucket {
+  level: string;
+  contractCount: number;
+  revenueUsdt: number;
+  distributedUsdt: number;
+  profitUsdt: number;
+}
+
+export interface AdminMiningProfitContractRow {
+  id: string;
+  level: string;
+  miningPower: number;
+  termDays: number;
+  priceUsdt: number;
+  distributedUsdt: number;
+  profitUsdt: number;
+  active: boolean;
+  reconciled: boolean;
+  finalShortfallUsdt: number | null;
+  startsAt: string;
+  expiresAt: string;
+  wallet: string;
+}
+
+export interface AdminMiningProfitReport {
+  buckets: AdminMiningProfitBucket[];
+  total: { contractCount: number; revenueUsdt: number; distributedUsdt: number; profitUsdt: number };
+  // Platform-wide, NOT broken out per package level — see the route's
+  // own doc-comment for why mining referral commission can't be
+  // cleanly attributed to a specific contract/level the way game
+  // referral commission can.
+  referral: { directDoge: number; indirectDoge: number };
+  contracts: AdminMiningProfitContractRow[];
+}
+
+export function useAdminMiningProfit() {
+  return useQuery({
+    queryKey: ["admin", "mining-profit"],
+    queryFn: async (): Promise<AdminMiningProfitReport> => {
+      const res = await fetch("/api/admin/mining-profit");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}) as { error?: string });
+        throw new Error(body.error ?? "Failed to load mining profit report");
+      }
+      return res.json();
+    },
+    refetchInterval: 30_000,
+  });
+}
+
 export interface AdminWaitlistRow {
   id: string;
   email: string;
