@@ -163,22 +163,32 @@ function RevenueSection({ data }: { data: AdminMiningProfitReport }) {
 
 function OutputSection({ data }: { data: AdminMiningProfitReport }) {
   const o = data.output;
+  // Platform-wide historical average — the same approximation basis
+  // every other reconstructed DOGE/USDT figure on this page uses (see
+  // the route's own doc-comment). Gross/Pool Fee/Electricity Fee/
+  // Reserve Contribution have no per-day rate of their own persisted
+  // anywhere queryable, so this is the best available stand-in.
+  const rate = data.rates.avgHistoricalDogeUsdt;
   const nodes: TreeRow[] = [
     {
       label: "Gross Mining Output",
-      value: fmtDoge(o.grossOutputDoge),
+      value: `${fmtDoge(o.grossOutputDoge)} (~${fmtUsdt(o.grossOutputDoge * rate)})`,
       hint: "Platform-wide, every real+demo contract combined — not filterable to real users only, see below",
       children: [
-        { label: "− Pool Fee", value: fmtDoge(o.poolFeeDoge) },
-        { label: "− Electricity Fee", value: fmtDoge(o.electricityFeeDoge), hint: "Includes the Mining Referral Commission carve-out shown below" },
+        { label: "− Pool Fee", value: `${fmtDoge(o.poolFeeDoge)} (~${fmtUsdt(o.poolFeeDoge * rate)})` },
+        {
+          label: "− Electricity Fee",
+          value: `${fmtDoge(o.electricityFeeDoge)} (~${fmtUsdt(o.electricityFeeDoge * rate)})`,
+          hint: "Includes the Mining Referral Commission carve-out shown below",
+        },
         {
           label: o.reserveContributionDoge >= 0 ? "− Swept to Protection Reserve" : "+ Drawn from Protection Reserve",
-          value: fmtDogeSigned(o.reserveContributionDoge),
+          value: `${fmtDogeSigned(o.reserveContributionDoge)} (~${fmtUsdtSigned(o.reserveContributionDoge * rate)})`,
           hint: o.reserveContributionDoge >= 0 ? "A good-performance day's surplus, banked to smooth future shortfalls" : "A below-target day, funded from the reserve instead of shorting users",
         },
         {
           label: "= Net Distribution to Users",
-          value: `${fmtDoge(o.netDistributionDoge)} (platform-wide)`,
+          value: `${fmtDoge(o.netDistributionDoge)} (~${fmtUsdt(o.netDistributionDoge * rate)}, platform-wide)`,
           tone: "mint",
           hint: `Real users only: ${fmtDoge(data.total.distributedDoge)} (${fmtUsdt(o.netDistributionUsdt)})`,
         },
@@ -228,7 +238,7 @@ function LiabilitySection({ data }: { data: AdminMiningProfitReport }) {
         .filter((b) => b.liabilityContractCount > 0)
         .map((b) => ({
           label: levelLabel(b.level),
-          value: fmtUsdt(b.liabilityUsdt),
+          value: `${fmtUsdt(b.liabilityUsdt)} (~${fmtDoge(b.liabilityDoge)})`,
           hint: `${b.liabilityContractCount} contract${b.liabilityContractCount === 1 ? "" : "s"} still active`,
         })),
     },
@@ -245,13 +255,17 @@ function ProfitSection({ data }: { data: AdminMiningProfitReport }) {
   const nodes: TreeRow[] = [
     {
       label: "Platform Profit",
-      value: fmtUsdt(p.profitUsdt),
+      value: `${fmtUsdt(p.profitUsdt)} (~${fmtDoge(p.profitDoge)})`,
       tone: "gold",
       children: [
-        { label: "Total Revenue", value: fmtUsdt(p.totalRevenueUsdt) },
-        { label: "− Distributed to Users", value: fmtUsdt(p.distributedUsdt) },
-        { label: "− Mining Referral Commission (est.)", value: fmtUsdt(p.referralUsdtEstimate) },
-        { label: "= Platform Profit", value: fmtUsdtSigned(p.profitUsdt), tone: p.profitUsdt >= 0 ? "mint" : "risk" },
+        { label: "Total Revenue", value: fmtUsdt(p.totalRevenueUsdt), hint: "Activation + Contract Sales — real USDT paid in, no DOGE component" },
+        { label: "− Distributed to Users", value: `${fmtUsdt(p.distributedUsdt)} (${fmtDoge(p.distributedDoge)})` },
+        { label: "− Mining Referral Commission (est.)", value: `${fmtUsdt(p.referralUsdtEstimate)} (${fmtDoge(p.referralDoge)})` },
+        {
+          label: "= Platform Profit",
+          value: `${fmtUsdtSigned(p.profitUsdt)} (~${fmtDoge(p.profitDoge)})`,
+          tone: p.profitUsdt >= 0 ? "mint" : "risk",
+        },
       ],
     },
   ];
@@ -261,7 +275,9 @@ function ProfitSection({ data }: { data: AdminMiningProfitReport }) {
       <TreeView nodes={nodes} />
       <p className="mt-3 text-[11px] text-muted">
         Doesn&apos;t yet account for the Liability above — profit here reflects what&apos;s happened so far, not
-        the remaining guaranteed payout still owed on active contracts.
+        the remaining guaranteed payout still owed on active contracts. DOGE figures throughout this section use
+        the platform-wide historical average rate (${data.rates.avgHistoricalDogeUsdt.toFixed(6)}/DOGE) — Revenue
+        itself has no DOGE component (it&apos;s real USDT paid in), only Distributed/Referral/Profit are converted.
       </p>
     </section>
   );
@@ -339,11 +355,17 @@ function BucketCard({
           </span>
         </p>
         <p className="text-xs text-muted">
-          Profit: <span className="stat-value text-gold">{fmtUsdt(bucket.profitUsdt)}</span>
+          Profit:{" "}
+          <span className="stat-value text-gold">
+            {fmtUsdt(bucket.profitUsdt)} <span className="text-muted">(~{fmtDoge(bucket.profitDoge)})</span>
+          </span>
         </p>
         {bucket.liabilityContractCount > 0 && (
           <p className="text-xs text-muted">
-            Liability: <span className="stat-value text-risk">{fmtUsdt(bucket.liabilityUsdt)}</span>
+            Liability:{" "}
+            <span className="stat-value text-risk">
+              {fmtUsdt(bucket.liabilityUsdt)} <span className="text-muted">(~{fmtDoge(bucket.liabilityDoge)})</span>
+            </span>
           </p>
         )}
       </div>
@@ -435,11 +457,11 @@ function ContractTable({ contracts }: { contracts: AdminMiningProfitContractRow[
         </span>,
         fmtUsdt(c.distributedUsdt),
         <span key="profit" className="text-gold">
-          {fmtUsdt(c.profitUsdt)}
+          {fmtUsdt(c.profitUsdt)} <span className="text-muted">(~{fmtDoge(c.profitDoge)})</span>
         </span>,
         c.remainingLiabilityUsdt > 0 ? (
           <span key="liability" className="text-risk">
-            {fmtUsdt(c.remainingLiabilityUsdt)}
+            {fmtUsdt(c.remainingLiabilityUsdt)} <span className="text-muted">(~{fmtDoge(c.remainingLiabilityDoge)})</span>
           </span>
         ) : (
           <span key="liability" className="text-muted">

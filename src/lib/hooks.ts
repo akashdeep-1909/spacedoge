@@ -1086,10 +1086,12 @@ export interface AdminMiningProfitBucket {
   // than read exactly off a MiningContractAllocation row.
   hasEstimatedDoge: boolean;
   profitUsdt: number;
+  profitDoge: number;
   // Remaining guaranteed payout still owed on this bucket's currently
   // active (unreconciled, unexpired) contracts — 0 once a contract has
   // fully paid out its target or been formally reconciled.
   liabilityUsdt: number;
+  liabilityDoge: number;
   liabilityContractCount: number;
 }
 
@@ -1103,8 +1105,10 @@ export interface AdminMiningProfitContractRow {
   distributedDoge: number;
   distributedDogeIsEstimated: boolean;
   profitUsdt: number;
+  profitDoge: number;
   targetUsdt: number;
   remainingLiabilityUsdt: number;
+  remainingLiabilityDoge: number;
   active: boolean;
   reconciled: boolean;
   finalShortfallUsdt: number | null;
@@ -1124,7 +1128,9 @@ export interface AdminMiningProfitReport {
     distributedDoge: number;
     hasEstimatedDoge: boolean;
     profitUsdt: number;
+    profitDoge: number;
     liabilityUsdt: number;
+    liabilityDoge: number;
     liabilityContractCount: number;
   };
   // Platform-wide daily-settlement waterfall (MiningEpoch rollups,
@@ -1144,7 +1150,17 @@ export interface AdminMiningProfitReport {
   // referral commission can.
   referral: { directDoge: number; indirectDoge: number; totalDoge: number; totalUsdtEstimate: number };
   liability: { usdt: number; doge: number; contractCount: number; liveRateUsed: number };
-  profit: { totalRevenueUsdt: number; distributedUsdt: number; referralUsdtEstimate: number; profitUsdt: number };
+  profit: {
+    totalRevenueUsdt: number;
+    distributedUsdt: number;
+    distributedDoge: number;
+    referralUsdtEstimate: number;
+    referralDoge: number;
+    profitUsdt: number;
+    profitDoge: number;
+  };
+  // Rates every DOGE-equivalent figure above was computed from.
+  rates: { avgHistoricalDogeUsdt: number; liveDogeUsdt: number };
   contracts: AdminMiningProfitContractRow[];
 }
 

@@ -122,6 +122,7 @@ export async function GET() {
       const targetUsdt = priceUsdt * (1 + Number(c.targetRoiPct));
       const isLive = c.active && c.reconciledAt === null && c.expiresAt > now;
       const remainingLiabilityUsdt = isLive ? Math.max(0, targetUsdt - distributedUsdt) : 0;
+      const profitUsdt = priceUsdt - distributedUsdt;
       return {
         id: c.id,
         level: c.level,
@@ -131,9 +132,19 @@ export async function GET() {
         distributedUsdt,
         distributedDoge: allocDoge + gapDoge,
         distributedDogeIsEstimated: gapUsdt > 0.000001,
-        profitUsdt: priceUsdt - distributedUsdt,
+        profitUsdt,
+        // DOGE-equivalent of profitUsdt — see the route's own
+        // doc-comment on why this uses the platform-wide historical
+        // average rate (same basis distributedDoge's own estimate
+        // uses), not today's live quote.
+        profitDoge: avgDogeUsdtRate > 0 ? profitUsdt / avgDogeUsdtRate : 0,
         targetUsdt,
         remainingLiabilityUsdt,
+        // DOGE-equivalent of remainingLiabilityUsdt — uses TODAY's live
+        // rate (liveRate, fetched once above), consistent with the
+        // aggregate liability figure: this is what the platform would
+        // owe in DOGE if paid out right now, not a historical estimate.
+        remainingLiabilityDoge: liveRate > 0 ? remainingLiabilityUsdt / liveRate : 0,
         active: c.active,
         reconciled: c.reconciledAt !== null,
         finalShortfallUsdt: c.finalShortfallUsdt !== null ? Number(c.finalShortfallUsdt) : null,
@@ -150,7 +161,9 @@ export async function GET() {
       distributedDoge: 0,
       hasEstimatedDoge: false,
       profitUsdt: 0,
+      profitDoge: 0,
       liabilityUsdt: 0,
+      liabilityDoge: 0,
       liabilityContractCount: 0,
     });
     const bucketsMap = new Map<MiningLevel, ReturnType<typeof emptyBucket>>(LEVELS.map((l) => [l, emptyBucket()]));
@@ -164,7 +177,9 @@ export async function GET() {
         b.distributedDoge += r.distributedDoge;
         b.hasEstimatedDoge = b.hasEstimatedDoge || r.distributedDogeIsEstimated;
         b.profitUsdt += r.profitUsdt;
+        b.profitDoge += r.profitDoge;
         b.liabilityUsdt += r.remainingLiabilityUsdt;
+        b.liabilityDoge += r.remainingLiabilityDoge;
         if (r.remainingLiabilityUsdt > 0) b.liabilityContractCount += 1;
       }
       total.contractCount += 1;
@@ -173,7 +188,9 @@ export async function GET() {
       total.distributedDoge += r.distributedDoge;
       total.hasEstimatedDoge = total.hasEstimatedDoge || r.distributedDogeIsEstimated;
       total.profitUsdt += r.profitUsdt;
+      total.profitDoge += r.profitDoge;
       total.liabilityUsdt += r.remainingLiabilityUsdt;
+      total.liabilityDoge += r.remainingLiabilityDoge;
       if (r.remainingLiabilityUsdt > 0) total.liabilityContractCount += 1;
     }
 
@@ -204,6 +221,11 @@ export async function GET() {
     // doc-comment).
     const totalRevenueUsdt = activationUsdt + total.revenueUsdt;
     const platformProfitUsdt = totalRevenueUsdt - total.distributedUsdt - referralTotalUsdtEstimate;
+    // DOGE-equivalent of the final profit rollup — same historical
+    // average rate basis as every other "reconstructed" DOGE figure on
+    // this page (activation/contract revenue is genuinely USDT-only,
+    // no DOGE component, so those two stay USDT-only above).
+    const platformProfitDoge = avgDogeUsdtRate > 0 ? platformProfitUsdt / avgDogeUsdtRate : 0;
 
     return NextResponse.json({
       activation: { usdt: activationUsdt, count: activationCount },
@@ -227,16 +249,24 @@ export async function GET() {
       },
       liability: {
         usdt: total.liabilityUsdt,
-        doge: liveRate > 0 ? total.liabilityUsdt / liveRate : 0,
+        doge: total.liabilityDoge,
         contractCount: total.liabilityContractCount,
         liveRateUsed: liveRate,
       },
       profit: {
         totalRevenueUsdt,
         distributedUsdt: total.distributedUsdt,
+        distributedDoge: total.distributedDoge,
         referralUsdtEstimate: referralTotalUsdtEstimate,
+        referralDoge: referralTotalDoge,
         profitUsdt: platformProfitUsdt,
+        profitDoge: platformProfitDoge,
       },
+      // Rates this response's DOGE-equivalent figures were computed
+      // from — surfaced so the UI (and anyone auditing these numbers)
+      // can see exactly what was used, not just trust an unlabeled
+      // conversion happened.
+      rates: { avgHistoricalDogeUsdt: avgDogeUsdtRate, liveDogeUsdt: liveRate },
       contracts: rows,
     });
   } catch (err) {
