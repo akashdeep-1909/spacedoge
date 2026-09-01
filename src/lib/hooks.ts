@@ -1007,6 +1007,53 @@ export function useClearAllDemo() {
   });
 }
 
+// --- Game profit (entries collected vs. distributed to players) ---
+
+export interface AdminGameProfitBucket {
+  humanCount: number;
+  matchCount: number;
+  entriesUsdt: number;
+  distributedUsdt: number;
+  profitUsdt: number;
+}
+
+export interface AdminGameProfitMatchRow {
+  id: string;
+  mode: string;
+  humanCount: number;
+  entryFeeUsdt: number;
+  entriesUsdt: number;
+  distributedUsdt: number;
+  profitUsdt: number;
+  players: string[];
+  settledAt: string;
+}
+
+export interface AdminGameProfitReport {
+  buckets: AdminGameProfitBucket[];
+  total: { matchCount: number; entriesUsdt: number; distributedUsdt: number; profitUsdt: number };
+  // Every underlying match this report is built from (capped, newest
+  // first — see the route's own doc-comment) — the client groups these
+  // by humanCount itself for the "click a total, see every match"
+  // drill-down rather than needing a second round-trip per bucket.
+  matches: AdminGameProfitMatchRow[];
+}
+
+export function useAdminGameProfit() {
+  return useQuery({
+    queryKey: ["admin", "game-profit"],
+    queryFn: async (): Promise<AdminGameProfitReport> => {
+      const res = await fetch("/api/admin/game-profit");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}) as { error?: string });
+        throw new Error(body.error ?? "Failed to load game profit report");
+      }
+      return res.json();
+    },
+    refetchInterval: 30_000,
+  });
+}
+
 export interface AdminWaitlistRow {
   id: string;
   email: string;
