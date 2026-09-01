@@ -1086,6 +1086,11 @@ export interface AdminMiningProfitBucket {
   // than read exactly off a MiningContractAllocation row.
   hasEstimatedDoge: boolean;
   profitUsdt: number;
+  // Remaining guaranteed payout still owed on this bucket's currently
+  // active (unreconciled, unexpired) contracts — 0 once a contract has
+  // fully paid out its target or been formally reconciled.
+  liabilityUsdt: number;
+  liabilityContractCount: number;
 }
 
 export interface AdminMiningProfitContractRow {
@@ -1098,6 +1103,8 @@ export interface AdminMiningProfitContractRow {
   distributedDoge: number;
   distributedDogeIsEstimated: boolean;
   profitUsdt: number;
+  targetUsdt: number;
+  remainingLiabilityUsdt: number;
   active: boolean;
   reconciled: boolean;
   finalShortfallUsdt: number | null;
@@ -1107,6 +1114,8 @@ export interface AdminMiningProfitContractRow {
 }
 
 export interface AdminMiningProfitReport {
+  activation: { usdt: number; count: number };
+  contractPeriodDays: number;
   buckets: AdminMiningProfitBucket[];
   total: {
     contractCount: number;
@@ -1115,12 +1124,27 @@ export interface AdminMiningProfitReport {
     distributedDoge: number;
     hasEstimatedDoge: boolean;
     profitUsdt: number;
+    liabilityUsdt: number;
+    liabilityContractCount: number;
+  };
+  // Platform-wide daily-settlement waterfall (MiningEpoch rollups,
+  // mining-v2 epochs only) — NOT real-user-filtered, see the route's
+  // own doc-comment for why that scope can't be honored here.
+  output: {
+    grossOutputDoge: number;
+    poolFeeDoge: number;
+    electricityFeeDoge: number;
+    reserveContributionDoge: number; // signed: positive = swept to reserve, negative = drawn from it
+    netDistributionDoge: number;
+    netDistributionUsdt: number; // real-user, ledger-backed total — see route doc-comment
   };
   // Platform-wide, NOT broken out per package level — see the route's
   // own doc-comment for why mining referral commission can't be
   // cleanly attributed to a specific contract/level the way game
   // referral commission can.
-  referral: { directDoge: number; indirectDoge: number };
+  referral: { directDoge: number; indirectDoge: number; totalDoge: number; totalUsdtEstimate: number };
+  liability: { usdt: number; doge: number; contractCount: number; liveRateUsed: number };
+  profit: { totalRevenueUsdt: number; distributedUsdt: number; referralUsdtEstimate: number; profitUsdt: number };
   contracts: AdminMiningProfitContractRow[];
 }
 

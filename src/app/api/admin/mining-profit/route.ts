@@ -2,83 +2,40 @@ import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin";
 import { db } from "@/lib/db";
 import { MiningLevel } from "@/generated/prisma/enums";
+import { HASHRATE_TERM_DAYS, ECONOMICS_V2_CUTOFF_DATE } from "@/lib/mining-shared";
+import { fetchDogeUsdtRate } from "@/lib/conversion";
 
-// GET /api/admin/mining-profit — same "revenue vs. distributed vs.
-// platform profit" framing as /api/admin/game-profit, for mining
-// packages instead of match entries: broken down by package level
-// (Launch/Orbit/Lunar/Mars/Galaxy/Nova — MiningLevel, see
-// src/lib/mining-shared.ts RIG_DISPLAY_NAME), the natural discrete
-// "how much did the platform charge, how much has it paid back so
-// far, what's left" unit here, the same role player-count played for
-// matches.
+// GET /api/admin/mining-profit — full detail view, restructured per a
+// direct admin request for "more detail, not like Game [Profit]":
+// activation revenue, contract revenue by package type, the platform-
+// wide daily-settlement output waterfall (gross output -> pool fee ->
+// electricity fee -> net distribution), referral commission, a
+// forward-looking Liability/Projection for currently active contracts'
+// remaining guaranteed payout, and a final Revenue-minus-Distributed-
+// minus-Referral Profit rollup — plus the full per-contract table.
 //
-// Per contract: revenueUsdt = MiningContract.pricePaidUsdt directly —
-// deliberately NOT re-derived from the ledger the way game-profit's
-// entriesUsdt is. Two reasons: (1) unlike Match's entryFeeUsdt, there
-// is exactly ONE code path that ever creates a MiningContract
-// (src/app/api/mining/purchase-power/route.ts), writing the row in
-// the SAME transaction as the real "mining_power_purchase" ledger
-// debit, so going forward this field IS trustworthy by construction;
-// (2) that debit carries no refId at all (unlike Match's own entry
-// debits), so there's no way to attribute a specific wallet's debit
-// total back to one of their several contracts if it doesn't fully
-// cover all of them — re-deriving would only trade one imprecision
-// for a different, heuristic one. A small cohort of contracts
-// created before "mining_power_purchase" debit-tracking existed
-// (confirmed live: the earliest such debit postdates several of the
-// earliest contracts) has no matching debit at all — pricePaidUsdt is
-// still what's shown, since that's also exactly what every other
-// mining view in this app (a wallet's own dashboard ROI card,
-// admin/mining's Contracts table) already reports as this contract's
-// price; disagreeing with those here would be a worse inconsistency
-// than the small legacy gap itself.
-// distributedUsdt = MiningContract.cumulativeCreditedUsdtEquiv
-// — the USDT-equivalent VALUATION of every DOGE credit this contract
-// has actually received so far (daily epoch settlement + any Day-180
-// expiry top-up), incremented atomically inside the same transaction
-// as each of those real ledger credits (src/lib/mining.ts
-// settleEpochForDate / reconcileExpiredContracts) — already
-// ledger-backed by construction, same reasoning. profitUsdt is simply
-// the difference; for a still-active contract this is a running,
-// not-yet-final number (it'll keep shrinking toward the contract's
-// own guaranteed target as daily settlement continues).
+// Two different SCOPES are mixed on this one page, each labeled
+// explicitly in its own section rather than silently blended:
+//  - Per-contract / per-package-level figures (activation, contract
+//    revenue, distributed, liability, profit) are REAL-USER-FILTERED
+//    (REAL_USER_WALLET_FILTER below) — demo-flagged wallets excluded,
+//    same convention as admin/overview and admin/game-profit.
+//  - The Mining Output waterfall (gross/pool-fee/electricity-fee/
+//    reserve/net-distribution) comes from MiningEpoch, which is a
+//    PLATFORM-WIDE daily fleet rollup with no per-wallet breakdown to
+//    filter by demo status at all — shown as its own clearly-labeled
+//    "platform-wide" section rather than forced into the real-user
+//    scope it can't actually honor.
+// Only epochs from ECONOMICS_V2_CUTOFF_DATE onward are included in
+// that waterfall — earlier epochs were settled under an older,
+// unrelated formula (see mining-shared.ts's own doc-comment) and
+// aren't comparable to the current model this report describes.
 //
-// distributedDoge is the same thing in its ACTUAL native currency —
-// mining only ever pays out in DOGE, never USDT directly (confirmed
-// live: "mining output is only DOGE," same point already made about
-// the Mining Earnings balance card elsewhere in this admin panel), so
-// showing distributedUsdt alone risked implying real USDT changed
-// hands here. Primary source: MiningContractAllocation.creditedDoge
-// (one exact row per epoch this contract was active), which also
-// carries its own creditedUsdt — this contract's cumulativeCreditedUsdtEquiv
-// MINUS the sum of those creditedUsdt rows is any gap not covered by
-// an allocation row (confirmed live: MiningContractAllocation as a
-// table postdates when epoch settlement started crediting DOGE at
-// all — the earliest allocation row is nearly two weeks after the
-// earliest real credit — so a majority of contracts here have SOME
-// gap). That gap is converted to an ESTIMATED DOGE amount using the
-// platform-wide average historical dogeUsdtRate observed across every
-// allocation row that does exist, not today's live rate — closer to
-// what these older, un-tracked credits actually converted at than a
-// current-day quote would be, but still an estimate, never presented
-// as exact (see distributedDogeIsEstimated below).
-//
-// Mining referral commission (mining_referral_l1/l2) is reported
-// separately, platform-wide, NOT broken out per package level or
-// netted into any bucket's profitUsdt — unlike game-profit's
-// referral_l1/l2 (always refType "Match", refId = one specific
-// match), settleEpochForDate credits ONE aggregated DOGE amount per
-// (referrer wallet, level, epoch day), summed across every contract
-// that referrer's WHOLE downline ran that day — there is no per-
-// contract/per-package-level attribution to cleanly re-derive without
-// re-deriving each contract's own daily electricity-cost carve, the
-// same genuine data-model limitation already surfaced elsewhere in
-// this admin panel (src/app/api/admin/users/[id]/detail/route.ts's
-// own doc-comment). Reported in DOGE (its native credited currency),
-// not converted to a USDT estimate here — LedgerEntry doesn't persist
-// the DOGE/USDT rate an individual entry was credited at, so a
-// platform-wide USDT conversion would only ever be an approximation
-// at TODAY's rate, not the real historical value.
+// Liability/Projection use TODAY's live DOGE/USDT rate (not the
+// historical average used elsewhere on this page) — deliberately,
+// since this is a forward-looking "what would the platform pay out
+// right now if every active contract's remaining term ended today"
+// figure, not a reconstruction of a past credit.
 const LEVELS: MiningLevel[] = [
   MiningLevel.SPARK,
   MiningLevel.SCOUT,
@@ -88,17 +45,11 @@ const LEVELS: MiningLevel[] = [
   MiningLevel.ORBITAL,
 ];
 
-// Excludes bot/demo wallets — bots never buy mining, but a demo wallet
-// could have been credited test contracts, same REAL_USER_WALLET_FILTER
-// convention as admin/overview and admin/game-profit.
 const REAL_USER_WALLET_FILTER = {
   isDemo: false,
   address: { not: { startsWith: "bot:" } },
 } as const;
 
-// Generous cap, same reasoning as game-profit's own MATCH_FETCH_LIMIT —
-// covers every real mining contract for the foreseeable pre-launch
-// scale.
 const CONTRACT_FETCH_LIMIT = 5000;
 
 export async function GET() {
@@ -106,7 +57,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
   try {
-    const [contracts, referralAgg] = await Promise.all([
+    const [contracts, referralAgg, activationAgg, epochAgg, liveRate] = await Promise.all([
       db.miningContract.findMany({
         where: { walletProfile: REAL_USER_WALLET_FILTER },
         orderBy: { createdAt: "desc" },
@@ -118,6 +69,27 @@ export async function GET() {
         where: { reason: { in: ["mining_referral_l1", "mining_referral_l2"] } },
         _sum: { amount: true },
       }),
+      // Same one-time $1 "activate the mining dashboard" fee already
+      // surfaced on the main Overview page (rig_activation_fee) — shown
+      // here too since it's the OTHER real USDT inflow mining produces,
+      // alongside package sales, and this page is meant to be the
+      // complete mining revenue picture.
+      db.ledgerEntry.aggregate({
+        where: { reason: "rig_activation_fee", walletProfile: REAL_USER_WALLET_FILTER },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      db.miningEpoch.aggregate({
+        where: { epochDate: { gte: ECONOMICS_V2_CUTOFF_DATE } },
+        _sum: {
+          grossOutputDoge: true,
+          poolProviderFeesDoge: true,
+          maintenanceCostDoge: true,
+          reserveContributionDoge: true,
+          netDistributableDoge: true,
+        },
+      }),
+      fetchDogeUsdtRate(),
     ]);
 
     const contractIds = contracts.map((c) => c.id);
@@ -127,16 +99,13 @@ export async function GET() {
         where: { contractId: { in: contractIds } },
         _sum: { creditedDoge: true, creditedUsdt: true },
       }),
-      // Platform-wide average, across every allocation row that exists
-      // (any level, any contract) — the best available stand-in for
-      // "what rate did the untracked legacy credits probably convert
-      // at" without persisting a rate on every LedgerEntry itself.
       db.miningContractAllocation.aggregate({ _avg: { dogeUsdtRate: true } }),
     ]);
     const allocDogeByContractId = new Map(allocationAgg.map((r) => [r.contractId, Number(r._sum.creditedDoge ?? 0)]));
     const allocUsdtByContractId = new Map(allocationAgg.map((r) => [r.contractId, Number(r._sum.creditedUsdt ?? 0)]));
     const avgDogeUsdtRate = Number(avgRateAgg._avg.dogeUsdtRate ?? 0);
 
+    const now = new Date();
     const rows = contracts.map((c) => {
       const priceUsdt = Number(c.pricePaidUsdt);
       const distributedUsdt = Number(c.cumulativeCreditedUsdtEquiv);
@@ -144,6 +113,15 @@ export async function GET() {
       const allocUsdt = allocUsdtByContractId.get(c.id) ?? 0;
       const gapUsdt = Math.max(0, distributedUsdt - allocUsdt);
       const gapDoge = avgDogeUsdtRate > 0 ? gapUsdt / avgDogeUsdtRate : 0;
+      // Remaining guaranteed payout still owed on this contract if it's
+      // still active/unreconciled — the doc's own target formula
+      // (pricePaidUsdt * (1+targetRoiPct)) minus whatever's already
+      // been credited. Zero for a reconciled or already-shortfall-
+      // closed-out contract (reconcileExpiredContracts is the one
+      // event that finalizes this, see src/lib/mining.ts).
+      const targetUsdt = priceUsdt * (1 + Number(c.targetRoiPct));
+      const isLive = c.active && c.reconciledAt === null && c.expiresAt > now;
+      const remainingLiabilityUsdt = isLive ? Math.max(0, targetUsdt - distributedUsdt) : 0;
       return {
         id: c.id,
         level: c.level,
@@ -152,11 +130,10 @@ export async function GET() {
         priceUsdt,
         distributedUsdt,
         distributedDoge: allocDoge + gapDoge,
-        // True whenever any part of this contract's DOGE total had to
-        // be estimated rather than read exactly off an allocation row —
-        // surfaced so the UI can mark it, not silently blended in.
         distributedDogeIsEstimated: gapUsdt > 0.000001,
         profitUsdt: priceUsdt - distributedUsdt,
+        targetUsdt,
+        remainingLiabilityUsdt,
         active: c.active,
         reconciled: c.reconciledAt !== null,
         finalShortfallUsdt: c.finalShortfallUsdt !== null ? Number(c.finalShortfallUsdt) : null,
@@ -173,6 +150,8 @@ export async function GET() {
       distributedDoge: 0,
       hasEstimatedDoge: false,
       profitUsdt: 0,
+      liabilityUsdt: 0,
+      liabilityContractCount: 0,
     });
     const bucketsMap = new Map<MiningLevel, ReturnType<typeof emptyBucket>>(LEVELS.map((l) => [l, emptyBucket()]));
     const total = emptyBucket();
@@ -185,6 +164,8 @@ export async function GET() {
         b.distributedDoge += r.distributedDoge;
         b.hasEstimatedDoge = b.hasEstimatedDoge || r.distributedDogeIsEstimated;
         b.profitUsdt += r.profitUsdt;
+        b.liabilityUsdt += r.remainingLiabilityUsdt;
+        if (r.remainingLiabilityUsdt > 0) b.liabilityContractCount += 1;
       }
       total.contractCount += 1;
       total.revenueUsdt += r.priceUsdt;
@@ -192,15 +173,70 @@ export async function GET() {
       total.distributedDoge += r.distributedDoge;
       total.hasEstimatedDoge = total.hasEstimatedDoge || r.distributedDogeIsEstimated;
       total.profitUsdt += r.profitUsdt;
+      total.liabilityUsdt += r.remainingLiabilityUsdt;
+      if (r.remainingLiabilityUsdt > 0) total.liabilityContractCount += 1;
     }
 
     const referralDirectDoge = Number(referralAgg.find((r) => r.reason === "mining_referral_l1")?._sum.amount ?? 0);
     const referralIndirectDoge = Number(referralAgg.find((r) => r.reason === "mining_referral_l2")?._sum.amount ?? 0);
+    const referralTotalDoge = referralDirectDoge + referralIndirectDoge;
+    // Estimated USDT value of referral commission — same platform-wide
+    // average historical rate used for the legacy DOGE gap above, for
+    // the same reason (LedgerEntry doesn't persist a per-entry rate).
+    const referralTotalUsdtEstimate = avgDogeUsdtRate > 0 ? referralTotalDoge * avgDogeUsdtRate : 0;
+
+    const activationUsdt = Math.abs(Number(activationAgg._sum.amount ?? 0));
+    const activationCount = activationAgg._count;
+
+    const grossOutputDoge = Number(epochAgg._sum.grossOutputDoge ?? 0);
+    const poolFeeDoge = Number(epochAgg._sum.poolProviderFeesDoge ?? 0);
+    const electricityFeeDoge = Number(epochAgg._sum.maintenanceCostDoge ?? 0);
+    const reserveContributionDoge = Number(epochAgg._sum.reserveContributionDoge ?? 0);
+    const netDistributionDoge = Number(epochAgg._sum.netDistributableDoge ?? 0);
+
+    // Total revenue (Activation + Contract Sales) minus what's actually
+    // been distributed to users so far minus referral commission paid
+    // out — the platform's real net position on real-user mining
+    // activity to date. Distributed/profit here use the SAME real-
+    // user-filtered, ledger-backed totals as the per-level buckets
+    // above (not the platform-wide MiningEpoch waterfall, which can't
+    // be scoped to real users only — see this route's own top
+    // doc-comment).
+    const totalRevenueUsdt = activationUsdt + total.revenueUsdt;
+    const platformProfitUsdt = totalRevenueUsdt - total.distributedUsdt - referralTotalUsdtEstimate;
 
     return NextResponse.json({
+      activation: { usdt: activationUsdt, count: activationCount },
+      contractPeriodDays: HASHRATE_TERM_DAYS,
       buckets: LEVELS.map((level) => ({ level, ...bucketsMap.get(level)! })),
       total,
-      referral: { directDoge: referralDirectDoge, indirectDoge: referralIndirectDoge },
+      output: {
+        // Platform-wide, mining-v2-only epochs — see top doc-comment.
+        grossOutputDoge,
+        poolFeeDoge,
+        electricityFeeDoge,
+        reserveContributionDoge,
+        netDistributionDoge,
+        netDistributionUsdt: total.distributedUsdt, // real-user, ledger-backed — see doc-comment above
+      },
+      referral: {
+        directDoge: referralDirectDoge,
+        indirectDoge: referralIndirectDoge,
+        totalDoge: referralTotalDoge,
+        totalUsdtEstimate: referralTotalUsdtEstimate,
+      },
+      liability: {
+        usdt: total.liabilityUsdt,
+        doge: liveRate > 0 ? total.liabilityUsdt / liveRate : 0,
+        contractCount: total.liabilityContractCount,
+        liveRateUsed: liveRate,
+      },
+      profit: {
+        totalRevenueUsdt,
+        distributedUsdt: total.distributedUsdt,
+        referralUsdtEstimate: referralTotalUsdtEstimate,
+        profitUsdt: platformProfitUsdt,
+      },
       contracts: rows,
     });
   } catch (err) {
