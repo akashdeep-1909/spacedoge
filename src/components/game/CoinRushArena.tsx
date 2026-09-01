@@ -6,6 +6,17 @@ import type { GameMode } from "@/generated/prisma/enums";
 import { reportLiveMatchState } from "@/lib/hooks";
 import type { LiveShipSample } from "@/lib/liveMatchStateTypes";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
+import {
+  playMagnetSound,
+  playShieldSound,
+  playBoostSound,
+  playFireSound,
+  playZapSound,
+  playHitSound,
+  playShieldBlockSound,
+  updateEngineSound,
+  stopEngineSound,
+} from "@/lib/gameSound";
 
 // Coin Rush Arena — visuals ported from the "Orbital Extraction" 4-player
 // prototype (rockets, USDT coins, a bank vault that cycles open/closed,
@@ -394,6 +405,14 @@ export function CoinRushArena({
     // from `fireUsed`, which just gates whether fire can be triggered at
     // all this match.
     fireShotCd: number;
+    // Damage feedback for the human ship, both decaying to 0 every
+    // frame in update() — set to 1 in hitShip() the instant a real hit
+    // (not shield-blocked) lands. youHitFlash tints the rocket red in
+    // drawRocket(); shakeMag briefly jolts the whole camera in draw().
+    // Scoped to "you" specifically (not every ship) since this is
+    // player-facing feedback, not a generic hazard-hit effect.
+    youHitFlash: number;
+    shakeMag: number;
     last: number;
     raf: number;
     // Live-position spectate feature (see the `spectate`/`matchId` props
@@ -585,6 +604,8 @@ export function CoinRushArena({
       boostCd: 0, shieldCd: 0, magnetCd: 0,
       fireUsed: false,
       fireShotCd: 0,
+      youHitFlash: 0,
+      shakeMag: 0,
       last: performance.now(),
       raf: 0,
       liveReportCd: 0,
@@ -624,11 +645,17 @@ export function CoinRushArena({
       if (!s.active) return false;
       if (s.shield > 0) {
         addParticles(s.x, s.y, "#33f2a4", 8);
+        if (s.isYou) playShieldBlockSound();
         return false;
       }
       if (s.invuln > 0) return false;
       s.lives -= 1;
       s.invuln = hitInvulnSec;
+      if (s.isYou) {
+        playHitSound();
+        g.youHitFlash = 1;
+        g.shakeMag = 1;
+      }
       const carryBefore = s.carry;
       s.carry = Math.max(0, s.carry - carryPenalty);
       const carryLost = Math.round(carryBefore - s.carry);
@@ -714,6 +741,8 @@ export function CoinRushArena({
       g.boostCd = Math.max(0, g.boostCd - dt);
       g.shieldCd = Math.max(0, g.shieldCd - dt);
       g.magnetCd = Math.max(0, g.magnetCd - dt);
+      g.youHitFlash = Math.max(0, g.youHitFlash - dt * 2.5);
+      g.shakeMag = Math.max(0, g.shakeMag - dt * 4);
 
       const you = g.ships[0];
       you.magnet = Math.max(0, you.magnet - dt);
@@ -856,6 +885,20 @@ export function CoinRushArena({
         if (g.bankZone.open && dist(s, g.bankZone) < g.bankZone.r + s.r) bankShip(s);
       }
 
+      // Rocket engine hum — pitch/volume ramp with the human ship's own
+      // current speed relative to its max possible speed (Boost raises
+      // that ceiling, so the same raw vx/vy reads as "slower" while
+      // boosted rather than pinning the engine note at max the instant
+      // Boost is used). Silent (idle hum only) once the ship is out of
+      // lives — nothing to accelerate anymore.
+      if (you.active) {
+        const maxSpeed = you.speed * (you.boost > 0 ? 1.6 : 1);
+        const youSpeedFrac = maxSpeed > 0 ? Math.hypot(you.vx, you.vy) / maxSpeed : 0;
+        updateEngineSound(youSpeedFrac);
+      } else {
+        updateEngineSound(0);
+      }
+
       // Magnet pull (an addition beyond the prototype, kept from the
       // earlier build) — pulls nearby coins toward the human ship. Gated
       // on you.active so a magnet still counting down at the moment of
@@ -914,6 +957,7 @@ export function CoinRushArena({
             addParticles(h.x, h.y, "#ff7a3c", 20);
             const p = randPointInPlay(); h.x = p.x; h.y = p.y;
             consumed = true;
+            playZapSound();
           }
         }
         for (const dsh of g.dashers) {
@@ -923,6 +967,7 @@ export function CoinRushArena({
             const p = randPointInPlay(); dsh.x = p.x; dsh.y = p.y;
             dsh.state = "aim"; dsh.timer = 1.1 + g.rand() * 1.3;
             consumed = true;
+            playZapSound();
           }
         }
         for (const m of g.mines) {
@@ -932,6 +977,7 @@ export function CoinRushArena({
             const p = randPointInPlay(); m.x = p.x; m.y = p.y;
             m.vx = (g.rand() - 0.5) * 56 * DPR; m.vy = (g.rand() - 0.5) * 56 * DPR;
             consumed = true;
+            playZapSound();
           }
         }
         if (consumed || b.x < 0 || b.x > g.W || b.y < TOP_MARGIN || b.y > g.H) {
@@ -1101,6 +1147,12 @@ export function CoinRushArena({
     function finish(endedEarly = false) {
       if (!g.running) return;
       g.running = false;
+      // Otherwise the engine hum freezes at whatever pitch/volume it
+      // last had (update() bails out immediately above once !g.running,
+      // so nothing ever calls updateEngineSound(0) again) instead of
+      // fading out — audible during the "Time's Up" pause this function
+      // triggers below.
+      stopEngineSound();
       const you = g.ships[0];
       const finalScore = Math.round(you.banked + you.carry);
       // Cutting the dead-simulation short (see allShipsDown above) is a
@@ -1255,6 +1307,18 @@ export function CoinRushArena({
       const ts = g.elapsed * 1000;
       ctx!.clearRect(0, 0, g.W, g.H);
 
+      // Camera shake — a brief, decaying random jolt on the whole scene
+      // the instant a real hit lands (g.shakeMag, set in hitShip()),
+      // separate from the red damage-flash overlay below (this is the
+      // "impact" read, that one is the "you're hurt" read). Applied
+      // before anything else is drawn this frame so every layer (bg,
+      // stars, hazards, ships, HUD-adjacent canvas text) shakes together
+      // rather than the ship visibly detaching from its own background.
+      ctx!.save();
+      if (g.shakeMag > 0.001) {
+        ctx!.translate((Math.random() - 0.5) * 9 * DPR * g.shakeMag, (Math.random() - 0.5) * 9 * DPR * g.shakeMag);
+      }
+
       const bg = ctx!.createLinearGradient(0, 0, 0, g.H);
       bg.addColorStop(0, theme.bgTop);
       bg.addColorStop(0.36, theme.bgMid);
@@ -1364,6 +1428,24 @@ export function CoinRushArena({
         // Flicker during the brief post-hit invulnerability window —
         // visible feedback that a hit landed and a life was just spent.
         if (s.invuln > 0 && Math.floor(s.invuln * 10) % 2 === 0) continue;
+        // Red damage halo directly around your own rocket — the
+        // screen-wide vignette in draw()'s own closing block is the big
+        // "you got hit" read, this is the localized one on the ship
+        // itself specifically, per direct request ("show effect on
+        // rocket"). Drawn behind drawRocket() so the ship sprite still
+        // reads clearly on top of it.
+        if (s.isYou && g.youHitFlash > 0.001) {
+          ctx!.save();
+          ctx!.globalAlpha = g.youHitFlash * 0.55;
+          const halo = ctx!.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 2.4);
+          halo.addColorStop(0, "rgba(255,60,60,.9)");
+          halo.addColorStop(1, "rgba(255,60,60,0)");
+          ctx!.fillStyle = halo;
+          ctx!.beginPath();
+          ctx!.arc(s.x, s.y, s.r * 2.4, 0, Math.PI * 2);
+          ctx!.fill();
+          ctx!.restore();
+        }
         drawRocket(s.x, s.y, s.angle, s.color, s.r);
         ctx!.shadowBlur = 0;
         ctx!.fillStyle = s.color;
@@ -1406,6 +1488,19 @@ export function CoinRushArena({
         ctx!.shadowBlur = 0;
       }
       ctx!.globalAlpha = 1;
+      ctx!.restore(); // matches the shake save() at the top of this function
+
+      // Red damage vignette — a full-canvas flash the instant a real
+      // hit lands (g.youHitFlash, set in hitShip(), decaying every
+      // frame in update()), stacked on top of the existing per-ship
+      // invuln flicker rather than replacing it: the flicker says "you
+      // can't be hit again yet," this says "that one just connected."
+      // Drawn outside the shake save/restore above so the flash itself
+      // never visibly jitters with the camera.
+      if (g.youHitFlash > 0.001) {
+        ctx!.fillStyle = `rgba(255,30,30,${g.youHitFlash * 0.22})`;
+        ctx!.fillRect(0, 0, g.W, g.H);
+      }
     }
 
     function loop(now: number) {
@@ -1467,6 +1562,11 @@ export function CoinRushArena({
 
     return () => {
       cancelAnimationFrame(g.raf);
+      // Belt-and-suspenders alongside finish()'s own call — covers
+      // leaving/closing the page mid-match, when finish() never runs at
+      // all (g.running is still true, so its own early-return there
+      // would otherwise skip teardown entirely).
+      stopEngineSound();
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
@@ -1510,18 +1610,21 @@ export function CoinRushArena({
     if (!g || !g.running || !g.ships[0].active || g.magnetCd > 0) return;
     g.ships[0].magnet = 5;
     g.magnetCd = 14;
+    playMagnetSound();
   };
   const useShield = () => {
     const g = gRef.current;
     if (!g || !g.running || !g.ships[0].active || g.shieldCd > 0) return;
     g.ships[0].shield = 4;
     g.shieldCd = 16;
+    playShieldSound();
   };
   const useOverclock = () => {
     const g = gRef.current;
     if (!g || !g.running || !g.ships[0].active || g.boostCd > 0) return;
     g.ships[0].boost = 2.5;
     g.boostCd = 10;
+    playBoostSound();
   };
   // One-time per match — fireUsed never resets, unlike the Cd timers
   // above which recharge and can be used again.
@@ -1530,6 +1633,7 @@ export function CoinRushArena({
     if (!g || !g.running || !g.ships[0].active || g.fireUsed) return;
     g.ships[0].fire = 10;
     g.fireUsed = true;
+    playFireSound();
   };
 
   return (
