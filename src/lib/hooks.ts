@@ -1077,7 +1077,14 @@ export interface AdminMiningProfitBucket {
   level: string;
   contractCount: number;
   revenueUsdt: number;
+  // USDT-equivalent VALUATION of the DOGE credited — not real USDT.
+  // distributedDoge is the actual currency mining pays out in.
   distributedUsdt: number;
+  distributedDoge: number;
+  // True if any contract in this bucket had part of its DOGE total
+  // estimated (a legacy gap — see the route's own doc-comment) rather
+  // than read exactly off a MiningContractAllocation row.
+  hasEstimatedDoge: boolean;
   profitUsdt: number;
 }
 
@@ -1088,6 +1095,8 @@ export interface AdminMiningProfitContractRow {
   termDays: number;
   priceUsdt: number;
   distributedUsdt: number;
+  distributedDoge: number;
+  distributedDogeIsEstimated: boolean;
   profitUsdt: number;
   active: boolean;
   reconciled: boolean;
@@ -1099,7 +1108,14 @@ export interface AdminMiningProfitContractRow {
 
 export interface AdminMiningProfitReport {
   buckets: AdminMiningProfitBucket[];
-  total: { contractCount: number; revenueUsdt: number; distributedUsdt: number; profitUsdt: number };
+  total: {
+    contractCount: number;
+    revenueUsdt: number;
+    distributedUsdt: number;
+    distributedDoge: number;
+    hasEstimatedDoge: boolean;
+    profitUsdt: number;
+  };
   // Platform-wide, NOT broken out per package level — see the route's
   // own doc-comment for why mining referral commission can't be
   // cleanly attributed to a specific contract/level the way game

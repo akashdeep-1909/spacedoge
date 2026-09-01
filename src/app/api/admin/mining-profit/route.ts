@@ -33,8 +33,8 @@ import { MiningLevel } from "@/generated/prisma/enums";
 // price; disagreeing with those here would be a worse inconsistency
 // than the small legacy gap itself.
 // distributedUsdt = MiningContract.cumulativeCreditedUsdtEquiv
-// — the USDT-equivalent value of every DOGE credit this contract has
-// actually received so far (daily epoch settlement + any Day-180
+// — the USDT-equivalent VALUATION of every DOGE credit this contract
+// has actually received so far (daily epoch settlement + any Day-180
 // expiry top-up), incremented atomically inside the same transaction
 // as each of those real ledger credits (src/lib/mining.ts
 // settleEpochForDate / reconcileExpiredContracts) — already
@@ -42,6 +42,26 @@ import { MiningLevel } from "@/generated/prisma/enums";
 // the difference; for a still-active contract this is a running,
 // not-yet-final number (it'll keep shrinking toward the contract's
 // own guaranteed target as daily settlement continues).
+//
+// distributedDoge is the same thing in its ACTUAL native currency —
+// mining only ever pays out in DOGE, never USDT directly (confirmed
+// live: "mining output is only DOGE," same point already made about
+// the Mining Earnings balance card elsewhere in this admin panel), so
+// showing distributedUsdt alone risked implying real USDT changed
+// hands here. Primary source: MiningContractAllocation.creditedDoge
+// (one exact row per epoch this contract was active), which also
+// carries its own creditedUsdt — this contract's cumulativeCreditedUsdtEquiv
+// MINUS the sum of those creditedUsdt rows is any gap not covered by
+// an allocation row (confirmed live: MiningContractAllocation as a
+// table postdates when epoch settlement started crediting DOGE at
+// all — the earliest allocation row is nearly two weeks after the
+// earliest real credit — so a majority of contracts here have SOME
+// gap). That gap is converted to an ESTIMATED DOGE amount using the
+// platform-wide average historical dogeUsdtRate observed across every
+// allocation row that does exist, not today's live rate — closer to
+// what these older, un-tracked credits actually converted at than a
+// current-day quote would be, but still an estimate, never presented
+// as exact (see distributedDogeIsEstimated below).
 //
 // Mining referral commission (mining_referral_l1/l2) is reported
 // separately, platform-wide, NOT broken out per package level or
@@ -100,9 +120,30 @@ export async function GET() {
       }),
     ]);
 
+    const contractIds = contracts.map((c) => c.id);
+    const [allocationAgg, avgRateAgg] = await Promise.all([
+      db.miningContractAllocation.groupBy({
+        by: ["contractId"],
+        where: { contractId: { in: contractIds } },
+        _sum: { creditedDoge: true, creditedUsdt: true },
+      }),
+      // Platform-wide average, across every allocation row that exists
+      // (any level, any contract) — the best available stand-in for
+      // "what rate did the untracked legacy credits probably convert
+      // at" without persisting a rate on every LedgerEntry itself.
+      db.miningContractAllocation.aggregate({ _avg: { dogeUsdtRate: true } }),
+    ]);
+    const allocDogeByContractId = new Map(allocationAgg.map((r) => [r.contractId, Number(r._sum.creditedDoge ?? 0)]));
+    const allocUsdtByContractId = new Map(allocationAgg.map((r) => [r.contractId, Number(r._sum.creditedUsdt ?? 0)]));
+    const avgDogeUsdtRate = Number(avgRateAgg._avg.dogeUsdtRate ?? 0);
+
     const rows = contracts.map((c) => {
       const priceUsdt = Number(c.pricePaidUsdt);
       const distributedUsdt = Number(c.cumulativeCreditedUsdtEquiv);
+      const allocDoge = allocDogeByContractId.get(c.id) ?? 0;
+      const allocUsdt = allocUsdtByContractId.get(c.id) ?? 0;
+      const gapUsdt = Math.max(0, distributedUsdt - allocUsdt);
+      const gapDoge = avgDogeUsdtRate > 0 ? gapUsdt / avgDogeUsdtRate : 0;
       return {
         id: c.id,
         level: c.level,
@@ -110,6 +151,11 @@ export async function GET() {
         termDays: c.termDays,
         priceUsdt,
         distributedUsdt,
+        distributedDoge: allocDoge + gapDoge,
+        // True whenever any part of this contract's DOGE total had to
+        // be estimated rather than read exactly off an allocation row —
+        // surfaced so the UI can mark it, not silently blended in.
+        distributedDogeIsEstimated: gapUsdt > 0.000001,
         profitUsdt: priceUsdt - distributedUsdt,
         active: c.active,
         reconciled: c.reconciledAt !== null,
@@ -120,7 +166,14 @@ export async function GET() {
       };
     });
 
-    const emptyBucket = () => ({ contractCount: 0, revenueUsdt: 0, distributedUsdt: 0, profitUsdt: 0 });
+    const emptyBucket = () => ({
+      contractCount: 0,
+      revenueUsdt: 0,
+      distributedUsdt: 0,
+      distributedDoge: 0,
+      hasEstimatedDoge: false,
+      profitUsdt: 0,
+    });
     const bucketsMap = new Map<MiningLevel, ReturnType<typeof emptyBucket>>(LEVELS.map((l) => [l, emptyBucket()]));
     const total = emptyBucket();
     for (const r of rows) {
@@ -129,11 +182,15 @@ export async function GET() {
         b.contractCount += 1;
         b.revenueUsdt += r.priceUsdt;
         b.distributedUsdt += r.distributedUsdt;
+        b.distributedDoge += r.distributedDoge;
+        b.hasEstimatedDoge = b.hasEstimatedDoge || r.distributedDogeIsEstimated;
         b.profitUsdt += r.profitUsdt;
       }
       total.contractCount += 1;
       total.revenueUsdt += r.priceUsdt;
       total.distributedUsdt += r.distributedUsdt;
+      total.distributedDoge += r.distributedDoge;
+      total.hasEstimatedDoge = total.hasEstimatedDoge || r.distributedDogeIsEstimated;
       total.profitUsdt += r.profitUsdt;
     }
 

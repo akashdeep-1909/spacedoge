@@ -32,13 +32,18 @@ export default function AdminMiningProfitPage() {
         <h1 className="text-lg font-black uppercase tracking-wide">Mining Profit</h1>
         <p className="mt-1 text-sm text-muted">
           Every real mining package purchase (demo-flagged wallets excluded), grouped by package level.
-          &ldquo;Revenue Collected&rdquo; is what the wallet paid for that contract (a small number of contracts
-          from before purchase debit-tracking existed may not have a matching ledger entry, but still show their
-          recorded price here — consistent with how a wallet&apos;s own dashboard ROI card and the Mining page&apos;s
-          Contracts table already report it); &ldquo;Distributed&rdquo; is the USDT-equivalent value of every DOGE
-          credit that contract has received so far from daily settlement (still climbing for an active contract —
-          this isn&apos;t a final number until the contract reconciles at term end); &ldquo;Platform Profit&rdquo;
-          is the difference. Mining referral commission is shown separately below, platform-wide in DOGE —
+          &ldquo;Revenue Collected&rdquo; is what the wallet paid for that contract, in USDT (a small number of
+          contracts from before purchase debit-tracking existed may not have a matching ledger entry, but still
+          show their recorded price here — consistent with how a wallet&apos;s own dashboard ROI card and the
+          Mining page&apos;s Contracts table already report it). Mining output itself is only ever paid in
+          DOGE, never USDT directly — &ldquo;Distributed&rdquo; shows the actual DOGE credited so far from daily
+          settlement, with its USDT-equivalent valuation alongside it in parentheses (still climbing for an
+          active contract — not a final number until the contract reconciles at term end). A DOGE figure marked
+          with &ldquo;~&rdquo; means part of it had to be estimated (a legacy gap from before per-contract DOGE
+          tracking existed) rather than read exactly off settlement records — see a contract&apos;s own row in
+          the detail table below for which ones. &ldquo;Platform Profit&rdquo; compares Revenue against the USDT
+          valuation, since that&apos;s the only way to compare the two in one number. Mining referral commission
+          is shown separately below, platform-wide in DOGE —
           settlement credits it as one pooled daily amount per referrer across their whole downline, so unlike
           Game Profit&apos;s referral figures it can&apos;t be cleanly split back out by package level. Click any
           card to see the exact contracts behind its numbers.
@@ -128,7 +133,11 @@ function BucketCard({
           Revenue: <span className="stat-value text-foreground">{fmtUsdt(bucket.revenueUsdt)}</span>
         </p>
         <p className="text-xs text-muted">
-          Distributed: <span className="stat-value text-mint">{fmtUsdt(bucket.distributedUsdt)}</span>
+          Distributed:{" "}
+          <span className="stat-value text-mint">
+            {bucket.hasEstimatedDoge && "~"}
+            {fmtDoge(bucket.distributedDoge)} <span className="text-muted">({fmtUsdt(bucket.distributedUsdt)})</span>
+          </span>
         </p>
         <p className="text-xs text-muted">
           Profit: <span className="stat-value text-gold">{fmtUsdt(bucket.profitUsdt)}</span>
@@ -166,7 +175,8 @@ function ContractDrillDown({
           "Level",
           "MH/s",
           "Price Paid",
-          "Distributed",
+          "Distributed (DOGE)",
+          "Distributed (USDT value)",
           "Profit",
           "Status",
           "Starts",
@@ -180,9 +190,11 @@ function ContractDrillDown({
           levelLabel(c.level),
           c.miningPower.toFixed(1),
           fmtUsdt(c.priceUsdt),
-          <span key="dist" className="text-mint">
-            {fmtUsdt(c.distributedUsdt)}
+          <span key="dist-doge" className="text-mint" title={c.distributedDogeIsEstimated ? "Partly estimated — legacy contract predates per-contract DOGE tracking" : undefined}>
+            {c.distributedDogeIsEstimated && "~"}
+            {fmtDoge(c.distributedDoge)}
           </span>,
+          fmtUsdt(c.distributedUsdt),
           <span key="profit" className="text-gold">
             {fmtUsdt(c.profitUsdt)}
           </span>,
