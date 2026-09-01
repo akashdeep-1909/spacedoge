@@ -1054,13 +1054,23 @@ export interface AdminGameProfitReport {
   // by humanCount itself for the "click a total, see every match"
   // drill-down rather than needing a second round-trip per bucket.
   matches: AdminGameProfitMatchRow[];
+  // Echoes back whatever from/to this response was actually filtered
+  // by (raw query param strings, or null if unset).
+  filter: { from: string | null; to: string | null };
 }
 
-export function useAdminGameProfit() {
+// from/to are optional YYYY-MM-DD strings — filters the WHOLE report
+// (buckets, total, referral commission, actual profit, the match
+// table) by settledAt, see the route's own doc-comment.
+export function useAdminGameProfit(from?: string, to?: string) {
   return useQuery({
-    queryKey: ["admin", "game-profit"],
+    queryKey: ["admin", "game-profit", from ?? "", to ?? ""],
     queryFn: async (): Promise<AdminGameProfitReport> => {
-      const res = await fetch("/api/admin/game-profit");
+      const params = new URLSearchParams();
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      const qs = params.toString();
+      const res = await fetch(`/api/admin/game-profit${qs ? `?${qs}` : ""}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}) as { error?: string });
         throw new Error(body.error ?? "Failed to load game profit report");

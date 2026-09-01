@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin";
 import { db } from "@/lib/db";
 import { MatchStatus } from "@/generated/prisma/enums";
@@ -52,6 +52,13 @@ import { MatchStatus } from "@/generated/prisma/enums";
 // non-match sources like Unused Prize Surplus from bot-held winning
 // slots, which this per-match report folds into distributedUsdt/
 // profitUsdt instead of separating out).
+//
+// ?from=YYYY-MM-DD&to=YYYY-MM-DD (both optional) filters the WHOLE
+// report by settledAt (endedAt, falling back to createdAt for the rare
+// row with no endedAt) — same "filter everything together" contract
+// Mining Profit's own date filter uses. `to` is inclusive of that
+// whole day (converted to an exclusive start-of-next-day bound
+// internally).
 const SETTLED_STATUSES: MatchStatus[] = [MatchStatus.SETTLED_WIN, MatchStatus.SETTLED_LOSS, MatchStatus.SETTLED];
 
 // Generous cap on the underlying match list this report (and its
@@ -61,9 +68,30 @@ const SETTLED_STATUSES: MatchStatus[] = [MatchStatus.SETTLED_WIN, MatchStatus.SE
 // once match volume is actually this large.
 const MATCH_FETCH_LIMIT = 2000;
 
-export async function GET() {
+// Same YYYY-MM-DD day-boundary parser Mining Profit's own route uses —
+// null (no bound) rather than a 500 on a missing/malformed param.
+function parseDayParam(raw: string | null, endOfDayExclusive: boolean): Date | null {
+  if (!raw) return null;
+  const d = new Date(`${raw}T00:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  if (endOfDayExclusive) d.setUTCDate(d.getUTCDate() + 1);
+  return d;
+}
+
+export async function GET(request: NextRequest) {
   const session = await requireAdminSession();
   if (!session) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+
+  const fromDate = parseDayParam(request.nextUrl.searchParams.get("from"), false);
+  const toDateExclusive = parseDayParam(request.nextUrl.searchParams.get("to"), true);
+  const hasDateFilter = fromDate !== null || toDateExclusive !== null;
+  // endedAt is null only for a match that's never actually settled —
+  // shouldn't occur alongside SETTLED_STATUSES, but the fallback keeps
+  // this filter from silently dropping a row that somehow has neither.
+  const settledAtRange = {
+    ...(fromDate ? { gte: fromDate } : {}),
+    ...(toDateExclusive ? { lt: toDateExclusive } : {}),
+  };
 
   try {
     // Same match-traceable demo exclusion admin/overview's own
@@ -83,6 +111,7 @@ export async function GET() {
       where: {
         status: { in: SETTLED_STATUSES },
         entryFeeUsdt: { gt: 0 }, // excludes Practice and every free/prefunded promo mode
+        ...(hasDateFilter ? { OR: [{ endedAt: settledAtRange }, { endedAt: null, createdAt: settledAtRange }] } : {}),
       },
       orderBy: { endedAt: "desc" },
       take: MATCH_FETCH_LIMIT,
@@ -190,6 +219,7 @@ export async function GET() {
     }
 
     return NextResponse.json({
+      filter: { from: request.nextUrl.searchParams.get("from"), to: request.nextUrl.searchParams.get("to") },
       buckets: [1, 2, 3, 4].map((humanCount) => ({ humanCount, ...bucketsMap.get(humanCount)! })),
       total,
       matches: rows,
