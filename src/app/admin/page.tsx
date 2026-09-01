@@ -191,6 +191,12 @@ export default function AdminOverviewPage() {
             tone="mint"
           />
           <StatCard label="Protection Reserve" value={`$${data.mining.reserveBalanceUsdt.toFixed(2)}`} tone="gold" />
+          <StatCard
+            label="Activation Fees Collected"
+            value={`$${data.mining.activationFeeUsdt.toFixed(2)}`}
+            tone="mint"
+          />
+          <StatCard label="Activations" value={String(data.mining.activationFeeCount)} />
         </div>
       </section>
     </div>

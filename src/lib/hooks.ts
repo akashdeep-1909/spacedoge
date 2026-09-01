@@ -743,6 +743,13 @@ export interface AdminOverview {
     activeMiningPower: number;
     activeContracts: number;
     reserveBalanceUsdt: number;
+    // Total of the one-time $1 "activate the mining dashboard" fee
+    // (rig_activation_fee) collected from real users — see the API
+    // route's own doc-comment for why this is read straight off
+    // paying wallets rather than traced through the treasury wallet
+    // like platform fee/surplus are.
+    activationFeeUsdt: number;
+    activationFeeCount: number;
     latestEpoch: {
       epochDate: string;
       netDistributableDoge: number;

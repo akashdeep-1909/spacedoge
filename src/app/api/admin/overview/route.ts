@@ -97,6 +97,7 @@ export async function GET(request: NextRequest) {
     withdrawalRecent,
     activeContracts,
     latestEpoch,
+    activationFeeAgg,
     matchCount,
     activeLobbyCount,
     surplusAgg,
@@ -202,6 +203,21 @@ export async function GET(request: NextRequest) {
       _count: true,
     }),
     db.miningEpoch.findFirst({ orderBy: { epochDate: "desc" } }),
+    // One-time $1 "activate the mining dashboard" fee (doc 6.1, decoupled
+    // from hashrate purchase — see /api/mining/activate's own doc-comment)
+    // — a straight debit from whichever balance the user funded it from
+    // (rig_activation_fee reason), with no treasury-side credit anywhere
+    // (unlike PLATFORM_FEE_USDT above, this never lands on the
+    // "platform:treasury" pseudo-wallet, so there's no separate ledger
+    // entry to trace back through a Match the way that one needs to be —
+    // it's read straight off the paying wallet, same as the referral
+    // commission query below). _sum comes back negative (a debit); Math.abs
+    // it below when building the response.
+    db.ledgerEntry.aggregate({
+      where: { reason: "rig_activation_fee", walletProfile: REAL_USER_WALLET_FILTER },
+      _sum: { amount: true },
+      _count: true,
+    }),
     // A match counts as real activity if at least one real (non-bot,
     // non-demo) human took part — instant-play is always exactly 1
     // human + 3 bots, so this is "was the human side of this match a
@@ -407,6 +423,8 @@ export async function GET(request: NextRequest) {
       activeMiningPower: Number(activeContracts._sum.miningPower ?? 0),
       activeContracts: activeContracts._count,
       reserveBalanceUsdt: miningReserveBalanceUsdt,
+      activationFeeUsdt: Math.abs(Number(activationFeeAgg._sum.amount ?? 0)),
+      activationFeeCount: activationFeeAgg._count,
       latestEpoch: latestEpoch
         ? {
             epochDate: latestEpoch.epochDate,
