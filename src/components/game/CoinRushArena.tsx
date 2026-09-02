@@ -739,7 +739,19 @@ export function CoinRushArena({
         if (s.isYou || s.externallyDriven || i - 1 === contestBotIndex) return s;
         if (s.carry > you.carry * 1.15) return s;
         const bumpedCarry = Math.ceil(you.carry * 1.25) + 10;
-        return { ...s, carry: bumpedCarry };
+        // Confirmed live: once the human dies, you.carry never changes
+        // again (a dead ship neither moves nor collects), so a bump
+        // computed purely from it freezes solid for the rest of the
+        // match — even though this bot itself is still actively racing
+        // and genuinely picking things up the whole time (bots can no
+        // longer die at all, see hitShip()). Math.max against the bot's
+        // own real, still-growing s.carry lets the displayed number
+        // keep climbing from real activity the moment it organically
+        // overtakes the bump anchor, instead of looking stuck — the
+        // "always shows at least bump" guarantee this mechanic exists
+        // for is unaffected, since real growth can only ever push the
+        // shown number higher, never lower.
+        return { ...s, carry: Math.max(s.carry, bumpedCarry) };
       });
       return display.sort((a, b) => {
         const as = a.banked + a.carry * 0.25, bs = b.banked + b.carry * 0.25;
