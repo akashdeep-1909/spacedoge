@@ -2483,6 +2483,86 @@ export function useActiveMatch() {
   });
 }
 
+// ---------------------------------------------------------------------
+// Coin Rush Shop (Phase 1: ROCKET_SHAPE cosmetics only) —
+// src/app/api/shop/*, src/lib/shop.ts, src/lib/shop-shared.ts.
+// ---------------------------------------------------------------------
+
+export interface ShopCatalogItem {
+  id: string;
+  key: string;
+  category: string;
+  label: string;
+  description: string;
+  priceUsdt: number;
+  entitlementType: "USES" | "TIME_WINDOW";
+  usesGranted: number | null;
+  termDays: number | null;
+  shapeKey: string | null;
+}
+
+export function useShopCatalog() {
+  return useQuery({
+    queryKey: ["shop", "catalog"],
+    queryFn: async (): Promise<{ items: ShopCatalogItem[] }> => {
+      const res = await fetch("/api/shop/catalog");
+      if (!res.ok) throw new Error("Failed to load the shop catalog");
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+}
+
+export interface OwnedShopItem {
+  id: string;
+  label: string;
+  configKey: string;
+  category: string;
+  entitlementType: "USES" | "TIME_WINDOW";
+  shapeKey: string | null;
+  usesRemaining: number | null;
+  startsAt: string | null;
+  expiresAt: string | null;
+  isUsable: boolean;
+  createdAt: string;
+}
+
+export function useShopInventory() {
+  return useQuery({
+    queryKey: ["shop", "inventory"],
+    queryFn: async (): Promise<{ items: OwnedShopItem[] }> => {
+      const res = await fetch("/api/shop/inventory");
+      if (!res.ok) throw new Error("Failed to load your shop items");
+      return res.json();
+    },
+    // A purchase or a match consuming a USES-type item both change what
+    // this returns — refetched on mutation success below rather than
+    // polled, same reasoning useBalances' own invalidation pattern uses
+    // (nothing here is time-sensitive enough to warrant a live poll).
+    staleTime: 15_000,
+  });
+}
+
+export function usePurchaseShopItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ shopItemConfigId, source }: { shopItemConfigId: string; source?: FundingSource }) => {
+      const res = await fetch("/api/shop/purchase", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shopItemConfigId, source }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Purchase failed");
+      return body;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shop", "inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["balances"] });
+    },
+  });
+}
+
 export interface AdminGameModeRow {
   id: string;
   mode: string;
@@ -2523,6 +2603,52 @@ export function useUpdateGameModeConfig() {
       return body;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "game-modes"] }),
+  });
+}
+
+export interface AdminShopItemRow {
+  id: string;
+  key: string;
+  category: string;
+  label: string;
+  description: string;
+  priceUsdt: number;
+  entitlementType: "USES" | "TIME_WINDOW";
+  usesGranted: number | null;
+  termDays: number | null;
+  shapeKey: string | null;
+  enabled: boolean;
+  sortOrder: number;
+}
+
+export function useAdminShopItems() {
+  return useQuery({
+    queryKey: ["admin", "shop"],
+    queryFn: async (): Promise<{ rows: AdminShopItemRow[] }> => {
+      const res = await fetch("/api/admin/shop");
+      if (!res.ok) throw new Error("Failed to load the shop catalog");
+      return res.json();
+    },
+  });
+}
+
+export function useUpdateAdminShopItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...patch
+    }: Pick<AdminShopItemRow, "id"> & Partial<Pick<AdminShopItemRow, "label" | "description" | "priceUsdt" | "enabled" | "sortOrder">>) => {
+      const res = await fetch(`/api/admin/shop/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to update shop item");
+      return body;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "shop"] }),
   });
 }
 

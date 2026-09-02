@@ -22,6 +22,7 @@ import { GameModeIcon, type GameModeIconKey } from "@/components/icons/GameModeI
 import { NotificationsPrompt } from "@/components/NotificationsPrompt";
 import { THEME_BY_MODE } from "@/lib/game-config";
 import { MatchResultReveal, type MatchParticipantResult, type MatchPoolSummary } from "@/components/game/MatchResultReveal";
+import { LoadoutSelectModal } from "@/components/game/LoadoutSelectModal";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { gameModeLabel, gameModeDescription } from "@/lib/game-mode-labels";
 
@@ -46,6 +47,14 @@ interface MatchInit {
   prizePoolUsdt: number;
   players: number;
   startElapsedSec?: number;
+  // Coin Rush Shop (Phase 1) — resolved server-side by POST /api/matches
+  // (see src/lib/shop.ts consumeLoadoutSelections), never re-derived
+  // here. Absent on resumeMatch() (GET /api/matches/active doesn't
+  // currently echo it back — a resumed match keeps whatever shape was
+  // already applied server-side at creation time; the visual default
+  // on resume is a known, harmless cosmetic-only gap, not a fairness
+  // issue).
+  loadout?: { shapeKey: string | null };
 }
 
 interface SettleResult {
@@ -102,6 +111,12 @@ function PlayFlow() {
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState<ModeKey | null>(null);
   const [creatingLobby, setCreatingLobby] = useState<ModeKey | null>(null);
+  // Coin Rush Shop (Phase 1) — the mode a player tapped Play on, still
+  // waiting on the pre-match "which rocket do you want to use" screen.
+  // Only the solo instant-play flow (startMatch) offers this; "Play
+  // with Friends" doesn't yet consume a loadout server-side (lobby
+  // support is a later phase), so that button still starts directly.
+  const [pendingMode, setPendingMode] = useState<ModeKey | null>(null);
   const queryClient = useQueryClient();
   const { address } = useAccount();
   const { session } = useAuth();
@@ -134,7 +149,7 @@ function PlayFlow() {
   const promoModes = PROMO_MODES.filter((m) => modesByKey.has(m));
   const kolBonus = modesData?.kolBonus;
 
-  async function startMatch(mode: ModeKey) {
+  async function startMatch(mode: ModeKey, shapeItemId?: string | null) {
     const row = modesByKey.get(mode);
     setError(null);
     setStarting(mode);
@@ -142,13 +157,22 @@ function PlayFlow() {
       const res = await fetch("/api/matches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode }),
+        body: JSON.stringify({
+          mode,
+          // Only sent when a real shape was actually picked — an
+          // absent/empty loadout is exactly what "Default" on the
+          // pre-match screen means, no different from never having
+          // opened that screen at all (e.g. resumeMatch/quick-replay
+          // paths that skip it entirely).
+          ...(shapeItemId ? { loadout: { ROCKET_SHAPE: shapeItemId } } : {}),
+        }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? t("play.couldNotStartMatch"));
       const modeLabel = row?.label ?? (mode === "KOL_REFERRAL_BONUS" ? t("play.kolBonusCardLabel") : body.mode);
       setMatch({ ...body, modeLabel });
       setResult(null);
+      setPendingMode(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("play.couldNotStartMatch"));
     } finally {
@@ -228,6 +252,7 @@ function PlayFlow() {
             walletAddress={address}
             nickname={session?.nickname}
             mode={match.mode}
+            loadout={match.loadout}
           />
         </div>
       </div>
@@ -402,7 +427,7 @@ function PlayFlow() {
                   </div>
                 </div>
                 <button
-                  onClick={() => startMatch("KOL_REFERRAL_BONUS")}
+                  onClick={() => setPendingMode("KOL_REFERRAL_BONUS")}
                   disabled={starting !== null}
                   className="btn-game hud-corner mt-3 w-full rounded-full px-3 py-1.5 text-xs disabled:opacity-50"
                 >
@@ -417,7 +442,7 @@ function PlayFlow() {
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted">{t("play.freeSectionLabel")}</p>
               <div className="mt-2 flex flex-col gap-2">
                 {freeModes.map((mode) => (
-                  <ModeCard key={mode} row={modesByKey.get(mode)!} starting={starting} onSelect={startMatch} />
+                  <ModeCard key={mode} row={modesByKey.get(mode)!} starting={starting} onSelect={setPendingMode} />
                 ))}
               </div>
             </section>
@@ -432,7 +457,7 @@ function PlayFlow() {
                     key={mode}
                     row={modesByKey.get(mode)!}
                     starting={starting}
-                    onSelect={startMatch}
+                    onSelect={setPendingMode}
                     recommended={mode === RECOMMENDED_MODE}
                     onPlayWithFriends={startFriendsLobby}
                     creatingLobby={creatingLobby}
@@ -447,7 +472,7 @@ function PlayFlow() {
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted">{t("play.promoSectionLabel")}</p>
               <div className="mt-2 flex flex-col gap-2">
                 {promoModes.map((mode) => (
-                  <ModeCard key={mode} row={modesByKey.get(mode)!} starting={starting} onSelect={startMatch} />
+                  <ModeCard key={mode} row={modesByKey.get(mode)!} starting={starting} onSelect={setPendingMode} />
                 ))}
               </div>
             </section>
@@ -456,6 +481,15 @@ function PlayFlow() {
       )}
 
       {error && <ErrorNotice message={error} onClose={() => setError(null)} />}
+
+      <LoadoutSelectModal
+        open={pendingMode !== null}
+        onCancel={() => setPendingMode(null)}
+        onStart={(shapeItemId) => {
+          if (pendingMode) void startMatch(pendingMode, shapeItemId);
+        }}
+        starting={starting !== null}
+      />
     </div>
   );
 }

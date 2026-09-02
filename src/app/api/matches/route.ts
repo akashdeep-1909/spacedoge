@@ -7,6 +7,7 @@ import { GameMode, BalanceType } from "@/generated/prisma/enums";
 import { getGameModeConfig, computeRoomEconomicsFromConfig, checkPromoEligibility } from "@/lib/gameModes";
 import { lockWalletForBalanceChange, getLedgerBalance } from "@/lib/balances";
 import { distributeEntryFeeToTreasuryAndReferrals, checkKolBonusEligibility } from "@/lib/referrals";
+import { consumeLoadoutSelections, type LoadoutSelectionInput } from "@/lib/shop";
 
 const bodySchema = z.object({
   mode: z.enum([
@@ -20,6 +21,13 @@ const bodySchema = z.object({
     "FORGE_CUP",
     "KOL_REFERRAL_BONUS",
   ]),
+  // Coin Rush Shop (Phase 1: ROCKET_SHAPE only) — category -> owned
+  // WalletShopItem id the player picked on the pre-match loadout
+  // screen. Optional; a missing/invalid/expired selection just means
+  // no cosmetic gets equipped (see consumeLoadoutSelections' own
+  // doc-comment for why this degrades gracefully instead of erroring
+  // the whole match-creation request).
+  loadout: z.record(z.string(), z.string()).optional(),
 });
 
 // POST /api/matches
@@ -180,7 +188,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return { kind: "created" as const, match: created };
+    // Resolved server-side, inside this same locked transaction —
+    // never trusts anything about the equipped item beyond its id;
+    // ownership/expiry/uses are all re-verified here. See
+    // consumeLoadoutSelections' own doc-comment in src/lib/shop.ts.
+    const loadout = await consumeLoadoutSelections(
+      tx,
+      walletProfile.id,
+      created.id,
+      parsed.data.loadout as LoadoutSelectionInput | undefined
+    );
+
+    return { kind: "created" as const, match: created, loadout };
   });
 
   if (outcome.kind === "insufficient") {
@@ -195,5 +214,6 @@ export async function POST(request: NextRequest) {
     entryFeeUsdt: econ.entryFeeUsdt,
     prizePoolUsdt: econ.prizePoolUsdt,
     players: econ.players,
+    loadout: outcome.loadout,
   });
 }

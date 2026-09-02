@@ -17,6 +17,7 @@ import {
   updateEngineSound,
   stopEngineSound,
 } from "@/lib/gameSound";
+import { ROCKET_SHAPE_GEOMETRY, type RocketShapeKey } from "@/lib/shop-shared";
 
 // Coin Rush Arena — visuals ported from the "Orbital Extraction" 4-player
 // prototype (rockets, USDT coins, a bank vault that cycles open/closed,
@@ -81,6 +82,12 @@ interface ShipEntity {
   // under), or null for "you" and for true local bots.
   externallyDriven: boolean;
   oppSlot: number | null;
+  // Coin Rush Shop (Phase 1: ROCKET_SHAPE) — null for every bot/
+  // opponent ship and for "you" with nothing equipped, which both
+  // render as the original VOYAGER silhouette. Purely cosmetic — see
+  // drawRocket's own doc-comment for the fairness constraint this is
+  // built to respect (collision radius never varies by shape).
+  shapeKey: string | null;
 }
 
 const ITEM_STYLES: Record<ItemEntity["kind"], { r: number; value: number; rare: boolean; glyph: string }> = {
@@ -279,6 +286,7 @@ export function CoinRushArena({
   matchId,
   spectate = false,
   liveOpponents,
+  loadout,
 }: {
   mapSeed: string;
   durationSec: number;
@@ -318,6 +326,14 @@ export function CoinRushArena({
   // Polled snapshot (see useLiveMatchState), keyed by the real
   // opponent's slotNumber — only read while spectate is true.
   liveOpponents?: Record<number, LiveShipSample>;
+  // Coin Rush Shop (Phase 1: ROCKET_SHAPE only) — resolved SERVER-SIDE
+  // by POST /api/matches (echoed straight back in its own response,
+  // see src/lib/shop.ts consumeLoadoutSelections' ResolvedLoadout) and
+  // passed through unchanged; this component never re-derives or
+  // trusts a client-side guess about what's equipped. Purely cosmetic
+  // in this phase — see drawRocket's own doc-comment for the fairness
+  // constraint (collision radius never varies by shape).
+  loadout?: { shapeKey: string | null };
 }) {
   const { t } = useLocale();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -500,6 +516,7 @@ export function CoinRushArena({
         lives: diff.startLives, carry: 0, banked: 0, active: !spectate, invuln: 0, knockback: 0,
         speed: 150 * diff.playerSpeedMult * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
         externallyDriven: false, oppSlot: null,
+        shapeKey: loadout?.shapeKey ?? null,
       },
       ...botNames.map((name, i) => {
         const opp = opponents?.[i];
@@ -515,6 +532,7 @@ export function CoinRushArena({
           lives: diff.startLives, carry: 0, banked: 0, active: true, invuln: 0, knockback: 0,
           speed: (95 + rand() * 20) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
           externallyDriven, oppSlot: externallyDriven ? opp!.slotNumber : null,
+          shapeKey: null,
         };
       }),
     ];
@@ -1257,7 +1275,17 @@ export function CoinRushArena({
       }
       ctx!.closePath();
     }
-    function drawRocket(x: number, y: number, angle: number, color: string, r: number) {
+    // shapeKey selects a purely cosmetic silhouette variant (Coin Rush
+    // Shop, ROCKET_SHAPE items) — the geometry factors below scale
+    // individual path coordinates (nose length, wing spread/length,
+    // body width, flame length), but `r` (and therefore `scale`) is
+    // untouched by shape choice: collision radius stays byte-identical
+    // across every shape, so a cosmetic purchase can never be a
+    // disguised pay-to-win hitbox change. Bots and any "you" ship with
+    // no shape equipped fall through to VOYAGER, the original,
+    // unchanged-since-before-this-feature silhouette.
+    function drawRocket(x: number, y: number, angle: number, color: string, r: number, shapeKey?: string | null) {
+      const geo = ROCKET_SHAPE_GEOMETRY[(shapeKey as RocketShapeKey) ?? "VOYAGER"] ?? ROCKET_SHAPE_GEOMETRY.VOYAGER;
       const scale = r / (11.5 * DPR);
       ctx!.save();
       ctx!.translate(x, y);
@@ -1269,7 +1297,7 @@ export function CoinRushArena({
       // ship, and burning through the seeded stream that fast would
       // desync item/hazard respawn positions from the fairness-critical
       // map seed (doc 5.3 — every competitor must see the same layout).
-      const flameLen = (12 + 8 + Math.random() * 8) * scale * DPR;
+      const flameLen = (12 + 8 + Math.random() * 8) * geo.flameLenMult * scale * DPR;
       const fg = ctx!.createLinearGradient(-12 * scale * DPR, 0, -flameLen, 0);
       fg.addColorStop(0, "rgba(244,193,93,0)");
       fg.addColorStop(0.45, "rgba(244,193,93,.95)");
@@ -1283,35 +1311,36 @@ export function CoinRushArena({
       ctx!.fill();
       ctx!.fillStyle = "#aeb8c5";
       ctx!.beginPath();
-      ctx!.moveTo(-7 * scale * DPR, -5 * scale * DPR);
-      ctx!.lineTo(-14 * scale * DPR, -10 * scale * DPR);
-      ctx!.lineTo(-11 * scale * DPR, -2 * scale * DPR);
+      ctx!.moveTo(-7 * scale * DPR, -5 * geo.bodyWidth * scale * DPR);
+      ctx!.lineTo(-14 * geo.wingLen * scale * DPR, -10 * geo.wingSpread * scale * DPR);
+      ctx!.lineTo(-11 * scale * DPR, -2 * geo.bodyWidth * scale * DPR);
       ctx!.closePath();
       ctx!.fill();
       ctx!.beginPath();
-      ctx!.moveTo(-7 * scale * DPR, 5 * scale * DPR);
-      ctx!.lineTo(-14 * scale * DPR, 10 * scale * DPR);
-      ctx!.lineTo(-11 * scale * DPR, 2 * scale * DPR);
+      ctx!.moveTo(-7 * scale * DPR, 5 * geo.bodyWidth * scale * DPR);
+      ctx!.lineTo(-14 * geo.wingLen * scale * DPR, 10 * geo.wingSpread * scale * DPR);
+      ctx!.lineTo(-11 * scale * DPR, 2 * geo.bodyWidth * scale * DPR);
       ctx!.closePath();
       ctx!.fill();
-      const body = ctx!.createLinearGradient(0, -8 * scale * DPR, 0, 8 * scale * DPR);
+      const body = ctx!.createLinearGradient(0, -8 * geo.bodyWidth * scale * DPR, 0, 8 * geo.bodyWidth * scale * DPR);
       body.addColorStop(0, "#ffffff");
       body.addColorStop(0.45, "#d8e1eb");
       body.addColorStop(1, "#7f8b99");
       ctx!.fillStyle = body;
+      const noseX = 15 * geo.noseLen * scale * DPR;
       ctx!.beginPath();
-      ctx!.moveTo(15 * scale * DPR, 0);
-      ctx!.quadraticCurveTo(6 * scale * DPR, -8 * scale * DPR, -9 * scale * DPR, -6 * scale * DPR);
+      ctx!.moveTo(noseX, 0);
+      ctx!.quadraticCurveTo(6 * scale * DPR, -8 * geo.bodyWidth * scale * DPR, -9 * scale * DPR, -6 * geo.bodyWidth * scale * DPR);
       ctx!.lineTo(-12 * scale * DPR, 0);
-      ctx!.lineTo(-9 * scale * DPR, 6 * scale * DPR);
-      ctx!.quadraticCurveTo(6 * scale * DPR, 8 * scale * DPR, 15 * scale * DPR, 0);
+      ctx!.lineTo(-9 * scale * DPR, 6 * geo.bodyWidth * scale * DPR);
+      ctx!.quadraticCurveTo(6 * scale * DPR, 8 * geo.bodyWidth * scale * DPR, noseX, 0);
       ctx!.closePath();
       ctx!.fill();
       ctx!.fillStyle = color;
       ctx!.beginPath();
-      ctx!.moveTo(15 * scale * DPR, 0);
-      ctx!.quadraticCurveTo(10 * scale * DPR, -4 * scale * DPR, 8 * scale * DPR, -5 * scale * DPR);
-      ctx!.quadraticCurveTo(12 * scale * DPR, -2 * scale * DPR, 15 * scale * DPR, 0);
+      ctx!.moveTo(noseX, 0);
+      ctx!.quadraticCurveTo(10 * scale * DPR, -4 * geo.bodyWidth * scale * DPR, 8 * scale * DPR, -5 * geo.bodyWidth * scale * DPR);
+      ctx!.quadraticCurveTo(12 * scale * DPR, -2 * geo.bodyWidth * scale * DPR, noseX, 0);
       ctx!.fill();
       ctx!.beginPath();
       ctx!.arc(4 * scale * DPR, 0, 2.7 * scale * DPR, 0, Math.PI * 2);
@@ -1501,7 +1530,7 @@ export function CoinRushArena({
           ctx!.fill();
           ctx!.restore();
         }
-        drawRocket(s.x, s.y, s.angle, s.color, s.r);
+        drawRocket(s.x, s.y, s.angle, s.color, s.r, s.shapeKey);
         ctx!.shadowBlur = 0;
         ctx!.fillStyle = s.color;
         ctx!.font = `700 ${8 * DPR}px Inter, Arial`;
@@ -1629,7 +1658,13 @@ export function CoinRushArena({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [mapSeed, durationSec, startElapsedSec, spawnItem, youName, diff, theme, opponents, matchId, spectate]);
+  // loadout?.shapeKey specifically (not the whole `loadout` object) —
+  // a parent that re-creates the loadout object on every render (even
+  // with identical content) must never re-trigger this whole effect,
+  // which tears down and rebuilds the entire match state; only an
+  // actual shape CHANGE should ever do that, and shapeKey is resolved
+  // once at match creation and never changes mid-match in practice.
+  }, [mapSeed, durationSec, startElapsedSec, spawnItem, youName, diff, theme, opponents, matchId, spectate, loadout?.shapeKey]);
 
   // Pre-match "3, 2, 1, Go" — purely a local visual pause layered in
   // front of the setup effect above; it never touches match timing.
