@@ -649,7 +649,24 @@ export function CoinRushArena({
         return false;
       }
       if (s.invuln > 0) return false;
+      // A true local bot (not you, not a spectated real opponent) —
+      // its actual reward score is always recomputed server-side from
+      // the deterministic seed (botScore/botScoreForSlot), completely
+      // decoupled from whatever happens to it in this local visual
+      // sim (see this component's own top doc-comment: "the settle
+      // route recomputes bot scores server-side... rather than
+      // trusting client-reported bot behavior"). A bot going fully
+      // inactive here — frozen mid-map for the rest of the match while
+      // its eventual results-screen score keeps climbing regardless —
+      // reads as broken/inconsistent, not competitive. Confirmed live
+      // as a real ask: bots should race the whole match, never die
+      // before the human does. Lives are clamped to never actually
+      // reach 0 for a bot (still takes the hit, knockback, invuln, and
+      // carry penalty below like anyone else — it just can't be
+      // permanently knocked out of the race).
+      const isLocalBot = !s.isYou && !s.externallyDriven;
       s.lives -= 1;
+      if (isLocalBot) s.lives = Math.max(1, s.lives);
       s.invuln = hitInvulnSec;
       if (s.isYou) {
         playHitSound();
@@ -869,10 +886,36 @@ export function CoinRushArena({
             for (const it of g.items) { const d = dist(s, it); if (d < bestD) { bestD = d; best = it; } }
             if (best) { tx = best.x; ty = best.y; }
           }
+          // Bot hazard avoidance — confirmed live as a real gap: dashers
+          // (the fast-charging triangles) had NO avoidance term at all
+          // here, only hunters/mines, so a bot could get blindsided by a
+          // dash it never reacted to. Dashers get their own, larger-
+          // radius term (charging fast covers ground quickly, so a bot
+          // needs to start reacting well before one is actually close)
+          // plus an explicit lean AWAY from a still-aiming dasher's own
+          // telegraphed dash direction — the same aim-line the player
+          // themselves can see rendered (see the "aim" branch in draw()),
+          // so a bot dodging it "blind" would be less alert than a
+          // player who can just look at the warning line. Weight bumped
+          // from 1.6 to 2.2 overall — bots should treat NOT dying as a
+          // higher priority than beelining for the very next coin.
           let avoidX = 0, avoidY = 0;
           for (const h of g.hunters) { const dx = s.x - h.x, dy = s.y - h.y, d = Math.hypot(dx, dy) || 1; if (d < 100 * DPR) { avoidX += (dx / d) * (100 * DPR - d); avoidY += (dy / d) * (100 * DPR - d); } }
           for (const m of g.mines) { const dx = s.x - m.x, dy = s.y - m.y, d = Math.hypot(dx, dy) || 1; if (d < 75 * DPR) { avoidX += (dx / d) * (75 * DPR - d); avoidY += (dy / d) * (75 * DPR - d); } }
-          const dx = (tx - s.x) + avoidX * 1.6, dy = (ty - s.y) + avoidY * 1.6;
+          for (const dsh of g.dashers) {
+            const ddx = s.x - dsh.x, ddy = s.y - dsh.y, dd = Math.hypot(ddx, ddy) || 1;
+            if (dd < 130 * DPR) { avoidX += (ddx / dd) * (130 * DPR - dd); avoidY += (ddy / dd) * (130 * DPR - dd); }
+            // Already aiming at someone and about to charge — lean away
+            // from that telegraphed line specifically, not just the
+            // dasher's current position, since by the time it actually
+            // dashes it'll have covered real ground along that exact
+            // direction.
+            if (dsh.state === "aim" && dd < 220 * DPR) {
+              avoidX += -dsh.dirX * (220 * DPR - dd) * 0.5;
+              avoidY += -dsh.dirY * (220 * DPR - dd) * 0.5;
+            }
+          }
+          const dx = (tx - s.x) + avoidX * 2.2, dy = (ty - s.y) + avoidY * 2.2;
           const d = Math.hypot(dx, dy) || 1;
           ax = dx / d; ay = dy / d;
           const mag = Math.hypot(ax, ay) || 1;
