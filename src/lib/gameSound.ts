@@ -118,38 +118,63 @@ export function playShieldBlockSound() {
 // PERSISTENT nodes, not one-shot tone()s — pitch/volume/tone are ramped
 // every frame (see updateEngineSound) as the human ship's own speed
 // changes, so it reads as "the rocket accelerating," not a static drone.
-// A single oscillator through a lowpass filter (the first version of
-// this) read thin and buzzy — confirmed live ("the rocket run sound is
-// not really good"). Rebuilt as two layers blended under one master
-// gain, the same basic recipe real engine/rocket SFX are built from:
-//   1. A filtered noise "rumble" (brown noise — a leaky integrator over
-//      white noise, smoother/deeper than raw hiss — through a bandpass
-//      filter whose center frequency rises with speed) for the actual
-//      thrust roar.
-//   2. Two detuned sawtooth oscillators through their own lowpass filter
-//      for a thicker tonal "growl" underneath the rumble — the slight
-//      detuning is what keeps it from sounding like a single flat
-//      oscillator beeping, the same reason a real synth patch layers
-//      multiple slightly-mistuned oscillators for width.
+// Went through two earlier passes (a single oscillator+filter, then a
+// two-layer noise+detuned-saws version) that both still read as too
+// thin/synthetic — confirmed live twice ("not really good," "i want
+// really great sound like real games"). Rebuilt as the fuller layer
+// stack real engine/thruster SFX are actually built from:
+//   1. SUB — a low sine, the felt "power" more than a heard tone.
+//   2. RUMBLE — bandpass-filtered brown noise (a leaky integrator over
+//      white noise, smoother/deeper than raw hiss), the main body of
+//      the roar, filter sweeping upward with speed.
+//   3. HISS — highpass-filtered WHITE noise (genuinely high-frequency,
+//      unlike the brown noise above) for the airy exhaust turbulence a
+//      real thruster has and the previous two passes were missing
+//      entirely — this is the layer that makes it sound like moving
+//      air, not just an engine drone.
+//   4. GROWL — two detuned sawtooths through a lowpass filter AND a
+//      soft-clip waveshaper (real distortion, not just a filter) for
+//      actual harmonic grit — a clean sawtooth reads as a synth beep no
+//      matter how it's filtered; distorting it is what makes it sound
+//      like a mechanical engine note instead.
+// Two finishing touches tie the layers together instead of four
+// separate loops playing at once:
+//   - A slow tremolo LFO on the whole mix (~5.5Hz, subtle depth) for
+//     the "not perfectly steady" flutter a real combustion engine has
+//     — a dead-flat sustained level is what reads as synthetic/looped.
+//   - A slow stereo-pan LFO on the hiss layer specifically for a
+//     little width/movement instead of a flat mono line.
 // Lazily created on first call (same gesture-gated getCtx() as every
 // other sound here); explicitly torn down by stopEngineSound(), which
 // the arena calls both when a run actually ends (finish()) and when the
 // component unmounts — left unstopped, this would otherwise keep
 // rumbling in the background after the player has already left the page.
 let engineMasterGain: GainNode | null = null;
-let engineNoiseSource: AudioBufferSourceNode | null = null;
-let engineNoiseFilter: BiquadFilterNode | null = null;
-let engineNoiseGain: GainNode | null = null;
-let engineToneOsc1: OscillatorNode | null = null;
-let engineToneOsc2: OscillatorNode | null = null;
-let engineToneFilter: BiquadFilterNode | null = null;
-let engineToneGain: GainNode | null = null;
+let engineTremoloGain: GainNode | null = null;
+let engineTremoloLfo: OscillatorNode | null = null;
+let engineTremoloLfoGain: GainNode | null = null;
+let engineSubOsc: OscillatorNode | null = null;
+let engineSubGain: GainNode | null = null;
+let engineRumbleSource: AudioBufferSourceNode | null = null;
+let engineRumbleFilter: BiquadFilterNode | null = null;
+let engineRumbleGain: GainNode | null = null;
+let engineHissSource: AudioBufferSourceNode | null = null;
+let engineHissFilter: BiquadFilterNode | null = null;
+let engineHissGain: GainNode | null = null;
+let engineHissPanner: StereoPannerNode | null = null;
+let enginePanLfo: OscillatorNode | null = null;
+let enginePanLfoGain: GainNode | null = null;
+let engineGrowlOsc1: OscillatorNode | null = null;
+let engineGrowlOsc2: OscillatorNode | null = null;
+let engineGrowlFilter: BiquadFilterNode | null = null;
+let engineGrowlShaper: WaveShaperNode | null = null;
+let engineGrowlGain: GainNode | null = null;
 
 // A few seconds of looping brown-ish noise (a leaky integrator over
 // white noise) — deeper and smoother than raw white noise, which reads
 // as harsh static rather than a rumble once run through a bandpass
-// filter.
-function createEngineNoiseBuffer(audio: AudioContext): AudioBuffer {
+// filter. Used for the RUMBLE layer.
+function createBrownNoiseBuffer(audio: AudioContext): AudioBuffer {
   const seconds = 2;
   const bufferSize = Math.max(1, Math.floor(audio.sampleRate * seconds));
   const buffer = audio.createBuffer(1, bufferSize, audio.sampleRate);
@@ -163,48 +188,133 @@ function createEngineNoiseBuffer(audio: AudioContext): AudioBuffer {
   return buffer;
 }
 
+// Plain looping white noise — deliberately NOT smoothed like the brown
+// buffer above, since the HISS layer specifically needs real high-
+// frequency content for a highpass filter to have something to pass.
+function createWhiteNoiseBuffer(audio: AudioContext): AudioBuffer {
+  const seconds = 2;
+  const bufferSize = Math.max(1, Math.floor(audio.sampleRate * seconds));
+  const buffer = audio.createBuffer(1, bufferSize, audio.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  return buffer;
+}
+
+// Soft-clip saturation curve — real distortion (adds odd harmonics),
+// not just a filter sweep, which is what actually turns a clean
+// sawtooth into something that reads as a gritty mechanical engine
+// note. Standard `(1+k)x / (1+k|x|)` soft-knee shape.
+function makeSoftClipCurve(amount: number): Float32Array {
+  const n = 8192;
+  const curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i * 2) / n - 1;
+    curve[i] = ((1 + amount) * x) / (1 + amount * Math.abs(x));
+  }
+  return curve;
+}
+
 export function updateEngineSound(speedFrac: number) {
   const audio = getCtx();
   if (!audio) return;
   const clamped = Math.max(0, Math.min(1, speedFrac));
 
-  if (!engineMasterGain || !engineNoiseSource || !engineToneOsc1 || !engineToneOsc2) {
+  if (!engineMasterGain) {
     engineMasterGain = audio.createGain();
     engineMasterGain.gain.value = 0;
+
+    // Tremolo — a subtle, always-on amplitude wobble across the WHOLE
+    // mix, applied once here rather than per-layer, so every layer
+    // flutters together instead of drifting out of phase with itself.
+    engineTremoloGain = audio.createGain();
+    engineTremoloGain.gain.value = 1;
+    engineTremoloLfo = audio.createOscillator();
+    engineTremoloLfo.type = "sine";
+    engineTremoloLfo.frequency.value = 5.5;
+    engineTremoloLfoGain = audio.createGain();
+    engineTremoloLfoGain.gain.value = 0.06; // depth — oscillates the gain param by +/-0.06 around 1
+    engineTremoloLfo.connect(engineTremoloLfoGain);
+    engineTremoloLfoGain.connect(engineTremoloGain.gain);
+    engineTremoloLfo.start();
+    engineTremoloGain.connect(engineMasterGain);
     engineMasterGain.connect(audio.destination);
 
-    engineNoiseSource = audio.createBufferSource();
-    engineNoiseSource.buffer = createEngineNoiseBuffer(audio);
-    engineNoiseSource.loop = true;
-    engineNoiseFilter = audio.createBiquadFilter();
-    engineNoiseFilter.type = "bandpass";
-    engineNoiseFilter.frequency.value = 90;
-    engineNoiseFilter.Q.value = 0.7;
-    engineNoiseGain = audio.createGain();
-    engineNoiseGain.gain.value = 0;
-    engineNoiseSource.connect(engineNoiseFilter);
-    engineNoiseFilter.connect(engineNoiseGain);
-    engineNoiseGain.connect(engineMasterGain);
-    engineNoiseSource.start();
+    // SUB — felt more than heard.
+    engineSubOsc = audio.createOscillator();
+    engineSubOsc.type = "sine";
+    engineSubOsc.frequency.value = 42;
+    engineSubGain = audio.createGain();
+    engineSubGain.gain.value = 0;
+    engineSubOsc.connect(engineSubGain);
+    engineSubGain.connect(engineTremoloGain);
+    engineSubOsc.start();
 
-    engineToneOsc1 = audio.createOscillator();
-    engineToneOsc1.type = "sawtooth";
-    engineToneOsc1.frequency.value = 48;
-    engineToneOsc2 = audio.createOscillator();
-    engineToneOsc2.type = "sawtooth";
-    engineToneOsc2.frequency.value = 48;
-    engineToneOsc2.detune.value = 9; // slight beating — width, not a flat single-oscillator beep
-    engineToneFilter = audio.createBiquadFilter();
-    engineToneFilter.type = "lowpass";
-    engineToneFilter.frequency.value = 220;
-    engineToneGain = audio.createGain();
-    engineToneGain.gain.value = 0;
-    engineToneOsc1.connect(engineToneFilter);
-    engineToneOsc2.connect(engineToneFilter);
-    engineToneFilter.connect(engineToneGain);
-    engineToneGain.connect(engineMasterGain);
-    engineToneOsc1.start();
-    engineToneOsc2.start();
+    // RUMBLE — the main body of the roar.
+    engineRumbleSource = audio.createBufferSource();
+    engineRumbleSource.buffer = createBrownNoiseBuffer(audio);
+    engineRumbleSource.loop = true;
+    engineRumbleFilter = audio.createBiquadFilter();
+    engineRumbleFilter.type = "bandpass";
+    engineRumbleFilter.frequency.value = 90;
+    engineRumbleFilter.Q.value = 0.7;
+    engineRumbleGain = audio.createGain();
+    engineRumbleGain.gain.value = 0;
+    engineRumbleSource.connect(engineRumbleFilter);
+    engineRumbleFilter.connect(engineRumbleGain);
+    engineRumbleGain.connect(engineTremoloGain);
+    engineRumbleSource.start();
+
+    // HISS — the exhaust/turbulence texture the earlier passes lacked.
+    engineHissSource = audio.createBufferSource();
+    engineHissSource.buffer = createWhiteNoiseBuffer(audio);
+    engineHissSource.loop = true;
+    engineHissFilter = audio.createBiquadFilter();
+    engineHissFilter.type = "highpass";
+    engineHissFilter.frequency.value = 2200;
+    engineHissGain = audio.createGain();
+    engineHissGain.gain.value = 0;
+    engineHissPanner = audio.createStereoPanner();
+    enginePanLfo = audio.createOscillator();
+    enginePanLfo.type = "sine";
+    enginePanLfo.frequency.value = 0.35;
+    enginePanLfoGain = audio.createGain();
+    enginePanLfoGain.gain.value = 0.25;
+    enginePanLfo.connect(enginePanLfoGain);
+    enginePanLfoGain.connect(engineHissPanner.pan);
+    enginePanLfo.start();
+    engineHissSource.connect(engineHissFilter);
+    engineHissFilter.connect(engineHissGain);
+    engineHissGain.connect(engineHissPanner);
+    engineHissPanner.connect(engineTremoloGain);
+    engineHissSource.start();
+
+    // GROWL — gritty tonal layer (distorted, not just filtered).
+    engineGrowlOsc1 = audio.createOscillator();
+    engineGrowlOsc1.type = "sawtooth";
+    engineGrowlOsc1.frequency.value = 48;
+    engineGrowlOsc2 = audio.createOscillator();
+    engineGrowlOsc2.type = "sawtooth";
+    engineGrowlOsc2.frequency.value = 48;
+    engineGrowlOsc2.detune.value = 9; // slight beating — width, not a flat single-oscillator beep
+    engineGrowlFilter = audio.createBiquadFilter();
+    engineGrowlFilter.type = "lowpass";
+    engineGrowlFilter.frequency.value = 220;
+    engineGrowlShaper = audio.createWaveShaper();
+    // WaveShaperNode.curve's DOM typing wants Float32Array<ArrayBuffer>
+    // specifically; `new Float32Array(n)` types as the more general
+    // Float32Array<ArrayBufferLike> in current TS DOM lib typings, even
+    // though it's really backed by a plain ArrayBuffer at runtime.
+    engineGrowlShaper.curve = makeSoftClipCurve(6) as Float32Array<ArrayBuffer>;
+    engineGrowlShaper.oversample = "2x";
+    engineGrowlGain = audio.createGain();
+    engineGrowlGain.gain.value = 0;
+    engineGrowlOsc1.connect(engineGrowlFilter);
+    engineGrowlOsc2.connect(engineGrowlFilter);
+    engineGrowlFilter.connect(engineGrowlShaper);
+    engineGrowlShaper.connect(engineGrowlGain);
+    engineGrowlGain.connect(engineTremoloGain);
+    engineGrowlOsc1.start();
+    engineGrowlOsc2.start();
   }
 
   // Local non-null aliases — the module-level `let`s above are
@@ -213,45 +323,77 @@ export function updateEngineSound(speedFrac: number) {
   // would be; the lazy-init block just above guarantees all of these
   // are set by this point in the same call.
   const master = engineMasterGain;
-  const noiseFilter = engineNoiseFilter!;
-  const noiseGain = engineNoiseGain!;
-  const toneOsc1 = engineToneOsc1;
-  const toneOsc2 = engineToneOsc2;
-  const toneFilter = engineToneFilter!;
-  const toneGain = engineToneGain!;
+  const subOsc = engineSubOsc!;
+  const subGain = engineSubGain!;
+  const rumbleFilter = engineRumbleFilter!;
+  const rumbleGain = engineRumbleGain!;
+  const hissFilter = engineHissFilter!;
+  const hissGain = engineHissGain!;
+  const growlOsc1 = engineGrowlOsc1!;
+  const growlOsc2 = engineGrowlOsc2!;
+  const growlFilter = engineGrowlFilter!;
+  const growlGain = engineGrowlGain!;
 
   const now = audio.currentTime;
   const idle = clamped <= 0.02;
   // A faint idle presence even at a standstill (barely audible) so the
   // engine reads as "always running," rising clearly once the ship
   // actually starts moving and climbing further under Boost.
-  master.gain.setTargetAtTime(idle ? 0.05 : 0.09 + clamped * 0.16, now, 0.15);
-  noiseFilter.frequency.setTargetAtTime(90 + clamped * 260, now, 0.12);
-  noiseGain.gain.setTargetAtTime(idle ? 0.25 : 0.4 + clamped * 0.35, now, 0.15);
-  const toneFreq = 48 + clamped * 95;
+  master.gain.setTargetAtTime(idle ? 0.055 : 0.1 + clamped * 0.2, now, 0.15);
+
+  subOsc.frequency.setTargetAtTime(42 + clamped * 20, now, 0.15);
+  subGain.gain.setTargetAtTime(idle ? 0.35 : 0.55 + clamped * 0.35, now, 0.15);
+
+  rumbleFilter.frequency.setTargetAtTime(90 + clamped * 260, now, 0.12);
+  rumbleGain.gain.setTargetAtTime(idle ? 0.22 : 0.35 + clamped * 0.3, now, 0.15);
+
+  // Hiss is the layer most tied to "moving fast" specifically — near
+  // silent at idle, climbing the most sharply of any layer with speed.
+  hissFilter.frequency.setTargetAtTime(2600 - clamped * 900, now, 0.15);
+  hissGain.gain.setTargetAtTime(idle ? 0.02 : 0.05 + clamped * 0.22, now, 0.18);
+
+  const growlFreq = 48 + clamped * 95;
   // setTargetAtTime (exponential approach), not setValueAtTime — a hard
   // jump every frame is exactly what produces the clicking/zipper noise
   // this smooths away.
-  toneOsc1.frequency.setTargetAtTime(toneFreq, now, 0.08);
-  toneOsc2.frequency.setTargetAtTime(toneFreq, now, 0.08);
-  toneFilter.frequency.setTargetAtTime(220 + clamped * 700, now, 0.1);
-  toneGain.gain.setTargetAtTime(idle ? 0.12 : 0.25 + clamped * 0.3, now, 0.12);
+  growlOsc1.frequency.setTargetAtTime(growlFreq, now, 0.08);
+  growlOsc2.frequency.setTargetAtTime(growlFreq, now, 0.08);
+  growlFilter.frequency.setTargetAtTime(220 + clamped * 700, now, 0.1);
+  growlGain.gain.setTargetAtTime(idle ? 0.1 : 0.22 + clamped * 0.28, now, 0.12);
 }
 
 export function stopEngineSound() {
   const audio = getCtx();
   const master = engineMasterGain;
-  const stoppable = [engineNoiseSource, engineToneOsc1, engineToneOsc2].filter(
-    (n): n is AudioBufferSourceNode | OscillatorNode => n !== null
-  );
+  const stoppable = [
+    engineTremoloLfo,
+    engineSubOsc,
+    engineRumbleSource,
+    engineHissSource,
+    enginePanLfo,
+    engineGrowlOsc1,
+    engineGrowlOsc2,
+  ].filter((n): n is AudioBufferSourceNode | OscillatorNode => n !== null);
   engineMasterGain = null;
-  engineNoiseSource = null;
-  engineNoiseFilter = null;
-  engineNoiseGain = null;
-  engineToneOsc1 = null;
-  engineToneOsc2 = null;
-  engineToneFilter = null;
-  engineToneGain = null;
+  engineTremoloGain = null;
+  engineTremoloLfo = null;
+  engineTremoloLfoGain = null;
+  engineSubOsc = null;
+  engineSubGain = null;
+  engineRumbleSource = null;
+  engineRumbleFilter = null;
+  engineRumbleGain = null;
+  engineHissSource = null;
+  engineHissFilter = null;
+  engineHissGain = null;
+  engineHissPanner = null;
+  enginePanLfo = null;
+  enginePanLfoGain = null;
+  engineGrowlOsc1 = null;
+  engineGrowlOsc2 = null;
+  engineGrowlFilter = null;
+  engineGrowlShaper = null;
+  engineGrowlGain = null;
   if (!master) return;
   if (audio) master.gain.setTargetAtTime(0, audio.currentTime, 0.05);
   // Actual node teardown on a short delay so the fade-out above isn't
