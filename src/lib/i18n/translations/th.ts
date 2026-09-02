@@ -1678,6 +1678,8 @@ const th = {
     priceLabel: "ราคา",
     sourceLabel: "ชำระด้วย",
     purchaseSuccessTitle: "ซื้อไอเทมสำเร็จ!",
+    closedTitle: "ร้านค้าปิดอยู่",
+    closedBody: "ร้านค้าไม่พร้อมใช้งานชั่วคราว ไอเทมที่คุณมีอยู่แล้วยังใช้งานในเกมได้ตามปกติ",
     backToPlayButton: "กลับไปเล่น",
     loadoutModalTitle: "เลือกจรวดของคุณ",
     loadoutModalSubtitle: "เลือกสกินจรวดสำหรับแมตช์นี้ — เป็นแค่ความสวยงาม ไม่มีผลต่อการเล่น",

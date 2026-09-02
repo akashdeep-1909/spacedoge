@@ -1678,6 +1678,8 @@ const fil = {
     priceLabel: "Presyo",
     sourceLabel: "Bayaran gamit ang",
     purchaseSuccessTitle: "Nabili ang Item!",
+    closedTitle: "Sarado ang Shop",
+    closedBody: "Pansamantalang hindi available ang shop. Gumagana pa rin sa laro ang mga item na nasa iyo na.",
     backToPlayButton: "Bumalik sa Play",
     loadoutModalTitle: "Piliin ang Iyong Rocket",
     loadoutModalSubtitle: "Pumili ng skin ng rocket para sa larong ito — cosmetic lang, walang epekto sa gameplay.",

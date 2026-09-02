@@ -1488,6 +1488,7 @@ export interface PublicSettings {
   };
   withdrawChains: PublicWithdrawChain[];
   androidApk: { versionLabel: string | null; fileSizeBytes: number } | null;
+  shopEnabled: boolean;
 }
 
 export function usePublicSettings() {
@@ -1519,6 +1520,7 @@ export interface AdminPlatformSettings {
   weeklyLeaderboardEnabled: boolean;
   weeklyLeaderboardPoolUsdt: number | null;
   docsMenuEnabled: boolean;
+  shopEnabled: boolean;
   updatedAt: string;
   updatedByAddress: string | null;
   defaults: { minUsdtWithdrawal: number; minDogeWithdrawal: number };
@@ -2504,7 +2506,7 @@ export interface ShopCatalogItem {
 export function useShopCatalog() {
   return useQuery({
     queryKey: ["shop", "catalog"],
-    queryFn: async (): Promise<{ items: ShopCatalogItem[] }> => {
+    queryFn: async (): Promise<{ items: ShopCatalogItem[]; shopEnabled: boolean }> => {
       const res = await fetch("/api/shop/catalog");
       if (!res.ok) throw new Error("Failed to load the shop catalog");
       return res.json();
@@ -2646,6 +2648,34 @@ export function useUpdateAdminShopItem() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Failed to update shop item");
+      return body;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "shop"] }),
+  });
+}
+
+// Phase 1 scope only — category is always ROCKET_SHAPE server-side
+// (see /api/admin/shop's own POST doc-comment), shapeKey picks one of
+// the 3 actually-coded geometries.
+export function useCreateAdminShopItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      shapeKey: "VOYAGER" | "INTERCEPTOR" | "CRUISER";
+      label: string;
+      description: string;
+      priceUsdt: number;
+      entitlementType: "USES" | "TIME_WINDOW";
+      usesGranted?: number | null;
+      termDays?: number | null;
+    }) => {
+      const res = await fetch("/api/admin/shop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to create shop item");
       return body;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "shop"] }),

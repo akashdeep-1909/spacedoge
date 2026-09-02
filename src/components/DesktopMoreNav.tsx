@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
+import { usePublicSettings } from "@/lib/hooks";
 
 // The rest of the dashboard's page list, beyond DashboardChrome's own
 // small always-visible PRIMARY_NAV_LINKS — see that file's own
@@ -35,6 +36,12 @@ export function DesktopMoreNav() {
   const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
+  // Undefined-while-loading defaults to "shown" — usePublicSettings has
+  // a 60s staleTime and this is the common case (shop enabled), so
+  // defaulting to hidden would flash the item away then back in for
+  // every normal page load rather than only when actually disabled.
+  const { data: publicSettings } = usePublicSettings();
+  const moreLinks = MORE_LINKS.filter((l) => l.href !== "/dashboard/shop" || publicSettings?.shopEnabled !== false);
 
   const [lastPathname, setLastPathname] = useState(pathname);
   if (pathname !== lastPathname) {
@@ -59,7 +66,7 @@ export function DesktopMoreNav() {
     return () => window.removeEventListener("resize", place);
   }, [open]);
 
-  const isMoreActive = MORE_LINKS.some((l) => l.href === pathname);
+  const isMoreActive = moreLinks.some((l) => l.href === pathname);
 
   return (
     <>
@@ -84,7 +91,7 @@ export function DesktopMoreNav() {
             <div className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
             <div className="fixed z-50 w-56" style={{ top: anchor.top, left: anchor.left }}>
               <nav className="game-panel flex flex-col gap-1 rounded-2xl p-2 shadow-2xl">
-                {MORE_LINKS.map((l) => (
+                {moreLinks.map((l) => (
                   <Link
                     key={l.href}
                     href={l.href}

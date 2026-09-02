@@ -1186,6 +1186,8 @@ const en = {
     priceLabel: "Price",
     sourceLabel: "Pay with",
     purchaseSuccessTitle: "Item Purchased!",
+    closedTitle: "Shop Closed",
+    closedBody: "The shop is temporarily unavailable. Anything you already own still works in-game.",
     backToPlayButton: "Back to Play",
     loadoutModalTitle: "Choose Your Rocket",
     loadoutModalSubtitle: "Pick a rocket skin to fly this match — purely cosmetic, no effect on gameplay.",

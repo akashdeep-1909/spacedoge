@@ -1678,6 +1678,8 @@ const zhTW = {
     priceLabel: "價格",
     sourceLabel: "支付方式",
     purchaseSuccessTitle: "購買成功！",
+    closedTitle: "商店已關閉",
+    closedBody: "商店暫時無法使用。您已擁有的物品仍可在遊戲中使用。",
     backToPlayButton: "返回遊戲",
     loadoutModalTitle: "選擇您的火箭",
     loadoutModalSubtitle: "選擇本場比賽要使用的火箭造型 — 純粹外觀，不影響遊戲玩法。",

@@ -1168,6 +1168,17 @@ model PlatformSettings {
   // document's own `enabled` so the entire menu can be hidden in one
   // toggle without touching individual rows.
   docsMenuEnabled           Boolean   @default(false)
+  // Master switch for the whole Coin Rush Shop feature (src/lib/shop.ts)
+  // — ON by default since the feature is already live. Flipping this
+  // off hides the Shop nav link and storefront catalog and blocks new
+  // purchases (POST /api/shop/purchase), but deliberately does NOT
+  // touch anything already owned: GET /api/shop/inventory and the
+  // pre-match loadout picker keep working regardless, so a paying
+  // customer's cosmetics never get stranded by an admin closing the
+  // storefront. Per-item visibility still comes from each
+  // ShopItemConfig's own `enabled` — this is the "close the whole shop"
+  // switch, not a replacement for that.
+  shopEnabled               Boolean   @default(true)
   updatedAt                 DateTime  @updatedAt
   updatedByAddress          String? // lowercased EVM address of the admin who last saved
 }

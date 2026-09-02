@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ShoppingBag, Check } from "lucide-react";
+import { ShoppingBag, Check, Lock } from "lucide-react";
 import { OnboardingGate } from "@/components/OnboardingGate";
 import { SuccessModal } from "@/components/SuccessModal";
 import { RocketPreview } from "@/components/game/RocketPreview";
@@ -160,6 +160,17 @@ function ShopContent() {
         <div className="mt-2">
           {catalogLoading ? (
             <p className="text-sm text-muted">…</p>
+          ) : catalog?.shopEnabled === false ? (
+            // Admin master switch is off (PlatformSettings.shopEnabled)
+            // — already-owned items above are untouched, only new
+            // purchases stop and the catalog itself hides.
+            <div className="game-panel hud-corner flex flex-col items-center gap-2 rounded-2xl border-line p-6 text-center">
+              <div className="grid h-11 w-11 place-items-center rounded-full bg-panel-2 text-muted">
+                <Lock size={20} />
+              </div>
+              <p className="font-bold">{t("shop.closedTitle")}</p>
+              <p className="text-xs text-muted">{t("shop.closedBody")}</p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {(catalog?.items ?? []).map((item) => (

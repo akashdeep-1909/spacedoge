@@ -1678,6 +1678,8 @@ const vi = {
     priceLabel: "Giá",
     sourceLabel: "Thanh toán bằng",
     purchaseSuccessTitle: "Đã mua vật phẩm!",
+    closedTitle: "Cửa Hàng Đã Đóng",
+    closedBody: "Cửa hàng tạm thời không khả dụng. Những gì bạn đã sở hữu vẫn dùng được trong game.",
     backToPlayButton: "Quay Lại Chơi",
     loadoutModalTitle: "Chọn Tên Lửa Của Bạn",
     loadoutModalSubtitle: "Chọn giao diện tên lửa cho trận này — chỉ là thẩm mỹ, không ảnh hưởng lối chơi.",

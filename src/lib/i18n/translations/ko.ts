@@ -1678,6 +1678,8 @@ const ko = {
     priceLabel: "가격",
     sourceLabel: "결제 수단",
     purchaseSuccessTitle: "아이템 구매 완료!",
+    closedTitle: "상점 닫힘",
+    closedBody: "상점을 일시적으로 이용할 수 없습니다. 이미 보유한 아이템은 게임에서 계속 사용할 수 있습니다.",
     backToPlayButton: "플레이로 돌아가기",
     loadoutModalTitle: "로켓 선택",
     loadoutModalSubtitle: "이번 매치에서 사용할 로켓 스킨을 선택하세요 — 외형만 바뀌며 게임플레이에는 영향이 없습니다.",

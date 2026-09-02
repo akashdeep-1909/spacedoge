@@ -1678,6 +1678,8 @@ const id = {
     priceLabel: "Harga",
     sourceLabel: "Bayar dengan",
     purchaseSuccessTitle: "Item Berhasil Dibeli!",
+    closedTitle: "Toko Ditutup",
+    closedBody: "Toko sementara tidak tersedia. Item yang sudah Anda miliki tetap berfungsi di game.",
     backToPlayButton: "Kembali ke Main",
     loadoutModalTitle: "Pilih Roket Anda",
     loadoutModalSubtitle: "Pilih skin roket untuk pertandingan ini — hanya kosmetik, tidak memengaruhi gameplay.",

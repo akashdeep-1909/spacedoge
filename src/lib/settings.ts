@@ -49,6 +49,7 @@ export async function updatePlatformSettings(
     androidApkFileSizeBytes?: number | null;
     androidApkUploadedAt?: Date | null;
     docsMenuEnabled?: boolean;
+    shopEnabled?: boolean;
   },
   updatedByAddress: string
 ) {
@@ -80,6 +81,17 @@ export async function getMinDogeWithdrawal(): Promise<number> {
   return settings.minDogeWithdrawal !== null && settings.minDogeWithdrawal !== undefined
     ? Number(settings.minDogeWithdrawal)
     : DEFAULT_MIN_DOGE_WITHDRAWAL;
+}
+
+// Master switch for the Coin Rush Shop storefront — see the schema
+// doc-comment on PlatformSettings.shopEnabled for exactly what this
+// does and doesn't gate. Called from GET /api/shop/catalog and POST
+// /api/shop/purchase (the two things this actually restricts); GET
+// /api/shop/inventory and match-loadout consumption deliberately never
+// call this.
+export async function getShopEnabled(): Promise<boolean> {
+  const settings = await getPlatformSettings();
+  return settings.shopEnabled;
 }
 
 // The weekly leaderboard only ever pays a real reward when BOTH are

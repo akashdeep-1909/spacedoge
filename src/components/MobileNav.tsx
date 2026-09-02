@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { useAuth } from "@/lib/auth-context";
+import { usePublicSettings } from "@/lib/hooks";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 const LINKS = [
@@ -60,6 +61,11 @@ const LINKS = [
 export function MobileNav() {
   const { t } = useLocale();
   const { session, signOut } = useAuth();
+  // Undefined-while-loading defaults to "shown" (the common case) —
+  // see DesktopMoreNav's own copy of this note for why that's the
+  // right default rather than hiding-then-flashing-in.
+  const { data: publicSettings } = usePublicSettings();
+  const links = LINKS.filter((l) => l.href !== "/dashboard/shop" || publicSettings?.shopEnabled !== false);
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<{ top: number; right: number; maxHeight: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -130,7 +136,7 @@ export function MobileNav() {
                 className="game-panel flex flex-col gap-1 overflow-y-auto rounded-2xl p-2 shadow-2xl"
                 style={{ maxHeight: anchor.maxHeight }}
               >
-                {LINKS.map((l) => (
+                {links.map((l) => (
                   <Link
                     key={l.href}
                     href={l.href}

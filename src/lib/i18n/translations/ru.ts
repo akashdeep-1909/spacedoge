@@ -1678,6 +1678,8 @@ const ru = {
     priceLabel: "Цена",
     sourceLabel: "Оплатить с",
     purchaseSuccessTitle: "Предмет куплен!",
+    closedTitle: "Магазин Закрыт",
+    closedBody: "Магазин временно недоступен. Всё, что вы уже приобрели, по-прежнему работает в игре.",
     backToPlayButton: "Назад к игре",
     loadoutModalTitle: "Выберите Ракету",
     loadoutModalSubtitle: "Выберите скин ракеты для этого матча — только внешний вид, без влияния на игровой процесс.",

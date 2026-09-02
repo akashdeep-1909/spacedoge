@@ -6,6 +6,7 @@ import { lockWalletForBalanceChange, getLedgerBalance } from "@/lib/balances";
 import { BalanceType } from "@/generated/prisma/enums";
 import { MINING_FUNDING_SOURCES } from "@/lib/mining-shared";
 import { getShopItemConfig, pickEffectFields } from "@/lib/shop";
+import { getShopEnabled } from "@/lib/settings";
 
 const bodySchema = z.object({
   shopItemConfigId: z.string().min(1),
@@ -26,6 +27,14 @@ const bodySchema = z.object({
 export async function POST(request: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+
+  // Authoritative — the client-side gate (hiding the storefront/nav
+  // link) is UX only. Deliberately checked before touching anything
+  // else so a disabled shop rejects fast, matching /api/docs' own
+  // "master toggle checked first" shape.
+  if (!(await getShopEnabled())) {
+    return NextResponse.json({ error: "The shop is currently unavailable." }, { status: 403 });
+  }
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
