@@ -1663,6 +1663,7 @@ const ko = {
     pageTitle: "로켓 상점",
     pageSubtitle: "Coin Rush용 로켓 스킨을 구매하세요 — 게임플레이에는 영향을 주지 않으며 외형만 바뀝니다.",
     myItemsTitle: "내 아이템",
+    walletsTitle: "내 지갑",
     catalogTitle: "구매 가능한 스킨",
     buyButton: "구매",
     buyingButton: "구매 중…",

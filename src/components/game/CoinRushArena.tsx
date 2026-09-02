@@ -17,7 +17,7 @@ import {
   updateEngineSound,
   stopEngineSound,
 } from "@/lib/gameSound";
-import { ROCKET_SHAPE_GEOMETRY, type RocketShapeKey } from "@/lib/shop-shared";
+import { drawRocketShip } from "@/lib/rocketShape";
 
 // Coin Rush Arena — visuals ported from the "Orbital Extraction" 4-player
 // prototype (rockets, USDT coins, a bank vault that cycles open/closed,
@@ -1285,71 +1285,11 @@ export function CoinRushArena({
     // no shape equipped fall through to VOYAGER, the original,
     // unchanged-since-before-this-feature silhouette.
     function drawRocket(x: number, y: number, angle: number, color: string, r: number, shapeKey?: string | null) {
-      const geo = ROCKET_SHAPE_GEOMETRY[(shapeKey as RocketShapeKey) ?? "VOYAGER"] ?? ROCKET_SHAPE_GEOMETRY.VOYAGER;
-      const scale = r / (11.5 * DPR);
-      ctx!.save();
-      ctx!.translate(x, y);
-      ctx!.rotate(angle);
-      ctx!.shadowBlur = 18 * DPR;
-      ctx!.shadowColor = color;
-      // Purely cosmetic per-frame flicker — deliberately Math.random(),
-      // not the seeded rand(): this runs every draw() call for every
-      // ship, and burning through the seeded stream that fast would
-      // desync item/hazard respawn positions from the fairness-critical
-      // map seed (doc 5.3 — every competitor must see the same layout).
-      const flameLen = (12 + 8 + Math.random() * 8) * geo.flameLenMult * scale * DPR;
-      const fg = ctx!.createLinearGradient(-12 * scale * DPR, 0, -flameLen, 0);
-      fg.addColorStop(0, "rgba(244,193,93,0)");
-      fg.addColorStop(0.45, "rgba(244,193,93,.95)");
-      fg.addColorStop(1, "rgba(137,199,255,.85)");
-      ctx!.fillStyle = fg;
-      ctx!.beginPath();
-      ctx!.moveTo(-12 * scale * DPR, -4 * scale * DPR);
-      ctx!.lineTo(-flameLen, 0);
-      ctx!.lineTo(-12 * scale * DPR, 4 * scale * DPR);
-      ctx!.closePath();
-      ctx!.fill();
-      ctx!.fillStyle = "#aeb8c5";
-      ctx!.beginPath();
-      ctx!.moveTo(-7 * scale * DPR, -5 * geo.bodyWidth * scale * DPR);
-      ctx!.lineTo(-14 * geo.wingLen * scale * DPR, -10 * geo.wingSpread * scale * DPR);
-      ctx!.lineTo(-11 * scale * DPR, -2 * geo.bodyWidth * scale * DPR);
-      ctx!.closePath();
-      ctx!.fill();
-      ctx!.beginPath();
-      ctx!.moveTo(-7 * scale * DPR, 5 * geo.bodyWidth * scale * DPR);
-      ctx!.lineTo(-14 * geo.wingLen * scale * DPR, 10 * geo.wingSpread * scale * DPR);
-      ctx!.lineTo(-11 * scale * DPR, 2 * geo.bodyWidth * scale * DPR);
-      ctx!.closePath();
-      ctx!.fill();
-      const body = ctx!.createLinearGradient(0, -8 * geo.bodyWidth * scale * DPR, 0, 8 * geo.bodyWidth * scale * DPR);
-      body.addColorStop(0, "#ffffff");
-      body.addColorStop(0.45, "#d8e1eb");
-      body.addColorStop(1, "#7f8b99");
-      ctx!.fillStyle = body;
-      const noseX = 15 * geo.noseLen * scale * DPR;
-      ctx!.beginPath();
-      ctx!.moveTo(noseX, 0);
-      ctx!.quadraticCurveTo(6 * scale * DPR, -8 * geo.bodyWidth * scale * DPR, -9 * scale * DPR, -6 * geo.bodyWidth * scale * DPR);
-      ctx!.lineTo(-12 * scale * DPR, 0);
-      ctx!.lineTo(-9 * scale * DPR, 6 * geo.bodyWidth * scale * DPR);
-      ctx!.quadraticCurveTo(6 * scale * DPR, 8 * geo.bodyWidth * scale * DPR, noseX, 0);
-      ctx!.closePath();
-      ctx!.fill();
-      ctx!.fillStyle = color;
-      ctx!.beginPath();
-      ctx!.moveTo(noseX, 0);
-      ctx!.quadraticCurveTo(10 * scale * DPR, -4 * geo.bodyWidth * scale * DPR, 8 * scale * DPR, -5 * geo.bodyWidth * scale * DPR);
-      ctx!.quadraticCurveTo(12 * scale * DPR, -2 * geo.bodyWidth * scale * DPR, noseX, 0);
-      ctx!.fill();
-      ctx!.beginPath();
-      ctx!.arc(4 * scale * DPR, 0, 2.7 * scale * DPR, 0, Math.PI * 2);
-      ctx!.fillStyle = color;
-      ctx!.fill();
-      ctx!.strokeStyle = "rgba(255,255,255,.9)";
-      ctx!.lineWidth = 1;
-      ctx!.stroke();
-      ctx!.restore();
+      // Path math lives in src/lib/rocketShape.ts now, shared verbatim
+      // with the Shop's live preview (RocketPreview.tsx) — see that
+      // module's own doc-comment for why: the shop must never visually
+      // drift from what actually renders in a real match.
+      drawRocketShip(ctx!, { x, y, angle, color, r, shapeKey, dpr: DPR });
     }
     function drawUsdtCoin(x: number, y: number, r: number, spin: number, isRare: boolean) {
       ctx!.save();

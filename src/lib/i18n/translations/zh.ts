@@ -1663,6 +1663,7 @@ const zh = {
     pageTitle: "火箭商店",
     pageSubtitle: "为 Coin Rush 购买火箭外观造型 — 不影响游戏玩法，只改变您的飞船外观。",
     myItemsTitle: "我的物品",
+    walletsTitle: "我的钱包",
     catalogTitle: "可购买造型",
     buyButton: "购买",
     buyingButton: "购买中…",

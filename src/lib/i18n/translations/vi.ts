@@ -1663,6 +1663,7 @@ const vi = {
     pageTitle: "Cửa Hàng Tên Lửa",
     pageSubtitle: "Mua giao diện tên lửa cho Coin Rush — không ảnh hưởng lối chơi, chỉ thay đổi hình dáng tàu của bạn.",
     myItemsTitle: "Vật Phẩm Của Tôi",
+    walletsTitle: "Ví Của Bạn",
     catalogTitle: "Giao Diện Có Sẵn",
     buyButton: "Mua",
     buyingButton: "Đang mua…",

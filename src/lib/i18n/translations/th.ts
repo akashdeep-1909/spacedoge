@@ -1663,6 +1663,7 @@ const th = {
     pageTitle: "ร้านค้าจรวด",
     pageSubtitle: "ซื้อสกินจรวดสำหรับ Coin Rush — ไม่มีผลต่อการเล่น เปลี่ยนแค่รูปลักษณ์ยานของคุณ",
     myItemsTitle: "ไอเทมของฉัน",
+    walletsTitle: "กระเป๋าเงินของคุณ",
     catalogTitle: "สกินที่มีจำหน่าย",
     buyButton: "ซื้อ",
     buyingButton: "กำลังซื้อ…",

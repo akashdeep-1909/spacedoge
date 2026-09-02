@@ -1663,6 +1663,7 @@ const fil = {
     pageTitle: "Rocket Shop",
     pageSubtitle: "Bumili ng cosmetic na skin para sa iyong rocket sa Coin Rush — walang epekto sa laro, itsura lang ng iyong barko.",
     myItemsTitle: "Mga Item Ko",
+    walletsTitle: "Ang Iyong mga Wallet",
     catalogTitle: "Mga Available na Skin",
     buyButton: "Bilhin",
     buyingButton: "Bumibili…",

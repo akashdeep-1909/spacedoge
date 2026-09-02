@@ -1171,6 +1171,7 @@ const en = {
     pageTitle: "Rocket Shop",
     pageSubtitle: "Buy cosmetic rocket skins for Coin Rush — no gameplay effect, just how your ship looks.",
     myItemsTitle: "My Items",
+    walletsTitle: "Your Wallets",
     catalogTitle: "Available Skins",
     buyButton: "Buy",
     buyingButton: "Buying…",

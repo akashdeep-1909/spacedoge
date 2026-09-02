@@ -1663,6 +1663,7 @@ const ru = {
     pageTitle: "Магазин Ракет",
     pageSubtitle: "Покупайте косметические скины ракет для Coin Rush — не влияют на игровой процесс, только внешний вид корабля.",
     myItemsTitle: "Мои Предметы",
+    walletsTitle: "Ваши Кошельки",
     catalogTitle: "Доступные Скины",
     buyButton: "Купить",
     buyingButton: "Покупка…",

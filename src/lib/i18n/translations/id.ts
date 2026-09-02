@@ -1663,6 +1663,7 @@ const id = {
     pageTitle: "Toko Roket",
     pageSubtitle: "Beli skin kosmetik roket untuk Coin Rush — tidak memengaruhi gameplay, hanya tampilan kapal Anda.",
     myItemsTitle: "Item Saya",
+    walletsTitle: "Dompet Anda",
     catalogTitle: "Skin yang Tersedia",
     buyButton: "Beli",
     buyingButton: "Membeli…",
