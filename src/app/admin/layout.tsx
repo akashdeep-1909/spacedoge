@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireAdminSession } from "@/lib/admin";
+import { AdminNav } from "./AdminNav";
 
 // Same real access-gate pattern as src/app/dashboard/layout.tsx: the
 // check runs server-side on every request, redirecting non-admins to
@@ -18,52 +19,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <span className="rounded-lg border border-risk/40 bg-risk-soft px-2 py-1 text-[10px] font-black uppercase tracking-widest text-risk">
               Admin
             </span>
-            <nav className="flex items-center gap-1 rounded-full border border-line bg-panel p-1 text-xs font-semibold">
-              <Link href="/admin" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
-                Overview
-              </Link>
-              <Link href="/admin/deposits" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
-                Deposits
-              </Link>
-              <Link href="/admin/users" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
-                Users
-              </Link>
-              <Link href="/admin/withdrawals" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
-                Withdrawals
-              </Link>
-              <Link href="/admin/transfers" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
-                Transfers
-              </Link>
-              <Link href="/admin/lobbies" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
-                Lobbies
-              </Link>
-              <Link href="/admin/mining" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
-                Mining
-              </Link>
-              <Link href="/admin/game-profit" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
-                Game Profit
-              </Link>
-              <Link href="/admin/mining-profit" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
-                Mining Profit
-              </Link>
-              <Link href="/admin/waitlist" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
-                Waitlist
-              </Link>
-              <Link href="/admin/reports" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
-                Reports
-              </Link>
-              <Link href="/admin/shop" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
-                Shop
-              </Link>
-              <Link href="/admin/kol-vip" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
-                KOL VIP
-              </Link>
-              <Link href="/admin/settings" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
-                Settings
-              </Link>
-            </nav>
+            <AdminNav />
           </div>
-          <Link href="/dashboard" className="text-xs text-muted hover:text-gold">
+          <Link href="/dashboard" className="shrink-0 whitespace-nowrap text-xs text-muted hover:text-gold">
             ← Back to app
           </Link>
         </div>
