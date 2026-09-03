@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminSession } from "@/lib/admin";
 import { db } from "@/lib/db";
+import { getAllKolVipTiers } from "@/lib/kolVip";
 
 // GET /api/admin/kol-vip/tiers — every KOL VIP tier, enabled or not.
+// Lazily seeds the official VIP1-VIP10 ladder on first read (see
+// src/lib/kolVip.ts's SEED_TIERS) so a fresh deploy already has the
+// full table instead of an empty one an admin has to hand-enter.
 export async function GET() {
   const session = await requireAdminSession();
   if (!session) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
-  const rows = await db.kolVipTier.findMany({ orderBy: [{ minDirectReferrals: "asc" }, { createdAt: "asc" }] });
+  const rows = await getAllKolVipTiers();
   return NextResponse.json({
     rows: rows.map((r) => ({
       id: r.id,
@@ -32,8 +36,8 @@ const createSchema = z.object({
   label: z.string().trim().min(1),
   minDirectReferrals: z.number().int().min(0),
   minIndirectReferrals: z.number().int().min(0),
-  // 0.01 = 1% — applied to both the USDT profit base and the hashrate
-  // base (see src/lib/kolVip.ts).
+  // 0.01 = 1% — the commission rate applied to downline revenue, then
+  // split 50/50 between USDT and mining hashrate (see src/lib/kolVip.ts).
   bonusPct: z.number().min(0).max(1),
 });
 
@@ -57,7 +61,7 @@ export async function POST(request: NextRequest) {
   }
   const body = parsed.data;
 
-  const sortOrder = await db.kolVipTier.count();
+  const sortOrder = (await getAllKolVipTiers()).length; // ensures the seed exists before counting, so a manual add never races the seed
   const created = await db.kolVipTier.create({
     data: {
       key: slugifyKey(body.label),

@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { BalanceType, MatchStatus } from "@/generated/prisma/enums";
 import { getKolVipEnabled } from "@/lib/settings";
-import { HASHRATE_TERM_DAYS, levelForHashrate } from "@/lib/mining-shared";
+import { HASHRATE_TERM_DAYS, HASHRATE_PER_USDT, levelForHashrate } from "@/lib/mining-shared";
 
 function round8(n: number): number {
   return Math.round(n * 1e8) / 1e8;
@@ -9,6 +9,12 @@ function round8(n: number): number {
 function round4(n: number): number {
   return Math.round(n * 1e4) / 1e4;
 }
+
+// A referred wallet counts as "qualified" for the monthly tally once it
+// plays this many paid matches that month AND has activated mining at
+// least once (lifetime — "started the launch mining," not necessarily
+// within that same month). Both conditions required.
+const MIN_QUALIFYING_MATCHES = 5;
 
 // ---------------------------------------------------------------------
 // Month bounds — same shape as src/lib/leaderboard.ts's currentWeekBounds/
@@ -67,36 +73,49 @@ async function buildDirectMap(): Promise<Map<string, string[]>> {
 }
 
 // ---------------------------------------------------------------------
-// "Qualified" = played >=1 paid (non-Practice) match that month. One
-// query for the whole platform, reused for every candidate KOL in the
-// batch — same "compute once, reuse per KOL" reasoning as the profit/
-// hashrate maps below, since re-querying per KOL would be N times the
-// same underlying match data.
+// "Qualified" = played >= MIN_QUALIFYING_MATCHES paid (non-Practice)
+// matches that month AND has ever activated mining. One pass for the
+// whole platform, reused for every candidate KOL in the batch — same
+// "compute once, reuse per KOL" reasoning as the profit map below,
+// since re-querying per KOL would be N times the same underlying data.
 // ---------------------------------------------------------------------
 
-async function loadActiveWalletIds(monthStart: Date, monthEnd: Date): Promise<Set<string>> {
-  const rows = await db.matchParticipant.findMany({
+async function loadQualifiedWalletIds(monthStart: Date, monthEnd: Date): Promise<Set<string>> {
+  const counts = await db.matchParticipant.groupBy({
+    by: ["walletProfileId"],
     where: {
       isBot: false,
       walletProfile: { isDemo: false },
       match: { entryFeeUsdt: { gt: 0 }, createdAt: { gte: monthStart, lt: monthEnd } },
     },
+    _count: { _all: true },
+  });
+  const playedEnough = counts.filter((c) => c._count._all >= MIN_QUALIFYING_MATCHES).map((c) => c.walletProfileId);
+  if (playedEnough.length === 0) return new Set();
+
+  // "Started the launch mining" is a lifetime check (once activated,
+  // always counts from then on), not something that has to happen
+  // again within the same month — same db.ledgerEntry "rig_activation_fee"
+  // lookup hasActivatedDashboard() (src/lib/mining.ts) uses for one
+  // wallet at a time, batched here for the whole candidate set at once.
+  const activated = await db.ledgerEntry.findMany({
+    where: { walletProfileId: { in: playedEnough }, reason: "rig_activation_fee" },
     select: { walletProfileId: true },
     distinct: ["walletProfileId"],
   });
-  return new Set(rows.map((r) => r.walletProfileId));
+  return new Set(activated.map((a) => a.walletProfileId));
 }
 
 const SETTLED_STATUSES: MatchStatus[] = [MatchStatus.SETTLED_WIN, MatchStatus.SETTLED_LOSS, MatchStatus.SETTLED];
 
-// Per-wallet share of real platform profit that month — same
-// actualProfitUsdt formula GET /api/admin/game-profit computes
-// (entries collected minus PTS distributed minus L1/L2 referral
-// commission), prorated per real human for multiplayer rooms (equal
-// share, same "feeBasePerHuman" idea distributeEntryFeeToTreasuryAndReferrals
-// already uses), excluding demo-wallet matches. Computed once for the
-// whole month and reused for every candidate KOL's downline sum, not
-// recomputed per KOL.
+// Per-wallet share of real platform profit that month ("revenue from
+// referral users") — same actualProfitUsdt formula GET /api/admin/
+// game-profit computes (entries collected minus PTS distributed minus
+// L1/L2 referral commission), prorated per real human for multiplayer
+// rooms (equal share, same "feeBasePerHuman" idea
+// distributeEntryFeeToTreasuryAndReferrals already uses), excluding
+// demo-wallet matches. Computed once for the whole month and reused for
+// every candidate KOL's downline sum, not recomputed per KOL.
 async function loadProfitByWallet(monthStart: Date, monthEnd: Date): Promise<Map<string, number>> {
   const demoMatchIds = new Set(
     (
@@ -161,28 +180,47 @@ async function loadProfitByWallet(monthStart: Date, monthEnd: Date): Promise<Map
   return profitByWallet;
 }
 
-// Per-wallet total contracted mining hashrate active at any point that
-// month — same overlap check src/lib/mining.ts's settleEpochForDate
-// uses per-day, scaled up to a whole calendar month.
-async function loadHashrateByWallet(monthStart: Date, monthEnd: Date): Promise<Map<string, number>> {
-  const contracts = await db.miningContract.findMany({
-    where: { startsAt: { lt: monthEnd }, expiresAt: { gt: monthStart } },
-    select: { walletProfileId: true, miningPower: true },
-  });
-  const map = new Map<string, number>();
-  for (const c of contracts) {
-    map.set(c.walletProfileId, (map.get(c.walletProfileId) ?? 0) + Number(c.miningPower));
-  }
-  return map;
-}
-
 function sumFor(ids: string[], byWallet: Map<string, number>): number {
   return ids.reduce((sum, id) => sum + (byWallet.get(id) ?? 0), 0);
 }
 
 // ---------------------------------------------------------------------
-// Tiers
+// Tiers — lazily seeded from the official VIP1-VIP10 table (20/10/1%
+// through 200/100/10%, each level +20 direct/+10 indirect/+1%), same
+// lazy-seed-on-first-read convention as src/lib/shop.ts's
+// seedShopItemConfigsIfEmpty()/getShopItemConfigs(). Nothing changes
+// behaviorally once seeded until an admin actually edits/adds a row via
+// /admin/kol-vip.
 // ---------------------------------------------------------------------
+
+const SEED_TIER_COUNT = 10;
+const SEED_TIERS = Array.from({ length: SEED_TIER_COUNT }, (_, i) => {
+  const n = i + 1;
+  return {
+    key: `VIP${n}`,
+    label: `VIP ${n}`,
+    minDirectReferrals: n * 20,
+    minIndirectReferrals: n * 10,
+    bonusPct: n * 0.01,
+    sortOrder: i,
+  };
+});
+
+async function seedKolVipTiersIfEmpty() {
+  const count = await db.kolVipTier.count();
+  if (count > 0) return;
+  try {
+    await db.kolVipTier.createMany({ data: SEED_TIERS });
+  } catch {
+    // Lost a seed race — fine, another concurrent request already created these.
+  }
+}
+
+// Every tier, enabled or not — for the admin editor.
+export async function getAllKolVipTiers() {
+  await seedKolVipTiersIfEmpty();
+  return db.kolVipTier.findMany({ orderBy: [{ minDirectReferrals: "asc" }, { createdAt: "asc" }] });
+}
 
 export interface TierLike {
   id: string;
@@ -203,7 +241,8 @@ export function highestQualifyingTier<T extends TierLike>(tiers: T[], directCoun
   return best;
 }
 
-async function getSortedEnabledTiers() {
+export async function getSortedEnabledTiers() {
+  await seedKolVipTiersIfEmpty();
   const rows = await db.kolVipTier.findMany({ where: { enabled: true }, orderBy: { minDirectReferrals: "asc" } });
   return rows.map((r) => ({ ...r, bonusPct: Number(r.bonusPct) }));
 }
@@ -223,13 +262,13 @@ export interface LiveKolVipProgress {
 
 export async function getLiveMonthProgress(walletProfileId: string): Promise<LiveKolVipProgress> {
   const { start, end } = currentMonthBounds();
-  const [{ direct, indirect }, activeIds, tiers] = await Promise.all([
+  const [{ direct, indirect }, qualifiedIds, tiers] = await Promise.all([
     getDownlineIds(walletProfileId),
-    loadActiveWalletIds(start, end),
+    loadQualifiedWalletIds(start, end),
     getSortedEnabledTiers(),
   ]);
-  const qualifiedDirectCount = direct.filter((id) => activeIds.has(id)).length;
-  const qualifiedIndirectCount = indirect.filter((id) => activeIds.has(id)).length;
+  const qualifiedDirectCount = direct.filter((id) => qualifiedIds.has(id)).length;
+  const qualifiedIndirectCount = indirect.filter((id) => qualifiedIds.has(id)).length;
   const current = highestQualifyingTier(tiers, qualifiedDirectCount, qualifiedIndirectCount);
   const next = tiers.find(
     (t) => (!current || t.minDirectReferrals > current.minDirectReferrals) && t.id !== current?.id
@@ -252,6 +291,13 @@ export async function getLiveMonthProgress(walletProfileId: string): Promise<Liv
 // already uses, just claimed via its own row instead of relying on a
 // single findUnique-then-create target (one month produces MANY payout
 // rows, not one).
+//
+// Commission model: totalCommissionUsdt = downlineProfitUsdt (the
+// KOL's own direct+indirect network's real platform-profit that month)
+// x tier.bonusPct, split exactly 50/50 — half credited as Game Reward
+// USDT, the other half converted to bonus mining hashrate at the
+// platform's standard HASHRATE_PER_USDT rate and granted as a new $0
+// MiningContract. Same split for every tier.
 // ---------------------------------------------------------------------
 
 export async function ensureMonthFinalized(periodMonth: string) {
@@ -273,11 +319,10 @@ export async function ensureMonthFinalized(periodMonth: string) {
   const monthStart = new Date(`${periodMonth}-01T00:00:00.000Z`);
   const monthEnd = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1));
 
-  const [directMap, activeIds, profitByWallet, hashrateByWallet, tiers] = await Promise.all([
+  const [directMap, qualifiedIds, profitByWallet, tiers] = await Promise.all([
     buildDirectMap(),
-    loadActiveWalletIds(monthStart, monthEnd),
+    loadQualifiedWalletIds(monthStart, monthEnd),
     loadProfitByWallet(monthStart, monthEnd),
-    loadHashrateByWallet(monthStart, monthEnd),
     getSortedEnabledTiers(),
   ]);
 
@@ -291,16 +336,17 @@ export async function ensureMonthFinalized(periodMonth: string) {
     for (const d of direct) for (const g of directMap.get(d) ?? []) indirectSet.add(g);
     const indirect = [...indirectSet];
 
-    const qualifiedDirectCount = direct.filter((id) => activeIds.has(id)).length;
-    const qualifiedIndirectCount = indirect.filter((id) => activeIds.has(id)).length;
+    const qualifiedDirectCount = direct.filter((id) => qualifiedIds.has(id)).length;
+    const qualifiedIndirectCount = indirect.filter((id) => qualifiedIds.has(id)).length;
     const tier = highestQualifyingTier(tiers, qualifiedDirectCount, qualifiedIndirectCount);
     if (!tier) continue;
 
     const downlineIds = [...new Set([...direct, ...indirect])];
     const downlineProfitUsdt = Math.max(0, sumFor(downlineIds, profitByWallet));
-    const downlineHashrateMhs = Math.max(0, sumFor(downlineIds, hashrateByWallet));
-    const bonusUsdt = round8(downlineProfitUsdt * tier.bonusPct);
-    const bonusHashrateMhs = round4(downlineHashrateMhs * tier.bonusPct);
+    const totalCommissionUsdt = round8(downlineProfitUsdt * tier.bonusPct);
+    const bonusUsdt = round8(totalCommissionUsdt / 2);
+    const hashrateConversionUsdt = round8(totalCommissionUsdt - bonusUsdt); // remainder, not a second /2, so rounding never loses a fraction of a cent
+    const bonusHashrateMhs = round4(hashrateConversionUsdt * HASHRATE_PER_USDT);
 
     await db.$transaction(async (tx) => {
       let miningContractId: string | null = null;
@@ -341,8 +387,9 @@ export async function ensureMonthFinalized(periodMonth: string) {
           qualifiedDirectCount,
           qualifiedIndirectCount,
           downlineProfitUsdt,
-          downlineHashrateMhs,
+          totalCommissionUsdt,
           bonusUsdt,
+          hashrateConversionUsdt,
           bonusHashrateMhs,
           miningContractId,
         },

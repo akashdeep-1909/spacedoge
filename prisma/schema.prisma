@@ -1107,9 +1107,12 @@ model KolVipTier {
   label                String   // display name, e.g. "VIP 1"
   minDirectReferrals   Int      // monthly qualified DIRECT (L1) referral threshold
   minIndirectReferrals Int      // monthly qualified INDIRECT (L2) referral threshold
-  // Same % applied to BOTH bases below — a KOL gets the HIGHEST tier
-  // they qualify for that month (both thresholds met), never stacked
-  // across tiers.
+  // Commission rate applied to the KOL's downline revenue that month
+  // (src/lib/kolVip.ts) — HALF paid as Game Reward USDT, the other half
+  // converted to bonus mining hashrate at the platform's standard
+  // HASHRATE_PER_USDT rate (src/lib/mining-shared.ts), same 50/50 split
+  // for every tier. A KOL gets the HIGHEST tier they qualify for that
+  // month (both thresholds met), never stacked across tiers.
   bonusPct             Decimal  @db.Decimal(6, 4) // 0.01 = 1%
   enabled              Boolean  @default(true)
   sortOrder            Int      @default(0)
@@ -1131,15 +1134,21 @@ model KolVipPayout {
   kolVipTier             KolVipTier    @relation(fields: [kolVipTierId], references: [id])
   qualifiedDirectCount   Int
   qualifiedIndirectCount Int
-  // The actual bases bonusPct was applied to, snapshotted for audit —
-  // downlineProfitUsdt is this KOL's own direct+indirect network's real
-  // platform-profit contribution that month (same actualProfitUsdt
-  // formula GET /api/admin/game-profit computes, prorated per-human and
-  // summed); downlineHashrateMhs is their network's total contracted
-  // mining hashrate that month.
+  // downlineProfitUsdt (the "revenue from referral users" base) is this
+  // KOL's own direct+indirect network's real platform-profit
+  // contribution that month (same actualProfitUsdt formula GET
+  // /api/admin/game-profit computes, prorated per-human and summed).
+  // totalCommissionUsdt = downlineProfitUsdt * tier.bonusPct, split
+  // exactly in half: bonusUsdt (credited as GAME_REWARD_USDT) and
+  // hashrateConversionUsdt (converted to bonusHashrateMhs at
+  // HASHRATE_PER_USDT and granted as a new $0 MiningContract instead of
+  // credited directly) — all four snapshotted here for audit even
+  // though only two are derived, so the split itself is inspectable
+  // without recomputing it from bonusPct.
   downlineProfitUsdt     Decimal       @db.Decimal(18, 8)
-  downlineHashrateMhs    Decimal       @db.Decimal(18, 4)
+  totalCommissionUsdt    Decimal       @db.Decimal(18, 8)
   bonusUsdt              Decimal       @db.Decimal(18, 8) // actually credited (GAME_REWARD_USDT ledger entry)
+  hashrateConversionUsdt Decimal       @db.Decimal(18, 8) // the other half, before hashrate conversion
   bonusHashrateMhs       Decimal       @db.Decimal(18, 4) // actually granted, as a new MiningContract
   // The bonus MiningContract created to carry bonusHashrateMhs, if any
   // (null when bonusHashrateMhs rounds to 0). Not a formal FK — mining

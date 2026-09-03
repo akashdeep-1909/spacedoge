@@ -1239,7 +1239,7 @@ const zh = {
     statusRejected: "已拒绝",
     shareMessage: "在 Space DOGE 上玩 Coin Rush，将已验证的胜利转化为真实的 Scrypt 挖矿算力，，通过我的链接加入：",
     kolVipLabel: "KOL VIP 等级",
-    kolVipTooltip: "在上述推荐奖励之外的独立每月奖金。当你的直接与间接推荐网络都达到该等级的每月合格推荐门槛时（受邀钱包在该月完成至少一场付费对战即视为合格），即可解锁该等级 — 你将获得符合资格的最高等级，以 Game Reward USDT 加上奖励挖矿算力发放。",
+    kolVipTooltip: "在上述推荐奖励之外的独立每月奖金。当你的直接与间接推荐网络都达到该等级的每月合格推荐门槛时（受邀钱包在该月完成至少5场付费对战并已启动挖矿即视为合格），即可解锁该等级 — 你将获得符合资格的最高等级。奖励为你网络当月真实活动对应的百分比，平均分配：一半以 Game Reward USDT 发放，一半以奖励挖矿算力发放。",
     kolVipThisMonthTitle: "本月至今",
     kolVipDirectProgress: "{{count}} 位直接合格",
     kolVipIndirectProgress: "{{count}} 位间接合格",

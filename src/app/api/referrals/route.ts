@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { getKolVipEnabled } from "@/lib/settings";
-import { previousMonthBounds, ensureMonthFinalized, getLiveMonthProgress } from "@/lib/kolVip";
+import { previousMonthBounds, ensureMonthFinalized, getLiveMonthProgress, getSortedEnabledTiers } from "@/lib/kolVip";
 
 // GET /api/referrals — v3 economy. Returns this wallet's own referral
 // link, who referred them, and every direct (L1) and indirect (L2, one
@@ -88,7 +88,7 @@ export async function GET() {
     const previous = previousMonthBounds();
     const [, tiers, liveProgress, lastPayout] = await Promise.all([
       ensureMonthFinalized(previous.periodMonth),
-      db.kolVipTier.findMany({ where: { enabled: true }, orderBy: { minDirectReferrals: "asc" } }),
+      getSortedEnabledTiers(),
       getLiveMonthProgress(session.walletProfileId),
       db.kolVipPayout.findFirst({
         where: { walletProfileId: session.walletProfileId },

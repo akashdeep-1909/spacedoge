@@ -1239,7 +1239,7 @@ const fil = {
     statusRejected: "Tinanggihan",
     shareMessage: "Maglaro ng Coin Rush sa Space DOGE at gawing tunay na Scrypt Mining Power ang mga verified na panalo, sumali gamit ang aking link:",
     kolVipLabel: "KOL VIP Tiers",
-    kolVipTooltip: "Isang hiwalay na buwanang bonus sa ibabaw ng referral rewards sa itaas. Ma-unlock ang isang tier kapag ang iyong direct AT indirect na referral network ay parehong umabot sa buwanang qualified-referral threshold ng tier na iyon (isang referred wallet ay itinuturing na qualified kapag naglaro ito ng paid match sa buwan na iyon) — makukuha mo ang pinakamataas na tier na naabot mo, babayaran sa Game Reward USDT kasama ang bonus mining hashrate.",
+    kolVipTooltip: "Isang hiwalay na buwanang bonus sa ibabaw ng referral rewards sa itaas. Ma-unlock ang isang tier kapag ang iyong direct AT indirect na referral network ay parehong umabot sa buwanang qualified-referral threshold ng tier na iyon (isang referred wallet ay itinuturing na qualified kapag naglaro ito ng hindi bababa sa 5 paid match sa buwan na iyon AT na-activate na ang mining) — makukuha mo ang pinakamataas na tier na naabot mo. Ang gantimpala mo ay ang % ng tier sa tunay na aktibidad ng iyong network sa buwan na iyon, hating-hati: kalahati babayaran sa Game Reward USDT, kalahati bilang bonus mining hashrate.",
     kolVipThisMonthTitle: "Ngayong Buwan Sa Ngayon",
     kolVipDirectProgress: "{{count}} qualified direct",
     kolVipIndirectProgress: "{{count}} qualified indirect",

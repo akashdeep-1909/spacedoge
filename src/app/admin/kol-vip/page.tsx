@@ -23,6 +23,16 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 const plainInputClass = "w-full rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm";
 
+// bonusPct is stored as at most 4 decimal fraction digits (Decimal(6,4)
+// in the schema), so the percentage has at most 2 decimal digits — a
+// plain `bonusPct * 100` picks up JS floating-point noise on values
+// like 0.07 (renders "7.000000000000001%"). Rounding at the 4th
+// fractional digit's own scale (x10000, round, /100) eliminates that
+// noise without losing any real precision the field can actually hold.
+function pctDisplay(bonusPct: number): number {
+  return Math.round(bonusPct * 10000) / 100;
+}
+
 // KOL VIP Tiers — a monthly bonus (USDT + mining hashrate) on top of
 // the ordinary per-match L1/L2 referral commission, unlocked once a
 // wallet's own direct+indirect referral network is active enough in a
@@ -42,14 +52,15 @@ export default function AdminKolVipPage() {
           A monthly bonus for a wallet&apos;s own referral network, on top of the ordinary per-match
           referral commission (unaffected by this page). Each tier sets a monthly qualified
           DIRECT and INDIRECT referral threshold (a referred wallet counts as &quot;qualified&quot;
-          once it plays at least one paid match that month) — a wallet must meet BOTH thresholds
-          to unlock a tier, and gets the highest tier it qualifies for, never stacked. The
-          bonus % is applied to two separate bases: that wallet&apos;s downline&apos;s real
-          platform-profit contribution that month (paid as Game Reward USDT) and their
-          downline&apos;s total contracted mining hashrate that month (granted as bonus MH/s, a
-          new 180-day mining contract). Evaluated for the previous completed month, once, the
-          first time anyone loads their Referrals page after the month rolls over — there&apos;s
-          no cron in this stack.
+          once it plays at least 5 paid matches that month AND has activated mining at least
+          once) — a wallet must meet BOTH thresholds to unlock a tier, and gets the highest tier
+          it qualifies for, never stacked. The bonus % is the commission rate applied to that
+          wallet&apos;s downline&apos;s real platform-profit contribution that month
+          (&quot;revenue from referral users&quot;) — the resulting commission is split exactly
+          50/50: half paid as Game Reward USDT, half converted to bonus mining hashrate (at the
+          platform&apos;s standard MH/s-per-USDT rate) and granted as a new 180-day mining
+          contract. Evaluated for the previous completed month, once, the first time anyone loads
+          their Referrals page after the month rolls over — there&apos;s no cron in this stack.
         </p>
       </div>
 
@@ -159,7 +170,7 @@ function AddTierForm({ onDone }: { onDone: () => void }) {
       <Field label="Label" hint='e.g. "VIP 1"'>
         <input value={label} onChange={(e) => setLabel(e.target.value)} className={plainInputClass} />
       </Field>
-      <Field label="Bonus %" hint="applied to both the USDT and hashrate bases">
+      <Field label="Bonus %" hint="commission rate on downline revenue, split 50/50 USDT / hashrate">
         <input type="number" min="0" max="100" step="0.1" value={bonusPct} onChange={(e) => setBonusPct(e.target.value)} className={plainInputClass} />
       </Field>
       <Field label="Monthly qualified DIRECT referrals needed">
@@ -182,7 +193,7 @@ function TierRow({ row }: { row: AdminKolVipTierRow }) {
   const [label, setLabel] = useState(row.label);
   const [minDirectReferrals, setMinDirectReferrals] = useState(String(row.minDirectReferrals));
   const [minIndirectReferrals, setMinIndirectReferrals] = useState(String(row.minIndirectReferrals));
-  const [bonusPct, setBonusPct] = useState(String(row.bonusPct * 100));
+  const [bonusPct, setBonusPct] = useState(String(pctDisplay(row.bonusPct)));
   const [error, setError] = useState<string | null>(null);
 
   async function toggleEnabled() {
@@ -224,7 +235,7 @@ function TierRow({ row }: { row: AdminKolVipTierRow }) {
             )}
           </p>
           <p className="mt-1 text-xs text-muted">
-            {row.minDirectReferrals} direct + {row.minIndirectReferrals} indirect qualified referrals/month · {row.bonusPct * 100}% bonus
+            {row.minDirectReferrals} direct + {row.minIndirectReferrals} indirect qualified referrals/month · {pctDisplay(row.bonusPct)}% bonus
           </p>
         </div>
         <div className="flex shrink-0 gap-1.5">
@@ -286,9 +297,9 @@ function PayoutsSection() {
                 <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Tier</th>
                 <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Direct / Indirect</th>
                 <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Downline Profit</th>
-                <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Downline Hashrate</th>
-                <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Bonus USDT</th>
-                <th className="pb-2 font-bold uppercase tracking-wide">Bonus MH/s</th>
+                <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Total Commission</th>
+                <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Bonus USDT (50%)</th>
+                <th className="pb-2 font-bold uppercase tracking-wide">Bonus MH/s (50%)</th>
               </tr>
             </thead>
             <tbody>
@@ -301,7 +312,7 @@ function PayoutsSection() {
                     {r.qualifiedDirectCount} / {r.qualifiedIndirectCount}
                   </td>
                   <td className="py-2 pr-3">${r.downlineProfitUsdt.toFixed(2)}</td>
-                  <td className="py-2 pr-3">{r.downlineHashrateMhs.toFixed(2)} MH/s</td>
+                  <td className="py-2 pr-3">${r.totalCommissionUsdt.toFixed(4)}</td>
                   <td className="py-2 pr-3 font-bold">${r.bonusUsdt.toFixed(4)}</td>
                   <td className="py-2 font-bold">{r.bonusHashrateMhs.toFixed(4)} MH/s</td>
                 </tr>

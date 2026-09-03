@@ -1239,7 +1239,7 @@ const vi = {
     statusRejected: "Đã từ chối",
     shareMessage: "Chơi Coin Rush trên Space DOGE và biến chiến thắng đã xác minh thành Sức Mạnh Khai Thác Scrypt thật, tham gia bằng liên kết của tôi:",
     kolVipLabel: "Hạng KOL VIP",
-    kolVipTooltip: "Một khoản thưởng hàng tháng riêng biệt, cộng thêm vào phần thưởng giới thiệu ở trên. Mở khóa một hạng khi mạng lưới giới thiệu trực tiếp VÀ gián tiếp của bạn đều đạt ngưỡng giới thiệu đủ điều kiện hàng tháng của hạng đó (một ví được giới thiệu được tính là đủ điều kiện khi chơi ít nhất 1 trận đấu trả phí trong tháng đó) — bạn nhận được hạng cao nhất mà mình đủ điều kiện, trả bằng Game Reward USDT cộng với hashrate đào thưởng.",
+    kolVipTooltip: "Một khoản thưởng hàng tháng riêng biệt, cộng thêm vào phần thưởng giới thiệu ở trên. Mở khóa một hạng khi mạng lưới giới thiệu trực tiếp VÀ gián tiếp của bạn đều đạt ngưỡng giới thiệu đủ điều kiện hàng tháng của hạng đó (một ví được giới thiệu được tính là đủ điều kiện khi chơi ít nhất 5 trận đấu trả phí trong tháng đó VÀ đã kích hoạt đào coin) — bạn nhận được hạng cao nhất mà mình đủ điều kiện. Phần thưởng của bạn là % của hạng đó tính trên hoạt động thực tế của mạng lưới bạn trong tháng, chia đều: một nửa trả bằng Game Reward USDT, một nửa bằng hashrate đào thưởng.",
     kolVipThisMonthTitle: "Tháng Này Tính Đến Hiện Tại",
     kolVipDirectProgress: "{{count}} trực tiếp đủ điều kiện",
     kolVipIndirectProgress: "{{count}} gián tiếp đủ điều kiện",

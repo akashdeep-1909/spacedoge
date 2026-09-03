@@ -19,6 +19,16 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { getPublicOrigin } from "@/lib/publicUrl";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 
+// bonusPct is stored as at most 4 decimal fraction digits (Decimal(6,4)
+// in the schema), so the percentage has at most 2 decimal digits — a
+// plain `bonusPct * 100` picks up JS floating-point noise on values
+// like 0.07 (renders "7.000000000000001%"). Rounding at the 4th
+// fractional digit's own scale (x10000, round, /100) eliminates that
+// noise without losing any real precision the field can actually hold.
+function pctDisplay(bonusPct: number): number {
+  return Math.round(bonusPct * 10000) / 100;
+}
+
 export default function ReferPage() {
   return (
     <OnboardingGate>
@@ -331,7 +341,7 @@ function KolVipSection({
                   label: tier.label,
                   direct: tier.minDirectReferrals,
                   indirect: tier.minIndirectReferrals,
-                  pct: tier.bonusPct * 100,
+                  pct: pctDisplay(tier.bonusPct),
                 })}
               </p>
             ))}

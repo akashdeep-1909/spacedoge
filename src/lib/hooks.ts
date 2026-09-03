@@ -2793,8 +2793,9 @@ export interface AdminKolVipPayoutRow {
   qualifiedDirectCount: number;
   qualifiedIndirectCount: number;
   downlineProfitUsdt: number;
-  downlineHashrateMhs: number;
+  totalCommissionUsdt: number;
   bonusUsdt: number;
+  hashrateConversionUsdt: number;
   bonusHashrateMhs: number;
   createdAt: string;
 }

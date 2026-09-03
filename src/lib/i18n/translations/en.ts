@@ -1587,7 +1587,7 @@ const en = {
     statusRejected: "Rejected",
     shareMessage: "Play Coin Rush on Space DOGE and turn verified wins into real Scrypt Mining Power, join with my link:",
     kolVipLabel: "KOL VIP Tiers",
-    kolVipTooltip: "A separate monthly bonus on top of the referral rewards above. Unlock a tier once your direct AND indirect referral network both meet that tier's monthly qualified-referral thresholds (a referred wallet counts as qualified once it plays a paid match that month) — you get the highest tier you qualify for, paid in Game Reward USDT plus bonus mining hashrate, both sized off your network's real activity that month.",
+    kolVipTooltip: "A separate monthly bonus on top of the referral rewards above. Unlock a tier once your direct AND indirect referral network both meet that tier's monthly qualified-referral thresholds (a referred wallet counts as qualified once it plays at least 5 paid matches that month AND has activated mining) — you get the highest tier you qualify for. Your reward is the tier's % of your network's real activity that month, split evenly: half paid as Game Reward USDT, half as bonus mining hashrate.",
     kolVipThisMonthTitle: "This Month So Far",
     kolVipDirectProgress: "{{count}} qualified direct",
     kolVipIndirectProgress: "{{count}} qualified indirect",

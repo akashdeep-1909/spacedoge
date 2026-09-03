@@ -1239,7 +1239,7 @@ const id = {
     statusRejected: "Ditolak",
     shareMessage: "Mainkan Coin Rush di Space DOGE dan ubah kemenangan terverifikasi menjadi Daya Tambang Scrypt nyata, bergabung dengan tautan saya:",
     kolVipLabel: "KOL VIP Tiers",
-    kolVipTooltip: "Bonus bulanan terpisah di atas reward referral di atas. Buka satu tier setelah jaringan referral langsung DAN tidak langsung Anda sama-sama memenuhi ambang batas referral memenuhi syarat bulanan tier itu (wallet yang direferensikan dianggap memenuhi syarat setelah bermain match berbayar bulan itu) — Anda mendapat tier tertinggi yang memenuhi syarat, dibayar dalam Game Reward USDT plus bonus hashrate mining.",
+    kolVipTooltip: "Bonus bulanan terpisah di atas reward referral di atas. Buka satu tier setelah jaringan referral langsung DAN tidak langsung Anda sama-sama memenuhi ambang batas referral memenuhi syarat bulanan tier itu (wallet yang direferensikan dianggap memenuhi syarat setelah bermain minimal 5 match berbayar bulan itu DAN telah mengaktifkan mining) — Anda mendapat tier tertinggi yang memenuhi syarat. Reward Anda adalah % tier dari aktivitas nyata jaringan Anda bulan itu, dibagi rata: setengah dibayar sebagai Game Reward USDT, setengah sebagai bonus hashrate mining.",
     kolVipThisMonthTitle: "Bulan Ini Sejauh Ini",
     kolVipDirectProgress: "{{count}} langsung memenuhi syarat",
     kolVipIndirectProgress: "{{count}} tidak langsung memenuhi syarat",
