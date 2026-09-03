@@ -98,6 +98,7 @@ model WalletProfile {
   transfersReceived         InternalTransfer[]         @relation("TransferTo")
   shopItems                 WalletShopItem[]
   matchLoadouts             MatchLoadout[]
+  kolVipPayouts             KolVipPayout[]
 }
 
 // Browser Web Push subscriptions — one row per device/browser a wallet
@@ -1088,6 +1089,84 @@ model Referral {
 }
 
 // ---------------------------------------------------------------------
+// KOL VIP Tiers — a monthly bonus (USDT + mining hashrate) on top of
+// the ordinary per-match L1/L2 referral commission above, unlocked once
+// a wallet's own referral network (direct = the Referral edges above,
+// indirect = one hop past those) is active enough in a calendar month.
+// Separate from WalletProfile.isKol (that flag gives a KOL's DOWNLINE a
+// free-play perk; this rewards the top-referrer wallet itself, gated
+// purely by referral volume). See src/lib/kolVip.ts for the monthly
+// evaluation pipeline — no cron in this stack, so it's lazily finalized
+// the first time GET /api/referrals is hit after a month rolls over,
+// same "ensureWeekFinalized" trick src/lib/leaderboard.ts already uses.
+// ---------------------------------------------------------------------
+
+model KolVipTier {
+  id                   String   @id @default(cuid())
+  key                  String   @unique // stable slug, e.g. "VIP1" — admin's own label is separate
+  label                String   // display name, e.g. "VIP 1"
+  minDirectReferrals   Int      // monthly qualified DIRECT (L1) referral threshold
+  minIndirectReferrals Int      // monthly qualified INDIRECT (L2) referral threshold
+  // Same % applied to BOTH bases below — a KOL gets the HIGHEST tier
+  // they qualify for that month (both thresholds met), never stacked
+  // across tiers.
+  bonusPct             Decimal  @db.Decimal(6, 4) // 0.01 = 1%
+  enabled              Boolean  @default(true)
+  sortOrder            Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  payouts KolVipPayout[]
+}
+
+// One row per KOL per completed calendar month that actually earned a
+// tier — nothing is written for a KOL/month that didn't qualify for
+// any tier, so "any payout rows exist" already means "was ever VIP."
+model KolVipPayout {
+  id                     String        @id @default(cuid())
+  walletProfileId        String
+  walletProfile          WalletProfile @relation(fields: [walletProfileId], references: [id])
+  periodMonth            String        // "2026-08" — the completed month this covers
+  kolVipTierId           String
+  kolVipTier             KolVipTier    @relation(fields: [kolVipTierId], references: [id])
+  qualifiedDirectCount   Int
+  qualifiedIndirectCount Int
+  // The actual bases bonusPct was applied to, snapshotted for audit —
+  // downlineProfitUsdt is this KOL's own direct+indirect network's real
+  // platform-profit contribution that month (same actualProfitUsdt
+  // formula GET /api/admin/game-profit computes, prorated per-human and
+  // summed); downlineHashrateMhs is their network's total contracted
+  // mining hashrate that month.
+  downlineProfitUsdt     Decimal       @db.Decimal(18, 8)
+  downlineHashrateMhs    Decimal       @db.Decimal(18, 4)
+  bonusUsdt              Decimal       @db.Decimal(18, 8) // actually credited (GAME_REWARD_USDT ledger entry)
+  bonusHashrateMhs       Decimal       @db.Decimal(18, 4) // actually granted, as a new MiningContract
+  // The bonus MiningContract created to carry bonusHashrateMhs, if any
+  // (null when bonusHashrateMhs rounds to 0). Not a formal FK — mining
+  // contracts are never deleted, but keeping this a plain string avoids
+  // a second relation back onto MiningContract for a single audit link.
+  miningContractId       String?
+  createdAt              DateTime      @default(now())
+
+  @@unique([walletProfileId, periodMonth])
+}
+
+// Idempotency claim for the whole-platform monthly batch — separate
+// from KolVipPayout because one month produces MANY payout rows (one
+// per qualifying KOL), so unlike WeeklyLeaderboardPayout's single
+// pool-per-week row there's no one row to findUnique-then-skip; this
+// is that row instead. Created FIRST (a create-then-catch-P2002 claim,
+// same shape settle/route.ts already uses for its own settle-step
+// claim), so a concurrent second request for the same month is a
+// guaranteed no-op rather than a double-run.
+model KolVipMonthlyRun {
+  periodMonth   String   @id // "2026-08"
+  runAt         DateTime @default(now())
+  kolsEvaluated Int
+  kolsRewarded  Int
+}
+
+// ---------------------------------------------------------------------
 // Weekly leaderboard — pre-funded pool, ranked by score (doc section 22.1)
 // ---------------------------------------------------------------------
 
@@ -1179,6 +1258,15 @@ model PlatformSettings {
   // ShopItemConfig's own `enabled` — this is the "close the whole shop"
   // switch, not a replacement for that.
   shopEnabled               Boolean   @default(true)
+  // Master switch for the KOL VIP Tiers monthly bonus (src/lib/kolVip.ts)
+  // — OFF by default, unlike shopEnabled: this is a brand-new feature
+  // with nothing configured yet, so there's nothing worth evaluating
+  // until an admin adds at least one KolVipTier and turns this on. While
+  // off, GET /api/referrals never even attempts the monthly batch (see
+  // ensureMonthFinalized's own doc-comment) — a month that fully
+  // elapses while this is off is simply never evaluated, no retroactive
+  // backfill when re-enabled later.
+  kolVipEnabled             Boolean   @default(false)
   updatedAt                 DateTime  @updatedAt
   updatedByAddress          String? // lowercased EVM address of the admin who last saved
 }

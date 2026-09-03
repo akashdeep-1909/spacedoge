@@ -6,7 +6,14 @@ import { DataTable } from "@/components/DataTable";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { PaginationControls } from "@/components/PaginationControls";
 import { usePagination } from "@/lib/usePagination";
-import { useReferrals, useReferralActivity, type ReferralEdge } from "@/lib/hooks";
+import {
+  useReferrals,
+  useReferralActivity,
+  type ReferralEdge,
+  type KolVipTierSummary,
+  type KolVipLiveProgress,
+  type KolVipLastPayout,
+} from "@/lib/hooks";
 import { ShareSheet } from "@/components/ShareSheet";
 import { copyToClipboard } from "@/lib/clipboard";
 import { getPublicOrigin } from "@/lib/publicUrl";
@@ -153,6 +160,8 @@ function ReferContent() {
         </div>
       </div>
 
+      {data?.kolVip.enabled && <KolVipSection kolVip={data.kolVip} />}
+
       <ReferralTable title={`▸ ${t("refer.directReferralsTitle")}`} rows={data?.direct} isLoading={isLoading} />
       <ReferralTable title={`▸ ${t("refer.indirectReferralsTitle")}`} rows={data?.indirect} isLoading={isLoading} />
 
@@ -256,6 +265,78 @@ function MiningCommissionActivityTable() {
           />
           <PaginationControls page={page} pageCount={pageCount} start={start} pageSize={pageSize} total={total} onChange={setPage} />
         </>
+      )}
+    </div>
+  );
+}
+
+// A separate monthly bonus on top of the L1/L2 rewards above — only
+// rendered when an admin has turned the master switch on (src/lib/
+// kolVip.ts, PlatformSettings.kolVipEnabled). liveProgress reflects the
+// CURRENT, still-in-progress month (read-only, nothing paid yet);
+// lastPayout is the most recent completed month that actually earned a
+// tier, if any.
+function KolVipSection({
+  kolVip,
+}: {
+  kolVip: { tiers: KolVipTierSummary[]; liveProgress: KolVipLiveProgress | null; lastPayout: KolVipLastPayout | null };
+}) {
+  const { t } = useLocale();
+  return (
+    <div className="game-panel hud-corner rounded-2xl border-gold/15 p-5">
+      <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gold">
+        👑 {t("refer.kolVipLabel")}
+        <InfoTooltip text={t("refer.kolVipTooltip")} />
+      </p>
+
+      <div className="mt-2 rounded-xl border border-line bg-panel-2 p-4 text-sm">
+        <p className="font-bold">{t("refer.kolVipThisMonthTitle")}</p>
+        <p className="mt-1 text-muted">
+          {t("refer.kolVipDirectProgress", { count: kolVip.liveProgress?.qualifiedDirectCount ?? 0 })} ·{" "}
+          {t("refer.kolVipIndirectProgress", { count: kolVip.liveProgress?.qualifiedIndirectCount ?? 0 })}
+        </p>
+        <p className="stat-value text-glow-gold mt-2 text-base text-gold">
+          {kolVip.liveProgress?.currentTierLabel
+            ? t("refer.kolVipCurrentTierLabel", { tier: kolVip.liveProgress.currentTierLabel })
+            : t("refer.kolVipNotQualified")}
+        </p>
+        {kolVip.liveProgress?.nextTierLabel && (
+          <p className="mt-1 text-xs text-muted">{t("refer.kolVipNextTierLabel", { tier: kolVip.liveProgress.nextTierLabel })}</p>
+        )}
+      </div>
+
+      <div className="mt-2 rounded-xl border border-line bg-panel-2 p-4 text-sm">
+        <p className="font-bold">{t("refer.kolVipLastPayoutTitle")}</p>
+        {kolVip.lastPayout ? (
+          <p className="stat-value text-glow-gold mt-2 text-base text-gold">
+            {t("refer.kolVipLastPayoutBody", {
+              month: kolVip.lastPayout.periodMonth,
+              tier: kolVip.lastPayout.tierLabel,
+              usdt: kolVip.lastPayout.bonusUsdt.toFixed(4),
+              mhs: kolVip.lastPayout.bonusHashrateMhs.toFixed(2),
+            })}
+          </p>
+        ) : (
+          <p className="mt-1 text-muted">{t("refer.kolVipNoPayoutYet")}</p>
+        )}
+      </div>
+
+      {kolVip.tiers.length > 0 && (
+        <div className="mt-2">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-muted">{t("refer.kolVipTierLadderTitle")}</p>
+          <div className="mt-1.5 flex flex-col gap-1">
+            {kolVip.tiers.map((tier) => (
+              <p key={tier.key} className="text-xs text-muted">
+                {t("refer.kolVipTierRow", {
+                  label: tier.label,
+                  direct: tier.minDirectReferrals,
+                  indirect: tier.minIndirectReferrals,
+                  pct: tier.bonusPct * 100,
+                })}
+              </p>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

@@ -55,6 +55,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <Link href="/admin/shop" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
                 Shop
               </Link>
+              <Link href="/admin/kol-vip" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
+                KOL VIP
+              </Link>
               <Link href="/admin/settings" className="rounded-full px-2.5 py-1.5 uppercase text-muted transition hover:bg-panel-2 hover:text-gold">
                 Settings
               </Link>

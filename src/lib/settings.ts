@@ -50,6 +50,7 @@ export async function updatePlatformSettings(
     androidApkUploadedAt?: Date | null;
     docsMenuEnabled?: boolean;
     shopEnabled?: boolean;
+    kolVipEnabled?: boolean;
   },
   updatedByAddress: string
 ) {
@@ -92,6 +93,17 @@ export async function getMinDogeWithdrawal(): Promise<number> {
 export async function getShopEnabled(): Promise<boolean> {
   const settings = await getPlatformSettings();
   return settings.shopEnabled;
+}
+
+// Master switch for the KOL VIP Tiers monthly bonus — see the schema
+// doc-comment on PlatformSettings.kolVipEnabled. Called from
+// src/lib/kolVip.ts's ensureMonthFinalized (skips the whole monthly
+// batch while off) and from GET /api/referrals (skips even attempting
+// to trigger that batch, and tells the client whether to show the KOL
+// VIP section at all).
+export async function getKolVipEnabled(): Promise<boolean> {
+  const settings = await getPlatformSettings();
+  return settings.kolVipEnabled;
 }
 
 // The weekly leaderboard only ever pays a real reward when BOTH are

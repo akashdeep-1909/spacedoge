@@ -32,6 +32,7 @@ export async function GET() {
     weeklyLeaderboardPoolUsdt: settings.weeklyLeaderboardPoolUsdt !== null ? Number(settings.weeklyLeaderboardPoolUsdt) : null,
     docsMenuEnabled: settings.docsMenuEnabled,
     shopEnabled: settings.shopEnabled,
+    kolVipEnabled: settings.kolVipEnabled,
     updatedAt: settings.updatedAt,
     updatedByAddress: settings.updatedByAddress,
     defaults: {
@@ -67,6 +68,7 @@ const bodySchema = z.object({
   weeklyLeaderboardPoolUsdt: z.number().positive().nullable().optional(),
   docsMenuEnabled: z.boolean().optional(),
   shopEnabled: z.boolean().optional(),
+  kolVipEnabled: z.boolean().optional(),
 });
 
 function normalize(value: string | null | undefined): string | null | undefined {
@@ -102,6 +104,7 @@ export async function PATCH(request: NextRequest) {
       weeklyLeaderboardPoolUsdt: body.weeklyLeaderboardPoolUsdt,
       docsMenuEnabled: body.docsMenuEnabled,
       shopEnabled: body.shopEnabled,
+      kolVipEnabled: body.kolVipEnabled,
     },
     session.address.toLowerCase()
   );

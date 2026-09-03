@@ -400,6 +400,30 @@ export interface ReferralEdge {
   createdAt: string;
 }
 
+export interface KolVipTierSummary {
+  key: string;
+  label: string;
+  minDirectReferrals: number;
+  minIndirectReferrals: number;
+  bonusPct: number;
+}
+
+export interface KolVipLiveProgress {
+  qualifiedDirectCount: number;
+  qualifiedIndirectCount: number;
+  currentTierLabel: string | null;
+  nextTierLabel: string | null;
+}
+
+export interface KolVipLastPayout {
+  periodMonth: string;
+  tierLabel: string;
+  qualifiedDirectCount: number;
+  qualifiedIndirectCount: number;
+  bonusUsdt: number;
+  bonusHashrateMhs: number;
+}
+
 export interface ReferralInfo {
   myAddress: string;
   referredBy: { status: string; referrerAddress: string } | null;
@@ -413,6 +437,12 @@ export interface ReferralInfo {
   totalEarnedL2Doge: number;
   direct: ReferralEdge[];
   indirect: ReferralEdge[];
+  kolVip: {
+    enabled: boolean;
+    tiers: KolVipTierSummary[];
+    liveProgress: KolVipLiveProgress | null;
+    lastPayout: KolVipLastPayout | null;
+  };
 }
 
 export function useReferrals() {
@@ -1521,6 +1551,7 @@ export interface AdminPlatformSettings {
   weeklyLeaderboardPoolUsdt: number | null;
   docsMenuEnabled: boolean;
   shopEnabled: boolean;
+  kolVipEnabled: boolean;
   updatedAt: string;
   updatedByAddress: string | null;
   defaults: { minUsdtWithdrawal: number; minDogeWithdrawal: number };
@@ -2679,6 +2710,103 @@ export function useCreateAdminShopItem() {
       return body;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "shop"] }),
+  });
+}
+
+// ---------------------------------------------------------------------
+// KOL VIP Tiers (admin) — src/lib/kolVip.ts. kolVipEnabled itself lives
+// on AdminPlatformSettings/useAdminSettings/useUpdateAdminSettings
+// above, same as shopEnabled — no separate hook needed for the toggle.
+// ---------------------------------------------------------------------
+
+export interface AdminKolVipTierRow {
+  id: string;
+  key: string;
+  label: string;
+  minDirectReferrals: number;
+  minIndirectReferrals: number;
+  bonusPct: number;
+  enabled: boolean;
+  sortOrder: number;
+}
+
+export function useAdminKolVipTiers() {
+  return useQuery({
+    queryKey: ["admin", "kol-vip", "tiers"],
+    queryFn: async (): Promise<{ rows: AdminKolVipTierRow[] }> => {
+      const res = await fetch("/api/admin/kol-vip/tiers");
+      if (!res.ok) throw new Error("Failed to load KOL VIP tiers");
+      return res.json();
+    },
+  });
+}
+
+export function useCreateAdminKolVipTier() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      label: string;
+      minDirectReferrals: number;
+      minIndirectReferrals: number;
+      bonusPct: number;
+    }) => {
+      const res = await fetch("/api/admin/kol-vip/tiers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to create tier");
+      return body;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "kol-vip", "tiers"] }),
+  });
+}
+
+export function useUpdateAdminKolVipTier() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...patch
+    }: Pick<AdminKolVipTierRow, "id"> &
+      Partial<Pick<AdminKolVipTierRow, "label" | "minDirectReferrals" | "minIndirectReferrals" | "bonusPct" | "enabled" | "sortOrder">>) => {
+      const res = await fetch(`/api/admin/kol-vip/tiers/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to update tier");
+      return body;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "kol-vip", "tiers"] }),
+  });
+}
+
+export interface AdminKolVipPayoutRow {
+  id: string;
+  address: string;
+  nickname: string | null;
+  periodMonth: string;
+  tierLabel: string;
+  qualifiedDirectCount: number;
+  qualifiedIndirectCount: number;
+  downlineProfitUsdt: number;
+  downlineHashrateMhs: number;
+  bonusUsdt: number;
+  bonusHashrateMhs: number;
+  createdAt: string;
+}
+
+export function useAdminKolVipPayouts() {
+  return useQuery({
+    queryKey: ["admin", "kol-vip", "payouts"],
+    queryFn: async (): Promise<{ rows: AdminKolVipPayoutRow[] }> => {
+      const res = await fetch("/api/admin/kol-vip/payouts");
+      if (!res.ok) throw new Error("Failed to load KOL VIP payouts");
+      return res.json();
+    },
   });
 }
 

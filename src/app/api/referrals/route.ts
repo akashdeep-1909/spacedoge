@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
+import { getKolVipEnabled } from "@/lib/settings";
+import { previousMonthBounds, ensureMonthFinalized, getLiveMonthProgress } from "@/lib/kolVip";
 
 // GET /api/referrals — v3 economy. Returns this wallet's own referral
 // link, who referred them, and every direct (L1) and indirect (L2, one
@@ -61,6 +63,62 @@ export async function GET() {
     miningLedgerSums.map((r) => [r.reason, Number(r._sum.amount ?? 0)])
   ) as Record<string, number>;
 
+  // KOL VIP Tiers — a separate monthly bonus on top of everything
+  // above (src/lib/kolVip.ts). Only attempted while the master switch
+  // is on: ensureMonthFinalized fires here (same "the first hit after
+  // rollover triggers the whole platform's batch" trick GET
+  // /api/leaderboard already uses for ensureWeekFinalized), so this is
+  // the one place in the app that keeps the previous month current.
+  const kolVipEnabled = await getKolVipEnabled();
+  let kolVip: {
+    enabled: boolean;
+    tiers: { key: string; label: string; minDirectReferrals: number; minIndirectReferrals: number; bonusPct: number }[];
+    liveProgress: Awaited<ReturnType<typeof getLiveMonthProgress>> | null;
+    lastPayout: {
+      periodMonth: string;
+      tierLabel: string;
+      qualifiedDirectCount: number;
+      qualifiedIndirectCount: number;
+      bonusUsdt: number;
+      bonusHashrateMhs: number;
+    } | null;
+  } = { enabled: false, tiers: [], liveProgress: null, lastPayout: null };
+
+  if (kolVipEnabled) {
+    const previous = previousMonthBounds();
+    const [, tiers, liveProgress, lastPayout] = await Promise.all([
+      ensureMonthFinalized(previous.periodMonth),
+      db.kolVipTier.findMany({ where: { enabled: true }, orderBy: { minDirectReferrals: "asc" } }),
+      getLiveMonthProgress(session.walletProfileId),
+      db.kolVipPayout.findFirst({
+        where: { walletProfileId: session.walletProfileId },
+        orderBy: { periodMonth: "desc" },
+        include: { kolVipTier: { select: { label: true } } },
+      }),
+    ]);
+    kolVip = {
+      enabled: true,
+      tiers: tiers.map((t) => ({
+        key: t.key,
+        label: t.label,
+        minDirectReferrals: t.minDirectReferrals,
+        minIndirectReferrals: t.minIndirectReferrals,
+        bonusPct: Number(t.bonusPct),
+      })),
+      liveProgress,
+      lastPayout: lastPayout
+        ? {
+            periodMonth: lastPayout.periodMonth,
+            tierLabel: lastPayout.kolVipTier.label,
+            qualifiedDirectCount: lastPayout.qualifiedDirectCount,
+            qualifiedIndirectCount: lastPayout.qualifiedIndirectCount,
+            bonusUsdt: Number(lastPayout.bonusUsdt),
+            bonusHashrateMhs: Number(lastPayout.bonusHashrateMhs),
+          }
+        : null,
+    };
+  }
+
   return NextResponse.json({
     myAddress: session.address,
     referredBy: referredBy
@@ -86,5 +144,6 @@ export async function GET() {
       status: r.status,
       createdAt: r.createdAt,
     })),
+    kolVip,
   });
 }
