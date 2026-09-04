@@ -895,6 +895,9 @@ const vi = {
     miningButton: "Xem / Cấp Năng Lượng Giàn Đào",
     actionsHeading: "Hành Động",
     actionActivatePower: "Kích Hoạt / Cấp Năng Lượng",
+    kolVipBadgeLabel: "KOL · {{tier}}",
+    kolVipBadgeSubtext: "Đã xác nhận cho {{month}}",
+    kolVipViewDetails: "Xem Chi Tiết",
   },
   gameModes: {
     practiceLabel: "Chơi Thử",

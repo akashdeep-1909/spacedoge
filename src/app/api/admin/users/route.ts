@@ -76,6 +76,23 @@ export async function GET(request: NextRequest) {
     });
     const referrerByReferredId = new Map(referralRows.map((r) => [r.referredProfileId, r.referrer.address]));
 
+    // Same "one extra query, not one per row" batching — each wallet's
+    // most recent APPROVED KOL VIP payout (if any) is its current
+    // confirmed VIP Level for badge purposes. Ordered by periodMonth
+    // desc so the first row seen per wallet in the loop below is
+    // already the most recent one.
+    const kolVipRows = await db.kolVipPayout.findMany({
+      where: { walletProfileId: { in: profiles.map((p) => p.id) }, status: "APPROVED" },
+      orderBy: { periodMonth: "desc" },
+      include: { kolVipTier: { select: { label: true } } },
+    });
+    const kolVipByWalletId = new Map<string, { tierLabel: string; periodMonth: string }>();
+    for (const r of kolVipRows) {
+      if (!kolVipByWalletId.has(r.walletProfileId)) {
+        kolVipByWalletId.set(r.walletProfileId, { tierLabel: r.kolVipTier.label, periodMonth: r.periodMonth });
+      }
+    }
+
     const rows = await Promise.all(
       profiles.map(async (p) => ({
         id: p.id,
@@ -88,6 +105,8 @@ export async function GET(request: NextRequest) {
         isKol: p.isKol,
         createdAt: p.createdAt,
         referredByAddress: referrerByReferredId.get(p.id) ?? null,
+        kolVipTierLabel: kolVipByWalletId.get(p.id)?.tierLabel ?? null,
+        kolVipPeriodMonth: kolVipByWalletId.get(p.id)?.periodMonth ?? null,
         balances: await getWalletBalances(p.id),
       }))
     );

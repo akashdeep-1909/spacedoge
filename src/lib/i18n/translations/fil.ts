@@ -895,6 +895,9 @@ const fil = {
     miningButton: "Tingnan / Bigyan ng Power ang Mining Rig",
     actionsHeading: "Mga Aksyon",
     actionActivatePower: "I-activate / Bigyan ng Power",
+    kolVipBadgeLabel: "KOL · {{tier}}",
+    kolVipBadgeSubtext: "Kumpirmado para sa {{month}}",
+    kolVipViewDetails: "Tingnan ang Detalye",
   },
   gameModes: {
     practiceLabel: "Demo",

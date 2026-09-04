@@ -73,6 +73,14 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               KOL
             </span>
           )}
+          {profile.kolVipTierLabel && (
+            <span
+              className="rounded-full border border-gold/30 bg-gold-soft px-2 py-0.5 text-[10px] font-bold uppercase text-gold"
+              title={`Most recently confirmed VIP tier, ${profile.kolVipPeriodMonth} — full history in the KOL VIP Payouts section below`}
+            >
+              👑 {profile.kolVipTierLabel}
+            </span>
+          )}
           {profile.isDemo && (
             <span
               className="rounded-full border border-gold/30 bg-gold-soft px-2 py-0.5 text-[10px] font-bold uppercase text-gold"
@@ -201,6 +209,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           whole-user level. */}
       <ReportSection table={data.referralDownline} walletId={id} />
       <ReportSection table={data.referralDownlineIndirect} walletId={id} />
+      <ReportSection table={data.kolVipPayouts} walletId={id} />
       <ReportSection table={data.recentLedger} walletId={id} />
     </div>
   );

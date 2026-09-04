@@ -895,6 +895,9 @@ const th = {
     miningButton: "ดู / เพิ่มพลังให้อุปกรณ์ขุด",
     actionsHeading: "การดำเนินการ",
     actionActivatePower: "เปิดใช้งาน / เพิ่มพลัง",
+    kolVipBadgeLabel: "KOL · {{tier}}",
+    kolVipBadgeSubtext: "ยืนยันแล้วสำหรับ {{month}}",
+    kolVipViewDetails: "ดูรายละเอียด",
   },
   gameModes: {
     practiceLabel: "โหมดทดลอง",

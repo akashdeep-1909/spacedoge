@@ -360,6 +360,14 @@ function UserCard({ row }: { row: AdminUserRow }) {
                 KOL
               </span>
             )}
+            {row.kolVipTierLabel && (
+              <span
+                className="rounded-full border border-gold/30 bg-gold-soft px-2 py-0.5 text-[10px] font-bold uppercase text-gold"
+                title={`Most recently confirmed VIP tier, ${row.kolVipPeriodMonth} — see the full history on this wallet's own page`}
+              >
+                👑 {row.kolVipTierLabel}
+              </span>
+            )}
             {row.isDemo && (
               <span
                 className="rounded-full border border-gold/30 bg-gold-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold"

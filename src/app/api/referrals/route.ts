@@ -83,16 +83,26 @@ export async function GET() {
       bonusHashrateMhs: number;
       status: "PENDING" | "APPROVED" | "REJECTED";
     } | null;
-  } = { enabled: false, tiers: [], liveProgress: null, lastPayout: null };
+    // The most recent APPROVED payout specifically — this wallet's
+    // current confirmed "KOL" badge/VIP Level, distinct from lastPayout
+    // above (which can be a still-PENDING or REJECTED month even when
+    // an earlier month WAS approved).
+    currentTier: { tierLabel: string; periodMonth: string } | null;
+  } = { enabled: false, tiers: [], liveProgress: null, lastPayout: null, currentTier: null };
 
   if (kolVipEnabled) {
     const previous = previousMonthBounds();
-    const [, tiers, liveProgress, lastPayout] = await Promise.all([
+    const [, tiers, liveProgress, lastPayout, currentTierPayout] = await Promise.all([
       ensureMonthFinalized(previous.periodMonth),
       getSortedEnabledTiers(),
       getLiveMonthProgress(session.walletProfileId),
       db.kolVipPayout.findFirst({
         where: { walletProfileId: session.walletProfileId },
+        orderBy: { periodMonth: "desc" },
+        include: { kolVipTier: { select: { label: true } } },
+      }),
+      db.kolVipPayout.findFirst({
+        where: { walletProfileId: session.walletProfileId, status: "APPROVED" },
         orderBy: { periodMonth: "desc" },
         include: { kolVipTier: { select: { label: true } } },
       }),
@@ -117,6 +127,9 @@ export async function GET() {
             bonusHashrateMhs: Number(lastPayout.bonusHashrateMhs),
             status: lastPayout.status,
           }
+        : null,
+      currentTier: currentTierPayout
+        ? { tierLabel: currentTierPayout.kolVipTier.label, periodMonth: currentTierPayout.periodMonth }
         : null,
     };
   }

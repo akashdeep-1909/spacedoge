@@ -443,6 +443,7 @@ export interface ReferralInfo {
     tiers: KolVipTierSummary[];
     liveProgress: KolVipLiveProgress | null;
     lastPayout: KolVipLastPayout | null;
+    currentTier: { tierLabel: string; periodMonth: string } | null;
   };
 }
 
@@ -893,6 +894,13 @@ export interface AdminUserRow {
   withdrawalRestrictedNote: string | null;
   riskFlag: string | null;
   isKol: boolean;
+  // Most recent APPROVED KOL VIP payout, if any (src/lib/kolVip.ts) —
+  // a computed VIP Level, distinct from the admin-set isKol flag above
+  // (that one's a manual "unlocks the KOL_REFERRAL_BONUS free-play
+  // gift for this wallet's downline" toggle; this one's the actual
+  // referral-volume tier this wallet has earned and been paid for).
+  kolVipTierLabel: string | null;
+  kolVipPeriodMonth: string | null;
   createdAt: string;
   referredByAddress: string | null;
   balances: WalletBalances;
@@ -1424,6 +1432,8 @@ export interface AdminUserDetail {
     createdAt: string;
     referredByAddress: string | null;
     referralStatus: string | null;
+    kolVipTierLabel: string | null;
+    kolVipPeriodMonth: string | null;
   };
   balances: WalletBalances;
   // Lifetime PLAY_USDT outflow (match entries, mining activation/
@@ -1443,6 +1453,7 @@ export interface AdminUserDetail {
   transfers: AdminReportTable;
   referralDownline: AdminReportTable;
   referralDownlineIndirect: AdminReportTable;
+  kolVipPayouts: AdminReportTable;
   recentLedger: AdminReportTable;
 }
 

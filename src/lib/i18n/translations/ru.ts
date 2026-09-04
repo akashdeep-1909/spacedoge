@@ -895,6 +895,9 @@ const ru = {
     miningButton: "Просмотр / Питание майнинг-фермы",
     actionsHeading: "Действия",
     actionActivatePower: "Активировать / Запитать",
+    kolVipBadgeLabel: "KOL · {{tier}}",
+    kolVipBadgeSubtext: "Подтверждено за {{month}}",
+    kolVipViewDetails: "Подробнее",
   },
   gameModes: {
     practiceLabel: "Демо",

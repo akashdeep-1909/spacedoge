@@ -5,7 +5,7 @@ import { ArrowDownToLine, ArrowLeftRight, ArrowUpRight, Gamepad2, Pickaxe, UserP
 import { OnboardingGate } from "@/components/OnboardingGate";
 import { BalanceCard } from "@/components/BalanceCard";
 import { DashboardHero } from "@/components/DashboardHero";
-import { useBalances, useMiningProof } from "@/lib/hooks";
+import { useBalances, useMiningProof, useReferrals } from "@/lib/hooks";
 import { levelDisplayNameWithPlus } from "@/lib/mining-shared";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 
@@ -32,6 +32,7 @@ function DashboardContent() {
   return (
     <div className="flex flex-col gap-6">
       <DashboardHero />
+      <KolVipBadge />
 
       <section>
         <h2 className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-gold">
@@ -161,5 +162,38 @@ function DashboardContent() {
         </div>
       </section>
     </div>
+  );
+}
+
+// Renders nothing unless this wallet has a real, admin-approved VIP
+// tier on record (src/lib/kolVip.ts) — no badge just for "on track this
+// month" (that's still just a projection, shown in full on the Refer
+// page instead). currentTier is specifically the most recent APPROVED
+// payout, not just the most recent one — a still-pending or rejected
+// month never shows a stale confirmed badge.
+function KolVipBadge() {
+  const { t } = useLocale();
+  const { data } = useReferrals();
+  const currentTier = data?.kolVip.currentTier;
+  if (!data?.kolVip.enabled || !currentTier) return null;
+
+  return (
+    <Link
+      href="/dashboard/refer"
+      className="game-panel hud-corner glow-gold flex items-center justify-between gap-3 rounded-2xl border-gold/30 p-4 transition hover:border-gold/50"
+    >
+      <div className="flex items-center gap-3">
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gold-soft text-xl">👑</div>
+        <div>
+          <p className="text-glow-gold text-sm font-black uppercase tracking-wide text-gold">
+            {t("dashboardHome.kolVipBadgeLabel", { tier: currentTier.tierLabel })}
+          </p>
+          <p className="mt-0.5 text-xs text-muted">{t("dashboardHome.kolVipBadgeSubtext", { month: currentTier.periodMonth })}</p>
+        </div>
+      </div>
+      <span className="btn-game-outline shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide">
+        {t("dashboardHome.kolVipViewDetails")}
+      </span>
+    </Link>
   );
 }

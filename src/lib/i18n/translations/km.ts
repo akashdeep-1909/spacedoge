@@ -895,6 +895,9 @@ const km = {
     miningButton: "មើល / ផ្តល់ថាមពលដល់ឧបករណ៍ជីកយក",
     actionsHeading: "សកម្មភាព",
     actionActivatePower: "បើកដំណើរការ / ផ្តល់ថាមពល",
+    kolVipBadgeLabel: "KOL · {{tier}}",
+    kolVipBadgeSubtext: "បានបញ្ជាក់សម្រាប់ {{month}}",
+    kolVipViewDetails: "មើលព័ត៌មានលម្អិត",
   },
   gameModes: {
     practiceLabel: "សាកល្បង",

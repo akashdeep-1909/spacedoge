@@ -895,6 +895,9 @@ const zhTW = {
     miningButton: "查看/為礦機供能",
     actionsHeading: "操作",
     actionActivatePower: "啟用/供能",
+    kolVipBadgeLabel: "KOL · {{tier}}",
+    kolVipBadgeSubtext: "已確認，{{month}}",
+    kolVipViewDetails: "查看詳情",
   },
   gameModes: {
     practiceLabel: "試玩",

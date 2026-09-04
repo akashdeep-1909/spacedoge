@@ -895,6 +895,9 @@ const ko = {
     miningButton: "채굴 장비 보기 / 파워 공급",
     actionsHeading: "작업",
     actionActivatePower: "활성화 / 파워 공급",
+    kolVipBadgeLabel: "KOL · {{tier}}",
+    kolVipBadgeSubtext: "{{month}} 확정",
+    kolVipViewDetails: "자세히 보기",
   },
   gameModes: {
     practiceLabel: "데모",

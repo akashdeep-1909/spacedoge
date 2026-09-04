@@ -1092,6 +1092,9 @@ const en = {
     miningButton: "View / Power Mining Rig",
     actionsHeading: "Actions",
     actionActivatePower: "Activate / Power",
+    kolVipBadgeLabel: "KOL · {{tier}}",
+    kolVipBadgeSubtext: "Confirmed for {{month}}",
+    kolVipViewDetails: "View Details",
   },
   // Static translations for GameModeConfig's mode label/description —
   // see src/lib/game-mode-labels.ts's own doc-comment for why this

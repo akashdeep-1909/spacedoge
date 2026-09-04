@@ -35,6 +35,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     spentAgg,
     directCount,
     commissionSums,
+    kolVipPayouts,
   ] = await Promise.all([
     getWalletBalances(id),
     getDepositsReport(id),
@@ -91,6 +92,16 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       by: ["reason"],
       where: { walletProfileId: id, reason: { in: ["referral_l1", "referral_l2", "mining_referral_l1", "mining_referral_l2"] } },
       _sum: { amount: true },
+    }),
+    // Every KOL VIP payout this wallet has ever been proposed
+    // (src/lib/kolVip.ts), newest month first — PENDING/APPROVED/
+    // REJECTED alike, so an admin reviewing one user sees the whole
+    // history, not just whatever's currently sitting in the platform-
+    // wide Pending Approval queue on /admin/kol-vip.
+    db.kolVipPayout.findMany({
+      where: { walletProfileId: id },
+      orderBy: { periodMonth: "desc" },
+      include: { kolVipTier: { select: { label: true } } },
     }),
   ]);
 
@@ -155,6 +166,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     commissionSums.map((r) => [r.reason, Number(r._sum.amount ?? 0)])
   ) as Record<string, number>;
 
+  // Most recent APPROVED payout — this wallet's current confirmed VIP
+  // Level for the header badge, distinct from isKol above (see that
+  // field's own comment in src/lib/hooks.ts's AdminUserRow).
+  const currentVip = kolVipPayouts.find((p) => p.status === "APPROVED") ?? null;
+
   return NextResponse.json({
     profile: {
       id: profile.id,
@@ -171,6 +187,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       createdAt: profile.createdAt,
       referredByAddress: referredBy?.referrer.address ?? null,
       referralStatus: referredBy?.status ?? null,
+      kolVipTierLabel: currentVip?.kolVipTier.label ?? null,
+      kolVipPeriodMonth: currentVip?.periodMonth ?? null,
     },
     balances,
     totalUsdtSpent: Math.abs(Number(spentAgg._sum.amount ?? 0)),
@@ -213,6 +231,31 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         r.status,
         r.qualifiedAt ? r.qualifiedAt.toISOString() : "",
         r.createdAt.toISOString(),
+      ]),
+    },
+    kolVipPayouts: {
+      title: "KOL VIP Payouts",
+      headers: [
+        "Month",
+        "Tier",
+        "Direct / Indirect",
+        "Downline Revenue (USDT)",
+        "VIP Funding Base 23% (USDT)",
+        "Total Commission (USDT)",
+        "Bonus USDT (50%)",
+        "Bonus Hashrate (50%, MH/s)",
+        "Status",
+      ],
+      rows: kolVipPayouts.map((p) => [
+        p.periodMonth,
+        p.kolVipTier.label,
+        `${p.qualifiedDirectCount} / ${p.qualifiedIndirectCount}`,
+        Number(p.downlineRevenueUsdt).toFixed(2),
+        Number(p.vipFundingBaseUsdt).toFixed(4),
+        Number(p.totalCommissionUsdt).toFixed(4),
+        Number(p.bonusUsdt).toFixed(4),
+        Number(p.bonusHashrateMhs).toFixed(4),
+        p.status,
       ]),
     },
     recentLedger: {

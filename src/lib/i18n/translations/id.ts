@@ -895,6 +895,9 @@ const id = {
     miningButton: "Lihat / Berdayakan Rig Penambangan",
     actionsHeading: "Aksi",
     actionActivatePower: "Aktifkan / Berdayakan",
+    kolVipBadgeLabel: "KOL · {{tier}}",
+    kolVipBadgeSubtext: "Dikonfirmasi untuk {{month}}",
+    kolVipViewDetails: "Lihat Detail",
   },
   gameModes: {
     practiceLabel: "Demo",
