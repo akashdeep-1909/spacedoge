@@ -81,6 +81,7 @@ export async function GET() {
       qualifiedIndirectCount: number;
       bonusUsdt: number;
       bonusHashrateMhs: number;
+      status: "PENDING" | "APPROVED" | "REJECTED";
     } | null;
   } = { enabled: false, tiers: [], liveProgress: null, lastPayout: null };
 
@@ -114,6 +115,7 @@ export async function GET() {
             qualifiedIndirectCount: lastPayout.qualifiedIndirectCount,
             bonusUsdt: Number(lastPayout.bonusUsdt),
             bonusHashrateMhs: Number(lastPayout.bonusHashrateMhs),
+            status: lastPayout.status,
           }
         : null,
     };

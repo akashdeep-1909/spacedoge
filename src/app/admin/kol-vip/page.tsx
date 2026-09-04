@@ -6,9 +6,12 @@ import {
   useCreateAdminKolVipTier,
   useUpdateAdminKolVipTier,
   useAdminKolVipPayouts,
+  useApproveKolVipPayout,
+  useRejectKolVipPayout,
   useAdminSettings,
   useUpdateAdminSettings,
   type AdminKolVipTierRow,
+  type AdminKolVipPayoutRow,
 } from "@/lib/hooks";
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -50,17 +53,21 @@ export default function AdminKolVipPage() {
         <h1 className="text-lg font-black uppercase tracking-wide">KOL VIP Tiers</h1>
         <p className="mt-1 text-sm text-muted">
           A monthly bonus for a wallet&apos;s own referral network, on top of the ordinary per-match
-          referral commission (unaffected by this page). Each tier sets a monthly qualified
-          DIRECT and INDIRECT referral threshold (a referred wallet counts as &quot;qualified&quot;
-          once it plays at least 5 paid matches that month AND has activated mining at least
-          once) — a wallet must meet BOTH thresholds to unlock a tier, and gets the highest tier
-          it qualifies for, never stacked. The bonus % is the commission rate applied to that
-          wallet&apos;s downline&apos;s real platform-profit contribution that month
-          (&quot;revenue from referral users&quot;) — the resulting commission is split exactly
-          50/50: half paid as Game Reward USDT, half converted to bonus mining hashrate (at the
-          platform&apos;s standard MH/s-per-USDT rate) and granted as a new 180-day mining
-          contract. Evaluated for the previous completed month, once, the first time anyone loads
-          their Referrals page after the month rolls over — there&apos;s no cron in this stack.
+          referral commission (5% direct + 2% indirect of the platform&apos;s 30% fee — unaffected
+          by this page). Each tier sets a monthly qualified DIRECT and INDIRECT referral threshold
+          (a referred wallet counts as &quot;qualified&quot; once it plays at least 5 paid matches
+          that month AND has activated mining at least once) — a wallet must meet BOTH thresholds
+          to unlock a tier, and gets the highest tier it qualifies for that month, never stacked
+          (a wallet that drops below a higher tier&apos;s thresholds next month simply falls back
+          to whichever tier it still qualifies for, or none — nothing to separately &quot;demote&quot;).
+          23% of the wallet&apos;s downline&apos;s real entry-fee revenue that month funds VIP
+          bonuses (the 30% platform fee minus the 7% that already funds the referral commission
+          above); the tier&apos;s % of that 23% is the total commission, split exactly 50/50: half
+          as Game Reward USDT, half converted to bonus mining hashrate (at the platform&apos;s
+          standard MH/s-per-USDT rate) as a new 180-day mining contract. Evaluated for the previous
+          completed month, once, the first time anyone loads their Referrals page after the month
+          rolls over — but nothing is credited automatically: every proposal sits Pending until an
+          admin reviews the full detail below and approves or rejects it.
         </p>
       </div>
 
@@ -278,49 +285,163 @@ function TierRow({ row }: { row: AdminKolVipTierRow }) {
 
 function PayoutsSection() {
   const { data, isLoading } = useAdminKolVipPayouts();
+  const pending = (data?.rows ?? []).filter((r) => r.status === "PENDING");
+  const history = (data?.rows ?? []).filter((r) => r.status !== "PENDING");
 
   return (
-    <section className="game-panel hud-corner rounded-2xl p-5">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-gold">Recent Payouts</p>
-      <p className="mt-1 text-xs text-muted">Every month a wallet actually earned a tier — read-only audit log.</p>
-      <div className="mt-3 overflow-x-auto">
-        {isLoading ? (
-          <p className="text-sm text-muted">Loading…</p>
-        ) : !data?.rows.length ? (
-          <p className="text-sm text-muted">No payouts yet.</p>
-        ) : (
-          <table className="w-full min-w-[720px] text-left text-xs">
-            <thead>
-              <tr className="text-muted">
-                <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Wallet</th>
-                <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Month</th>
-                <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Tier</th>
-                <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Direct / Indirect</th>
-                <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Downline Profit</th>
-                <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Total Commission</th>
-                <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Bonus USDT (50%)</th>
-                <th className="pb-2 font-bold uppercase tracking-wide">Bonus MH/s (50%)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.rows.map((r) => (
-                <tr key={r.id} className="border-t border-line">
-                  <td className="py-2 pr-3">{r.nickname || `${r.address.slice(0, 6)}…${r.address.slice(-4)}`}</td>
-                  <td className="py-2 pr-3">{r.periodMonth}</td>
-                  <td className="py-2 pr-3">{r.tierLabel}</td>
-                  <td className="py-2 pr-3">
-                    {r.qualifiedDirectCount} / {r.qualifiedIndirectCount}
-                  </td>
-                  <td className="py-2 pr-3">${r.downlineProfitUsdt.toFixed(2)}</td>
-                  <td className="py-2 pr-3">${r.totalCommissionUsdt.toFixed(4)}</td>
-                  <td className="py-2 pr-3 font-bold">${r.bonusUsdt.toFixed(4)}</td>
-                  <td className="py-2 font-bold">{r.bonusHashrateMhs.toFixed(4)} MH/s</td>
+    <>
+      <section className="game-panel hud-corner rounded-2xl border-2 border-gold/30 p-5">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-gold">Pending Approval</p>
+        <p className="mt-1 text-xs text-muted">
+          Proposed by the monthly evaluation — nothing below has been credited yet. Review the full
+          detail and Approve (credits the USDT half + grants the mining-hashrate half) or Reject
+          (pays nothing, permanent).
+        </p>
+        <div className="mt-3 flex flex-col gap-3">
+          {isLoading ? (
+            <p className="text-sm text-muted">Loading…</p>
+          ) : !pending.length ? (
+            <p className="text-sm text-muted">Nothing pending.</p>
+          ) : (
+            pending.map((r) => <PendingPayoutCard key={r.id} row={r} />)
+          )}
+        </div>
+      </section>
+
+      <section className="game-panel hud-corner rounded-2xl p-5">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-gold">Payout History</p>
+        <p className="mt-1 text-xs text-muted">Every approved or rejected payout — read-only audit log.</p>
+        <div className="mt-3 overflow-x-auto">
+          {isLoading ? (
+            <p className="text-sm text-muted">Loading…</p>
+          ) : !history.length ? (
+            <p className="text-sm text-muted">No reviewed payouts yet.</p>
+          ) : (
+            <table className="w-full min-w-[820px] text-left text-xs">
+              <thead>
+                <tr className="text-muted">
+                  <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Wallet</th>
+                  <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Month</th>
+                  <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Tier</th>
+                  <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Direct / Indirect</th>
+                  <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Downline Revenue</th>
+                  <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Bonus USDT</th>
+                  <th className="pb-2 pr-3 font-bold uppercase tracking-wide">Bonus MH/s</th>
+                  <th className="pb-2 font-bold uppercase tracking-wide">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              </thead>
+              <tbody>
+                {history.map((r) => (
+                  <tr key={r.id} className="border-t border-line">
+                    <td className="py-2 pr-3">{r.nickname || `${r.address.slice(0, 6)}…${r.address.slice(-4)}`}</td>
+                    <td className="py-2 pr-3">{r.periodMonth}</td>
+                    <td className="py-2 pr-3">{r.tierLabel}</td>
+                    <td className="py-2 pr-3">
+                      {r.qualifiedDirectCount} / {r.qualifiedIndirectCount}
+                    </td>
+                    <td className="py-2 pr-3">${r.downlineRevenueUsdt.toFixed(2)}</td>
+                    <td className="py-2 pr-3 font-bold">${r.bonusUsdt.toFixed(4)}</td>
+                    <td className="py-2 pr-3 font-bold">{r.bonusHashrateMhs.toFixed(4)} MH/s</td>
+                    <td className="py-2">
+                      {r.status === "APPROVED" ? (
+                        <span className="rounded-full border border-mint/25 bg-mint-soft px-2 py-0.5 text-[10px] font-bold uppercase text-mint">
+                          Approved
+                        </span>
+                      ) : (
+                        <span
+                          className="rounded-full border border-risk/40 bg-risk-soft px-2 py-0.5 text-[10px] font-bold uppercase text-risk"
+                          title={r.rejectedReason ?? undefined}
+                        >
+                          Rejected
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function PendingPayoutCard({ row }: { row: AdminKolVipPayoutRow }) {
+  const approve = useApproveKolVipPayout();
+  const reject = useRejectKolVipPayout();
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  async function doApprove() {
+    setError(null);
+    try {
+      await approve.mutateAsync(row.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to approve");
+    }
+  }
+
+  async function doReject() {
+    setError(null);
+    if (!reason.trim()) {
+      setError("A reason is required to reject.");
+      return;
+    }
+    try {
+      await reject.mutateAsync({ id: row.id, reason: reason.trim() });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reject");
+    }
+  }
+
+  const busy = approve.isPending || reject.isPending;
+
+  return (
+    <div className="rounded-xl border border-gold/25 bg-panel-2 p-3">
+      <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+        {row.nickname || `${row.address.slice(0, 6)}…${row.address.slice(-4)}`}
+        <span className="rounded-full border border-line px-1.5 py-0.5 text-[10px] font-bold uppercase text-muted">{row.periodMonth}</span>
+        <span className="rounded-full border border-gold/30 bg-gold-soft px-1.5 py-0.5 text-[10px] font-bold uppercase text-gold">{row.tierLabel}</span>
       </div>
-    </section>
+      <div className="mt-2 grid gap-x-4 gap-y-1 text-xs text-muted sm:grid-cols-2">
+        <span>Qualified referrals: {row.qualifiedDirectCount} direct / {row.qualifiedIndirectCount} indirect</span>
+        <span>Downline revenue: ${row.downlineRevenueUsdt.toFixed(2)}</span>
+        <span>VIP funding base (23%): ${row.vipFundingBaseUsdt.toFixed(4)}</span>
+        <span>Total commission: ${row.totalCommissionUsdt.toFixed(4)}</span>
+        <span className="font-bold text-foreground">Bonus USDT (50%): ${row.bonusUsdt.toFixed(4)}</span>
+        <span className="font-bold text-foreground">Bonus hashrate (50%): {row.bonusHashrateMhs.toFixed(4)} MH/s</span>
+      </div>
+
+      {rejecting ? (
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason for rejecting"
+            className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3 py-2 text-sm"
+          />
+          <div className="flex gap-2">
+            <button onClick={() => setRejecting(false)} disabled={busy} className="rounded-full border border-line px-3 py-1.5 text-xs text-muted hover:text-foreground disabled:opacity-50">
+              Cancel
+            </button>
+            <button onClick={doReject} disabled={busy} className="rounded-full border border-risk/40 px-3 py-1.5 text-xs font-bold uppercase text-risk hover:bg-risk-soft disabled:opacity-50">
+              {reject.isPending ? "Rejecting…" : "Confirm Reject"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 flex gap-2">
+          <button onClick={doApprove} disabled={busy} className="btn-game hud-corner rounded-full px-4 py-1.5 text-xs disabled:opacity-50">
+            {approve.isPending ? "Approving…" : "Approve"}
+          </button>
+          <button onClick={() => setRejecting(true)} disabled={busy} className="rounded-full border border-risk/40 px-4 py-1.5 text-xs font-bold uppercase text-risk hover:bg-risk-soft disabled:opacity-50">
+            Reject
+          </button>
+        </div>
+      )}
+      {error && <p className="mt-2 text-xs text-risk">{error}</p>}
+    </div>
   );
 }

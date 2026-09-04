@@ -1125,39 +1125,64 @@ model KolVipTier {
 // One row per KOL per completed calendar month that actually earned a
 // tier — nothing is written for a KOL/month that didn't qualify for
 // any tier, so "any payout rows exist" already means "was ever VIP."
+// Written PENDING by the monthly batch; nothing is actually credited
+// until an admin approves it (see status below) — the batch only ever
+// proposes a payout, never pays one out unattended.
 model KolVipPayout {
-  id                     String        @id @default(cuid())
+  id                     String            @id @default(cuid())
   walletProfileId        String
-  walletProfile          WalletProfile @relation(fields: [walletProfileId], references: [id])
-  periodMonth            String        // "2026-08" — the completed month this covers
+  walletProfile          WalletProfile     @relation(fields: [walletProfileId], references: [id])
+  periodMonth            String            // "2026-08" — the completed month this covers
   kolVipTierId           String
-  kolVipTier             KolVipTier    @relation(fields: [kolVipTierId], references: [id])
+  kolVipTier             KolVipTier        @relation(fields: [kolVipTierId], references: [id])
   qualifiedDirectCount   Int
   qualifiedIndirectCount Int
-  // downlineProfitUsdt (the "revenue from referral users" base) is this
-  // KOL's own direct+indirect network's real platform-profit
-  // contribution that month (same actualProfitUsdt formula GET
-  // /api/admin/game-profit computes, prorated per-human and summed).
-  // totalCommissionUsdt = downlineProfitUsdt * tier.bonusPct, split
-  // exactly in half: bonusUsdt (credited as GAME_REWARD_USDT) and
-  // hashrateConversionUsdt (converted to bonusHashrateMhs at
-  // HASHRATE_PER_USDT and granted as a new $0 MiningContract instead of
-  // credited directly) — all four snapshotted here for audit even
-  // though only two are derived, so the split itself is inspectable
-  // without recomputing it from bonusPct.
-  downlineProfitUsdt     Decimal       @db.Decimal(18, 8)
-  totalCommissionUsdt    Decimal       @db.Decimal(18, 8)
-  bonusUsdt              Decimal       @db.Decimal(18, 8) // actually credited (GAME_REWARD_USDT ledger entry)
-  hashrateConversionUsdt Decimal       @db.Decimal(18, 8) // the other half, before hashrate conversion
-  bonusHashrateMhs       Decimal       @db.Decimal(18, 4) // actually granted, as a new MiningContract
-  // The bonus MiningContract created to carry bonusHashrateMhs, if any
-  // (null when bonusHashrateMhs rounds to 0). Not a formal FK — mining
-  // contracts are never deleted, but keeping this a plain string avoids
-  // a second relation back onto MiningContract for a single audit link.
+  // The full chain, snapshotted for audit — every number an admin needs
+  // to review before approving:
+  //   downlineRevenueUsdt  = real entry-fee revenue this KOL's direct+
+  //                          indirect network generated that month
+  //                          (prorated per-human for multiplayer rooms)
+  //   vipFundingBaseUsdt   = downlineRevenueUsdt * VIP_FUNDING_PCT (23%
+  //                          — the platform's 30% fee minus the 7% that
+  //                          already funds the ordinary L1/L2 referral
+  //                          commission, see src/lib/kolVip.ts)
+  //   totalCommissionUsdt  = vipFundingBaseUsdt * tier.bonusPct
+  //   bonusUsdt            = totalCommissionUsdt / 2 (credited on
+  //                          approval as GAME_REWARD_USDT)
+  //   hashrateConversionUsdt = the other half, before hashrate
+  //                          conversion
+  //   bonusHashrateMhs     = hashrateConversionUsdt * HASHRATE_PER_USDT
+  //                          (granted on approval as a new $0
+  //                          MiningContract)
+  downlineRevenueUsdt    Decimal           @db.Decimal(18, 8)
+  vipFundingBaseUsdt     Decimal           @db.Decimal(18, 8)
+  totalCommissionUsdt    Decimal           @db.Decimal(18, 8)
+  bonusUsdt              Decimal           @db.Decimal(18, 8)
+  hashrateConversionUsdt Decimal           @db.Decimal(18, 8)
+  bonusHashrateMhs       Decimal           @db.Decimal(18, 4)
+  status                 KolVipPayoutStatus @default(PENDING)
+  // Set only once, whichever way this was resolved — an admin address,
+  // not a wallet, since this is an admin action never taken by the KOL
+  // themselves.
+  reviewedByAddress      String?
+  reviewedAt             DateTime?
+  rejectedReason         String?
+  // The bonus MiningContract created to carry bonusHashrateMhs, set
+  // only on approval (null while PENDING, and null forever if
+  // bonusHashrateMhs rounds to 0 or the payout is rejected). Not a
+  // formal FK — mining contracts are never deleted, but keeping this a
+  // plain string avoids a second relation back onto MiningContract for
+  // a single audit link.
   miningContractId       String?
-  createdAt              DateTime      @default(now())
+  createdAt              DateTime          @default(now())
 
   @@unique([walletProfileId, periodMonth])
+}
+
+enum KolVipPayoutStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 // Idempotency claim for the whole-platform monthly batch — separate

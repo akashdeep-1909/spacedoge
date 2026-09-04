@@ -422,6 +422,7 @@ export interface KolVipLastPayout {
   qualifiedIndirectCount: number;
   bonusUsdt: number;
   bonusHashrateMhs: number;
+  status: "PENDING" | "APPROVED" | "REJECTED";
 }
 
 export interface ReferralInfo {
@@ -2792,11 +2793,16 @@ export interface AdminKolVipPayoutRow {
   tierLabel: string;
   qualifiedDirectCount: number;
   qualifiedIndirectCount: number;
-  downlineProfitUsdt: number;
+  downlineRevenueUsdt: number;
+  vipFundingBaseUsdt: number;
   totalCommissionUsdt: number;
   bonusUsdt: number;
   hashrateConversionUsdt: number;
   bonusHashrateMhs: number;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  reviewedByAddress: string | null;
+  reviewedAt: string | null;
+  rejectedReason: string | null;
   createdAt: string;
 }
 
@@ -2808,6 +2814,36 @@ export function useAdminKolVipPayouts() {
       if (!res.ok) throw new Error("Failed to load KOL VIP payouts");
       return res.json();
     },
+  });
+}
+
+export function useApproveKolVipPayout() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/kol-vip/payouts/${id}/approve`, { method: "POST" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to approve");
+      return body;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "kol-vip", "payouts"] }),
+  });
+}
+
+export function useRejectKolVipPayout() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const res = await fetch(`/api/admin/kol-vip/payouts/${id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to reject");
+      return body;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "kol-vip", "payouts"] }),
   });
 }
 

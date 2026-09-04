@@ -318,14 +318,22 @@ function KolVipSection({
       <div className="mt-2 rounded-xl border border-line bg-panel-2 p-4 text-sm">
         <p className="font-bold">{t("refer.kolVipLastPayoutTitle")}</p>
         {kolVip.lastPayout ? (
-          <p className="stat-value text-glow-gold mt-2 text-base text-gold">
-            {t("refer.kolVipLastPayoutBody", {
-              month: kolVip.lastPayout.periodMonth,
-              tier: kolVip.lastPayout.tierLabel,
-              usdt: kolVip.lastPayout.bonusUsdt.toFixed(4),
-              mhs: kolVip.lastPayout.bonusHashrateMhs.toFixed(2),
-            })}
-          </p>
+          <>
+            <p className="stat-value text-glow-gold mt-2 text-base text-gold">
+              {t("refer.kolVipLastPayoutBody", {
+                month: kolVip.lastPayout.periodMonth,
+                tier: kolVip.lastPayout.tierLabel,
+                usdt: kolVip.lastPayout.bonusUsdt.toFixed(4),
+                mhs: kolVip.lastPayout.bonusHashrateMhs.toFixed(2),
+              })}
+            </p>
+            {kolVip.lastPayout.status === "PENDING" && (
+              <p className="mt-1 text-xs text-muted">{t("refer.kolVipPendingNote")}</p>
+            )}
+            {kolVip.lastPayout.status === "REJECTED" && (
+              <p className="mt-1 text-xs text-risk">{t("refer.kolVipRejectedNote")}</p>
+            )}
+          </>
         ) : (
           <p className="mt-1 text-muted">{t("refer.kolVipNoPayoutYet")}</p>
         )}
