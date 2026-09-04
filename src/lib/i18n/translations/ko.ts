@@ -1398,6 +1398,14 @@ const ko = {
     invalidLinkError: "이 초대 링크는 더 이상 유효하지 않습니다",
     joinFailedError: "로비 참가에 실패했습니다",
   },
+  blockedAccount: {
+    heading: "계정이 제한되었습니다",
+    subheading: "관리자가 이 계정의 접근을 제한했습니다.",
+    reasonLabel: "관리자가 제공한 이유:",
+    noReasonFallback: "기록된 이유가 없습니다.",
+    contactHint: "이것이 실수라고 생각되면 고객 지원팀에 문의해 주세요.",
+    disconnectButton: "지갑 연결 해제",
+  },
   lobby: {
     loading: "로비 불러오는 중…",
     notFound: "로비를 찾을 수 없습니다",

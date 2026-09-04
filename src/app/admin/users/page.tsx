@@ -322,6 +322,7 @@ function UserCard({ row }: { row: AdminUserRow }) {
   const [showCredit, setShowCredit] = useState(false);
   const [showReferrer, setShowReferrer] = useState(false);
   const [showRestrict, setShowRestrict] = useState(false);
+  const [showBlock, setShowBlock] = useState(false);
 
   return (
     <div className={`game-panel hud-corner relative rounded-2xl p-4 ${row.isBot ? "opacity-70" : ""}`}>
@@ -348,7 +349,10 @@ function UserCard({ row }: { row: AdminUserRow }) {
               {row.address}
             </Link>
             {row.riskFlag && (
-              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${RISK_STYLE[row.riskFlag]}`}>
+              <span
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${RISK_STYLE[row.riskFlag]}`}
+                title={row.riskFlagNote ? `Reason: ${row.riskFlagNote}` : undefined}
+              >
                 {row.riskFlag}
               </span>
             )}
@@ -399,6 +403,11 @@ function UserCard({ row }: { row: AdminUserRow }) {
               Withdrawal remark: <span className="font-semibold">{row.withdrawalRestrictedNote}</span>
             </p>
           )}
+          {row.riskFlag === "blocked" && (
+            <p className="mt-0.5 text-xs text-risk">
+              Block reason: <span className="font-semibold">{row.riskFlagNote ?? "(no note — see Clear/Block again to add one)"}</span>
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 flex-wrap items-start gap-1.5">
           <Link
@@ -425,11 +434,11 @@ function UserCard({ row }: { row: AdminUserRow }) {
               Flag review
             </button>
             <button
-              onClick={() => setRiskFlag.mutate({ id: row.id, riskFlag: "blocked" })}
-              disabled={setRiskFlag.isPending || row.riskFlag === "blocked"}
+              onClick={() => setShowBlock((v) => !v)}
+              disabled={row.riskFlag === "blocked"}
               className="rounded-full border border-risk/40 bg-panel px-2.5 py-1 text-[11px] font-semibold text-risk transition hover:bg-risk-soft disabled:opacity-40"
             >
-              Block
+              {showBlock ? "Cancel" : "Block"}
             </button>
             {row.riskFlag && (
               <button
@@ -515,6 +524,7 @@ function UserCard({ row }: { row: AdminUserRow }) {
         <ReferrerForm userId={row.id} currentReferrerAddress={row.referredByAddress} onDone={() => setShowReferrer(false)} />
       )}
       {showRestrict && <RestrictWithdrawalForm userId={row.id} onDone={() => setShowRestrict(false)} />}
+      {showBlock && <BlockUserForm userId={row.id} onDone={() => setShowBlock(false)} />}
     </div>
   );
 }
@@ -561,6 +571,60 @@ function RestrictWithdrawalForm({ userId, onDone }: { userId: string; onDone: ()
           className="rounded-full border border-risk/40 bg-panel px-4 py-1.5 text-xs font-semibold text-risk transition hover:bg-risk-soft disabled:opacity-50"
         >
           {setWithdrawalRestriction.isPending ? "Restricting…" : "Restrict Withdrawal"}
+        </button>
+        <button onClick={onDone} className="rounded-full border border-line px-4 py-1.5 text-xs text-muted hover:text-foreground">
+          Cancel
+        </button>
+        {error && <span className="text-xs text-risk">{error}</span>}
+      </div>
+    </div>
+  );
+}
+
+// Blocking a wallet (riskFlag: "blocked") always requires a note — this
+// exact text is what the wallet is shown, verbatim, on the dedicated
+// full-page block screen it sees at sign-in and on every /dashboard/*
+// page load (see WalletProfile.riskFlagNote's own doc-comment in
+// schema.prisma). Un-blocking is the existing single-click "Clear"
+// button rendered directly on UserCard — this component only covers
+// the block-with-a-reason direction, same split as
+// RestrictWithdrawalForm above.
+function BlockUserForm({ userId, onDone }: { userId: string; onDone: () => void }) {
+  const setRiskFlag = useSetRiskFlag();
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    setError(null);
+    if (!note.trim()) {
+      setError("A reason is required — this wallet will see it verbatim when blocked.");
+      return;
+    }
+    try {
+      await setRiskFlag.mutateAsync({ id: userId, riskFlag: "blocked", note: note.trim() });
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to block wallet");
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-risk/25 bg-risk-soft/10 p-3">
+      <div className="grid gap-2">
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Reason — why is this wallet being blocked? (shown to the user, only, on sign-in)"
+          className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm"
+        />
+      </div>
+      <div className="mt-2 flex items-center gap-3">
+        <button
+          onClick={submit}
+          disabled={setRiskFlag.isPending || !note.trim()}
+          className="rounded-full border border-risk/40 bg-panel px-4 py-1.5 text-xs font-semibold text-risk transition hover:bg-risk-soft disabled:opacity-50"
+        >
+          {setRiskFlag.isPending ? "Blocking…" : "Block Wallet"}
         </button>
         <button onClick={onDone} className="rounded-full border border-line px-4 py-1.5 text-xs text-muted hover:text-foreground">
           Cancel

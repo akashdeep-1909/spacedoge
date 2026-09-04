@@ -1398,6 +1398,14 @@ const zh = {
     invalidLinkError: "此邀请链接已失效",
     joinFailedError: "加入房间失败",
   },
+  blockedAccount: {
+    heading: "账户已被限制",
+    subheading: "管理员已限制此账户的访问权限。",
+    reasonLabel: "管理员提供的原因：",
+    noReasonFallback: "未记录原因。",
+    contactHint: "如果您认为这是误判，请联系客服。",
+    disconnectButton: "断开钱包连接",
+  },
   lobby: {
     loading: "正在加载房间…",
     notFound: "找不到房间",

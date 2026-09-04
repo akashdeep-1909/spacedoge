@@ -1398,6 +1398,14 @@ const fil = {
     invalidLinkError: "Hindi na valid ang invite link na ito",
     joinFailedError: "Hindi nagawa ang pagsali sa lobby",
   },
+  blockedAccount: {
+    heading: "Naka-restrict ang Account",
+    subheading: "Pinaghigpitan ng admin ang access sa account na ito.",
+    reasonLabel: "Dahilang ibinigay ng admin:",
+    noReasonFallback: "Walang naitalang dahilan.",
+    contactHint: "Kung sa tingin mo ay pagkakamali ito, makipag-ugnayan sa support.",
+    disconnectButton: "I-disconnect ang Wallet",
+  },
   lobby: {
     loading: "Nilo-load ang lobby…",
     notFound: "Hindi nahanap ang lobby",

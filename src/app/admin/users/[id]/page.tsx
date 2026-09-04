@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
-import { useAdminUserDetail, useSetDemo, useSetWithdrawalRestriction, type AdminReportTable } from "@/lib/hooks";
+import { useAdminUserDetail, useSetDemo, useSetRiskFlag, useSetWithdrawalRestriction, type AdminReportTable } from "@/lib/hooks";
 
 const RISK_STYLE: Record<string, string> = {
   blocked: "border-risk/25 bg-risk-soft text-risk",
@@ -48,7 +48,9 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   const { data, isLoading, error } = useAdminUserDetail(id);
   const setDemo = useSetDemo();
   const setWithdrawalRestriction = useSetWithdrawalRestriction();
+  const setRiskFlag = useSetRiskFlag();
   const [showRestrict, setShowRestrict] = useState(false);
+  const [showBlock, setShowBlock] = useState(false);
 
   if (isLoading) return <p className="p-5 text-sm text-muted">Loading…</p>;
   if (error || !data) return <p className="p-5 text-sm text-risk">{error instanceof Error ? error.message : "User not found."}</p>;
@@ -64,9 +66,36 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <h1 className="break-all text-lg font-black">{profile.nickname ?? profile.address}</h1>
           {profile.riskFlag && (
-            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${RISK_STYLE[profile.riskFlag]}`}>
+            <span
+              className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${RISK_STYLE[profile.riskFlag]}`}
+              title={profile.riskFlagNote ? `Reason: ${profile.riskFlagNote}` : undefined}
+            >
               {profile.riskFlag}
             </span>
+          )}
+          {profile.riskFlag !== "blocked" && (
+            <button
+              onClick={() => setShowBlock((v) => !v)}
+              className="rounded-full border border-risk/40 bg-panel px-2.5 py-0.5 text-[10px] font-semibold text-risk transition hover:bg-risk-soft"
+            >
+              {showBlock ? "Cancel" : "Block"}
+            </button>
+          )}
+          <button
+            onClick={() => setRiskFlag.mutate({ id: profile.id, riskFlag: "review" })}
+            disabled={setRiskFlag.isPending || profile.riskFlag === "review"}
+            className="rounded-full border border-line bg-panel px-2.5 py-0.5 text-[10px] font-semibold text-muted transition hover:border-gold/50 disabled:opacity-40"
+          >
+            Flag review
+          </button>
+          {profile.riskFlag && (
+            <button
+              onClick={() => setRiskFlag.mutate({ id: profile.id, riskFlag: null })}
+              disabled={setRiskFlag.isPending}
+              className="rounded-full border border-mint/40 bg-panel px-2.5 py-0.5 text-[10px] font-semibold text-mint transition hover:bg-mint-soft disabled:opacity-40"
+            >
+              Clear
+            </button>
           )}
           {profile.isKol && (
             <span className="rounded-full border border-mint/30 bg-mint-soft px-2 py-0.5 text-[10px] font-bold uppercase text-mint">
@@ -129,6 +158,11 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               : "Failed to update withdrawal restriction."}
           </p>
         )}
+        {setRiskFlag.error && (
+          <p className="mt-1 text-[11px] text-risk">
+            {setRiskFlag.error instanceof Error ? setRiskFlag.error.message : "Failed to update risk flag."}
+          </p>
+        )}
         {profile.withdrawalRestricted && (
           <p className="mt-1 text-xs text-risk">
             Withdrawal remark: <span className="font-semibold">{profile.withdrawalRestrictedNote}</span>
@@ -137,8 +171,19 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             )}
           </p>
         )}
+        {profile.riskFlag === "blocked" && (
+          <p className="mt-1 text-xs text-risk">
+            Block reason: <span className="font-semibold">{profile.riskFlagNote ?? "(no note)"}</span>
+            {profile.riskFlagSetAt && (
+              <span className="text-muted"> · set {new Date(profile.riskFlagSetAt).toLocaleString()}</span>
+            )}
+          </p>
+        )}
         {showRestrict && !profile.withdrawalRestricted && (
           <RestrictWithdrawalForm userId={profile.id} onDone={() => setShowRestrict(false)} />
+        )}
+        {showBlock && profile.riskFlag !== "blocked" && (
+          <BlockUserForm userId={profile.id} onDone={() => setShowBlock(false)} />
         )}
         {profile.nickname && <p className="mt-0.5 break-all text-xs text-muted">{profile.address}</p>}
         <p className="mt-1 text-xs text-muted">
@@ -253,6 +298,56 @@ function RestrictWithdrawalForm({ userId, onDone }: { userId: string; onDone: ()
           className="rounded-full border border-risk/40 bg-panel px-4 py-1.5 text-xs font-semibold text-risk transition hover:bg-risk-soft disabled:opacity-50"
         >
           {setWithdrawalRestriction.isPending ? "Restricting…" : "Restrict Withdrawal"}
+        </button>
+        <button onClick={onDone} className="rounded-full border border-line px-4 py-1.5 text-xs text-muted hover:text-foreground">
+          Cancel
+        </button>
+        {error && <span className="text-xs text-risk">{error}</span>}
+      </div>
+    </div>
+  );
+}
+
+// Same required-note pattern as RestrictWithdrawalForm above — blocking
+// a wallet (riskFlag: "blocked") always requires a reason, since that
+// exact text is what the wallet is shown, verbatim, on the dedicated
+// full-page block screen it sees at sign-in and on every /dashboard/*
+// page load (see WalletProfile.riskFlagNote's own doc-comment in
+// schema.prisma).
+function BlockUserForm({ userId, onDone }: { userId: string; onDone: () => void }) {
+  const setRiskFlag = useSetRiskFlag();
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    setError(null);
+    if (!note.trim()) {
+      setError("A reason is required — this wallet will see it verbatim when blocked.");
+      return;
+    }
+    try {
+      await setRiskFlag.mutateAsync({ id: userId, riskFlag: "blocked", note: note.trim() });
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to block wallet");
+    }
+  }
+
+  return (
+    <div className="mt-2 rounded-xl border border-risk/25 bg-risk-soft/10 p-3">
+      <input
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Reason — why is this wallet being blocked? (shown to the user, only, on sign-in)"
+        className="w-full rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm"
+      />
+      <div className="mt-2 flex items-center gap-3">
+        <button
+          onClick={submit}
+          disabled={setRiskFlag.isPending || !note.trim()}
+          className="rounded-full border border-risk/40 bg-panel px-4 py-1.5 text-xs font-semibold text-risk transition hover:bg-risk-soft disabled:opacity-50"
+        >
+          {setRiskFlag.isPending ? "Blocking…" : "Block Wallet"}
         </button>
         <button onClick={onDone} className="rounded-full border border-line px-4 py-1.5 text-xs text-muted hover:text-foreground">
           Cancel

@@ -1398,6 +1398,14 @@ const th = {
     invalidLinkError: "ลิงก์คำเชิญนี้ใช้ไม่ได้แล้ว",
     joinFailedError: "เข้าร่วมห้องไม่สำเร็จ",
   },
+  blockedAccount: {
+    heading: "บัญชีถูกจำกัด",
+    subheading: "ผู้ดูแลระบบได้จำกัดการเข้าถึงบัญชีนี้",
+    reasonLabel: "เหตุผลจากผู้ดูแลระบบ:",
+    noReasonFallback: "ไม่มีการบันทึกเหตุผล",
+    contactHint: "หากคุณคิดว่านี่เป็นความผิดพลาด โปรดติดต่อฝ่ายสนับสนุน",
+    disconnectButton: "ยกเลิกการเชื่อมต่อกระเป๋าเงิน",
+  },
   lobby: {
     loading: "กำลังโหลดห้อง…",
     notFound: "ไม่พบห้อง",

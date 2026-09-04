@@ -1398,6 +1398,14 @@ const vi = {
     invalidLinkError: "Liên kết mời này không còn hiệu lực",
     joinFailedError: "Tham gia phòng chờ không thành công",
   },
+  blockedAccount: {
+    heading: "Tài Khoản Bị Hạn Chế",
+    subheading: "Quản trị viên đã hạn chế quyền truy cập vào tài khoản này.",
+    reasonLabel: "Lý do từ quản trị viên:",
+    noReasonFallback: "Không có lý do nào được ghi lại.",
+    contactHint: "Nếu bạn cho rằng đây là nhầm lẫn, vui lòng liên hệ hỗ trợ.",
+    disconnectButton: "Ngắt Kết Nối Ví",
+  },
   lobby: {
     loading: "Đang tải phòng chờ…",
     notFound: "Không tìm thấy phòng chờ",

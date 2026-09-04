@@ -1210,6 +1210,14 @@ const en = {
     invalidLinkError: "This invite link is no longer valid",
     joinFailedError: "Failed to join lobby",
   },
+  blockedAccount: {
+    heading: "Account Restricted",
+    subheading: "An administrator has restricted access to this account.",
+    reasonLabel: "Reason given by the admin:",
+    noReasonFallback: "No reason was recorded.",
+    contactHint: "If you believe this is a mistake, please contact support.",
+    disconnectButton: "Disconnect Wallet",
+  },
   lobby: {
     loading: "Loading lobby…",
     notFound: "Lobby not found",

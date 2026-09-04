@@ -177,6 +177,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       address: profile.address,
       nickname: profile.nickname,
       riskFlag: profile.riskFlag,
+      riskFlagNote: profile.riskFlagNote,
+      riskFlagSetAt: profile.riskFlagSetAt,
       isKol: profile.isKol,
       isDemo: profile.isDemo,
       withdrawalRestricted: profile.withdrawalRestricted,

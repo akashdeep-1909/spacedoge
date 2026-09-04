@@ -102,6 +102,7 @@ export async function GET(request: NextRequest) {
         withdrawalRestricted: p.withdrawalRestricted,
         withdrawalRestrictedNote: p.withdrawalRestrictedNote,
         riskFlag: p.riskFlag,
+        riskFlagNote: p.riskFlagNote,
         isKol: p.isKol,
         createdAt: p.createdAt,
         referredByAddress: referrerByReferredId.get(p.id) ?? null,

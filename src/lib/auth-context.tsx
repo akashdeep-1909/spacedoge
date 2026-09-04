@@ -27,6 +27,7 @@ import {
 } from "@/lib/walletConnectReset";
 import { markWalletReturnPath, clearWalletReturnPath } from "@/lib/walletReturnPath";
 import { revokeInjectedPermissions } from "@/lib/wagmi";
+import { BlockedAccountScreen } from "@/components/BlockedAccountScreen";
 
 // iOS Safari kills in-flight fetch() connections when a tab backgrounds
 // — even briefly, which is exactly what happens mid-request during the
@@ -154,6 +155,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [status, setStatus] = useState<AuthContextValue["status"]>("idle");
   const [error, setError] = useState<string | null>(null);
+  // Set when /api/auth/verify refuses to issue a session because
+  // riskFlag is "blocked" — carries the admin's own reason text through
+  // to a global, full-page takeover (rendered below, in place of
+  // `children` entirely) so a blocked wallet sees the SAME dedicated
+  // message regardless of which page the connect attempt happened on
+  // (landing page, a deep link, anywhere ConnectWalletButton or a
+  // GatedLink is mounted). Distinct from `error` above — that's a small
+  // inline retry-able string; this is a hard stop with nothing to retry.
+  const [blockedNote, setBlockedNote] = useState<string | null | undefined>(undefined);
   // Set once, right after mount, if the PREVIOUS page load auto-recovered
   // from a corrupted WalletConnect session (see AUTO_RECOVERED_FLAG_KEY)
   // — read-once-then-cleared, so it only shows immediately after the
@@ -681,6 +691,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const verifyBody = await verifyRes.json().catch(() => ({}));
       walletLog("verify response", { ok: verifyRes.ok, status: verifyRes.status, body: verifyBody });
       if (!verifyRes.ok) {
+        // A blocked wallet is a hard stop, not a retry-able auth failure
+        // — surfaced through the dedicated full-page takeover
+        // (blockedNote below) instead of the small inline `error`
+        // string every other verify failure uses.
+        if (verifyBody.error === "blocked") {
+          setBlockedNote(verifyBody.blockedNote ?? null);
+          setStatus("idle");
+          return;
+        }
         throw new Error(verifyBody.error ?? "Sign-in verification failed.");
       }
 
@@ -799,7 +818,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         releaseConnectAttempt,
       }}
     >
-      {children}
+      {blockedNote !== undefined ? <BlockedAccountScreen note={blockedNote} onDisconnect={signOut} /> : children}
     </AuthContext.Provider>
   );
 }

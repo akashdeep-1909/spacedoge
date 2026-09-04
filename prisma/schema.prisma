@@ -42,6 +42,17 @@ model WalletProfile {
   // cosmetic label, not an identity claim.
   nickname                 String?   @db.VarChar(24)
   riskFlag                 String? // null | "review" | "blocked" — set only by Risk Service, never by users
+  // Admin's own explanation for the CURRENT riskFlag value — REQUIRED
+  // when an admin sets riskFlag to "blocked" (src/app/api/admin/users/
+  // [id]/risk-flag/route.ts enforces this, mirroring
+  // withdrawalRestrictedNote below), optional for "review". Cleared
+  // whenever riskFlag is cleared back to null. This is the exact text
+  // shown, verbatim, on the dedicated full-page block screen a blocked
+  // wallet sees at sign-in and on every /dashboard/* page load
+  // (src/components/BlockedAccountScreen.tsx) — a blocked wallet must
+  // always see WHY, never just "access denied".
+  riskFlagNote             String?
+  riskFlagSetAt            DateTime?
   // Admin-flagged Key Opinion Leader (src/app/admin/users/page.tsx).
   // Plain on/off toggle, not a tri-state like riskFlag — no "unset"
   // state makes sense here. A referral whose REFERRER has this set

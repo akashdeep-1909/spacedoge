@@ -1398,6 +1398,14 @@ const zhTW = {
     invalidLinkError: "此邀請連結已失效",
     joinFailedError: "加入房間失敗",
   },
+  blockedAccount: {
+    heading: "帳戶已被限制",
+    subheading: "管理員已限制此帳戶的存取權限。",
+    reasonLabel: "管理員提供的原因：",
+    noReasonFallback: "未記錄原因。",
+    contactHint: "如果您認為這是誤判，請聯絡客服。",
+    disconnectButton: "中斷錢包連線",
+  },
   lobby: {
     loading: "正在載入房間…",
     notFound: "找不到房間",

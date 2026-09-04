@@ -893,6 +893,10 @@ export interface AdminUserRow {
   withdrawalRestricted: boolean;
   withdrawalRestrictedNote: string | null;
   riskFlag: string | null;
+  // Admin's reason for the current riskFlag — REQUIRED (non-null)
+  // whenever riskFlag is "blocked". This exact text is what a blocked
+  // wallet is shown on the dedicated full-page block screen.
+  riskFlagNote: string | null;
   isKol: boolean;
   // Most recent APPROVED KOL VIP payout, if any (src/lib/kolVip.ts) —
   // a computed VIP Level, distinct from the admin-set isKol flag above
@@ -1291,11 +1295,14 @@ export function useCreditUserBalance() {
 export function useSetRiskFlag() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, riskFlag }: { id: string; riskFlag: "review" | "blocked" | null }) => {
+    // note is REQUIRED (by the route itself) whenever riskFlag is
+    // "blocked" — see risk-flag/route.ts's own doc-comment. Optional
+    // for "review", ignored/omitted for null (clearing).
+    mutationFn: async ({ id, riskFlag, note }: { id: string; riskFlag: "review" | "blocked" | null; note?: string }) => {
       const res = await fetch(`/api/admin/users/${id}/risk-flag`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ riskFlag }),
+        body: JSON.stringify(riskFlag === null ? { riskFlag: null } : { riskFlag, note }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Failed to update risk flag");
@@ -1422,6 +1429,8 @@ export interface AdminUserDetail {
     address: string;
     nickname: string | null;
     riskFlag: string | null;
+    riskFlagNote: string | null;
+    riskFlagSetAt: string | null;
     isKol: boolean;
     isDemo: boolean;
     withdrawalRestricted: boolean;

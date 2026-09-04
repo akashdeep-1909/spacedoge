@@ -72,6 +72,21 @@ export async function POST(request: NextRequest) {
   // returning wallet replaying a ?ref= link.
   const preexisting = await db.walletProfile.findUnique({ where: { address } });
 
+  // A blocked wallet is refused a session outright — covers "disconnect
+  // and reconnect the wallet" (the sign-in-time half of admin's Block
+  // action; the other half, an already-open session losing access after
+  // a page refresh, is enforced in src/app/dashboard/layout.tsx). No
+  // session cookie is ever issued here, so there's nothing for the
+  // client to fall back on; `blockedNote` carries the admin's own
+  // reason text through to the dedicated full-page block screen
+  // (src/components/BlockedAccountScreen.tsx).
+  if (preexisting?.riskFlag === "blocked") {
+    return NextResponse.json(
+      { error: "blocked", blockedNote: preexisting.riskFlagNote },
+      { status: 403 }
+    );
+  }
+
   const walletProfile = await db.walletProfile.upsert({
     where: { address },
     update: { chainId: siweMessage.chainId },

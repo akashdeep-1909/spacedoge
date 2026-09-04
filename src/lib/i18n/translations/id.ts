@@ -1398,6 +1398,14 @@ const id = {
     invalidLinkError: "Tautan undangan ini sudah tidak berlaku",
     joinFailedError: "Gagal bergabung ke lobi",
   },
+  blockedAccount: {
+    heading: "Akun Dibatasi",
+    subheading: "Administrator telah membatasi akses ke akun ini.",
+    reasonLabel: "Alasan dari admin:",
+    noReasonFallback: "Tidak ada alasan yang dicatat.",
+    contactHint: "Jika menurut Anda ini adalah kesalahan, silakan hubungi dukungan.",
+    disconnectButton: "Putuskan Dompet",
+  },
   lobby: {
     loading: "Memuat lobi…",
     notFound: "Lobi tidak ditemukan",
