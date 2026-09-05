@@ -192,11 +192,16 @@ export async function POST(request: NextRequest) {
     // never trusts anything about the equipped item beyond its id;
     // ownership/expiry/uses are all re-verified here. See
     // consumeLoadoutSelections' own doc-comment in src/lib/shop.ts.
+    // allowRentalBot is explicitly false here (every mode this route
+    // creates, PRACTICE included, is solo/instant-play) — a Rental Bot
+    // only ever works in a Play-with-Friends lobby match
+    // (finalizeLobby in src/lib/lobby.ts), never here.
     const loadout = await consumeLoadoutSelections(
       tx,
       walletProfile.id,
       created.id,
-      parsed.data.loadout as LoadoutSelectionInput | undefined
+      parsed.data.loadout as LoadoutSelectionInput | undefined,
+      { allowRentalBot: false }
     );
 
     return { kind: "created" as const, match: created, loadout };

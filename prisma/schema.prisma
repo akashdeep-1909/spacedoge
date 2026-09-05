@@ -634,6 +634,15 @@ enum ShopItemCategory {
   POWERUP_FIRE
   POWERUP_SHIELD
   EXTRA_TIME
+  // A bot plays the match FOR the buyer instead of the buyer steering
+  // manually — no magnitude/effect column needed (pure boolean
+  // capability, see ResolvedLoadout.rentalBot in shop-shared.ts), sold
+  // via the exact same usesGranted/termDays/priceUsdt columns every
+  // other category already uses. Server-enforced Play-with-Friends-only
+  // (src/lib/shop.ts consumeLoadoutSelections' own allowRentalBot
+  // param) — never resolved/consumed for a solo/instant-play match
+  // regardless of what a client might try to send.
+  RENTAL_BOT
 }
 
 enum ShopEntitlementType {
@@ -721,7 +730,8 @@ model WalletShopItem {
   active                 Boolean             @default(true)
   createdAt              DateTime            @default(now())
 
-  selections MatchLoadoutSelection[]
+  selections         MatchLoadoutSelection[]
+  lobbyParticipations LobbyParticipant[]
 
   @@index([walletProfileId, category, active])
 }
@@ -833,6 +843,16 @@ model LobbyParticipant {
   status            String        @default("JOINED") // JOINED | LEFT
   joinedAt          DateTime      @default(now())
   leftAt            DateTime?
+  // This participant's own current Rental Bot selection for THIS
+  // lobby — set/cleared any time before the lobby starts via
+  // setLobbyRentalBot() (src/lib/lobby.ts), never at join/create time
+  // itself. NOT consumed here — only validated (owned, category
+  // RENTAL_BOT, usable) when set; real consumption (uses-decrement,
+  // expiry check, MatchLoadoutSelection audit row) happens exactly
+  // once, inside finalizeLobby(), via the same consumeLoadoutSelections
+  // every other shop category already goes through for solo matches.
+  walletShopItemId  String?
+  walletShopItem    WalletShopItem? @relation(fields: [walletShopItemId], references: [id])
 
   @@unique([lobbyId, walletProfileId])
   @@unique([lobbyId, slotNumber])

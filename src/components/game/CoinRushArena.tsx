@@ -845,12 +845,21 @@ export function CoinRushArena({
       // Ships — human responds instantly to input (established
       // preference: no easing, it reads as lag), bots chase the
       // nearest coin or head for the vault once carrying enough.
+      // Rental Bot (Coin Rush Shop, RENTAL_BOT category — Play-with-
+      // Friends lobby matches only, see src/lib/shop.ts
+      // consumeLoadoutSelections' own allowRentalBot gate) — "you"
+      // falls through into the exact same local-bot-AI branch below
+      // that already drives ships 1-3, reusing its coin-seeking +
+      // hazard-avoidance logic untouched rather than needing a second
+      // implementation. See the power-up heuristics further down
+      // (after this loop) for the rest of "the bot plays for you."
+      const rentalBotActive = !!loadout?.rentalBot;
       for (const s of g.ships) {
         s.invuln = Math.max(0, s.invuln - dt);
         s.knockback = Math.max(0, s.knockback - dt);
         if (!s.active) continue; // out of lives — done for the match, no respawn
         let ax = 0, ay = 0;
-        if (s.isYou) {
+        if (s.isYou && !rentalBotActive) {
           // Default is drag-anywhere-to-steer (aim at the drag point) —
           // matches the prototype's pointer handling exactly. A fixed
           // on-screen joystick is opt-in (see the joystickEnabled toggle
@@ -968,6 +977,49 @@ export function CoinRushArena({
         s.x = clamp(s.x + s.vx * dt, s.r, g.W - s.r);
         s.y = clamp(s.y + s.vy * dt, TOP_MARGIN + s.r, g.H - BOTTOM_MARGIN - s.r);
         if (g.bankZone.open && dist(s, g.bankZone) < g.bankZone.r + s.r) bankShip(s);
+      }
+
+      // Rental Bot power-up heuristics — the manual power-up buttons
+      // only ever fire on a human's own click, so a fully bot-driven
+      // "you" would otherwise never use Magnet/Shield/Boost/Fire at
+      // all even if the player has them equipped. Mirrors the exact
+      // same duration/cooldown math useMagnet/useShield/useOverclock/
+      // useFire themselves use (including any purchased duration-
+      // bonus/cooldown-reduction from loadout) — inlined here directly
+      // rather than calling those closures, since update() already has
+      // everything it needs via `g` and `you`. Simple, cheap-to-reason-
+      // about triggers, not a lookahead planner: Shield when a hazard
+      // is close and off cooldown; Magnet whenever off cooldown (its
+      // own 90*DPR pull radius already makes it a no-downside pickup);
+      // Boost when the coast is clear; Fire once several hazards
+      // cluster nearby.
+      if (rentalBotActive && you.active) {
+        let nearestHazardD = Infinity;
+        let hazardsWithin150 = 0;
+        for (const h of g.hunters) { const d = dist(you, h); nearestHazardD = Math.min(nearestHazardD, d); if (d < 150 * DPR) hazardsWithin150++; }
+        for (const m of g.mines) { const d = dist(you, m); nearestHazardD = Math.min(nearestHazardD, d); if (d < 150 * DPR) hazardsWithin150++; }
+        for (const dsh of g.dashers) { const d = dist(you, dsh); nearestHazardD = Math.min(nearestHazardD, d); if (d < 150 * DPR) hazardsWithin150++; }
+
+        if (you.shield <= 0 && g.shieldCd <= 0 && nearestHazardD < 90 * DPR) {
+          you.shield = 4 + (loadout?.shieldDurationBonusSec ?? 0);
+          g.shieldCd = Math.max(2, 16 + (loadout?.shieldCooldownDeltaSec ?? 0));
+          playShieldSound();
+        }
+        if (you.magnet <= 0 && g.magnetCd <= 0) {
+          you.magnet = 5 + (loadout?.magnetDurationBonusSec ?? 0);
+          g.magnetCd = Math.max(2, 14 + (loadout?.magnetCooldownDeltaSec ?? 0));
+          playMagnetSound();
+        }
+        if (you.boost <= 0 && g.boostCd <= 0 && nearestHazardD > 150 * DPR) {
+          you.boost = 2.5;
+          g.boostCd = 10;
+          playBoostSound();
+        }
+        if (g.fireUsesRemaining > 0 && you.fire <= 0 && hazardsWithin150 >= 2) {
+          you.fire = 10 + (loadout?.fireDurationBonusSec ?? 0);
+          g.fireUsesRemaining -= 1;
+          playFireSound();
+        }
       }
 
       // Rocket engine hum — pitch/volume ramp with the human ship's own
@@ -1616,9 +1668,13 @@ export function CoinRushArena({
   // which tears down and rebuilds the entire match state; only an
   // actual VALUE change should ever do that, and every one of these is
   // resolved once at match creation and never changes mid-match in
-  // practice (magnet/shield/fire's own duration/cooldown/uses bonuses
-  // are read fresh inside useMagnet/useShield/useFire themselves, not
-  // captured here, so they don't need to be listed).
+  // practice. magnetDurationBonusSec/magnetCooldownDeltaSec/
+  // shieldDurationBonusSec/shieldCooldownDeltaSec/fireDurationBonusSec
+  // are read both here (the Rental Bot's own power-up heuristics
+  // inside update()) and fresh inside the manual useMagnet/useShield/
+  // useFire closures themselves (which aren't affected by this
+  // dependency array at all, being outside this effect) — listed here
+  // too now that update() also reads them directly.
   }, [
     mapSeed,
     durationSec,
@@ -1635,6 +1691,12 @@ export function CoinRushArena({
     loadout?.speedMultBonus,
     loadout?.livesBonus,
     loadout?.fireExtraUses,
+    loadout?.rentalBot,
+    loadout?.magnetDurationBonusSec,
+    loadout?.magnetCooldownDeltaSec,
+    loadout?.shieldDurationBonusSec,
+    loadout?.shieldCooldownDeltaSec,
+    loadout?.fireDurationBonusSec,
   ]);
 
   // Pre-match "3, 2, 1, Go" — purely a local visual pause layered in

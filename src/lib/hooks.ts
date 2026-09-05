@@ -2217,6 +2217,12 @@ export interface LobbyState {
   nominalRoomPoolUsdt: number;
   host: { address: string };
   isHost: boolean;
+  // The VIEWER's own current Rental Bot selection for this lobby — set
+  // any time before start via usePatchLobbyRentalBot, null if nothing's
+  // equipped. Not yet consumed (see setLobbyRentalBot's own doc-comment
+  // in src/lib/lobby.ts) — real consumption happens once the match
+  // actually starts.
+  myRentalBot: { walletShopItemId: string; label: string } | null;
   slots: LobbySlot[];
   humanCount: number;
   maxPlayers: number;
@@ -2297,6 +2303,27 @@ export function useCancelLobby(lobbyId: string) {
       const res = await fetch(`/api/lobbies/${lobbyId}/cancel`, { method: "POST" });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Failed to cancel lobby");
+      return body;
+    },
+    onSuccess: (data) => queryClient.setQueryData(["lobby", lobbyId], data),
+  });
+}
+
+// The caller's own Rental Bot selection for this lobby — callable by
+// host or joiner alike, any time before the lobby starts (see
+// setLobbyRentalBot's own doc-comment in src/lib/lobby.ts). Pass null
+// to clear back to manual play.
+export function usePatchLobbyRentalBot(lobbyId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (walletShopItemId: string | null): Promise<LobbyState> => {
+      const res = await fetch(`/api/lobbies/${lobbyId}/rental-bot`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walletShopItemId }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to update Rental Bot selection");
       return body;
     },
     onSuccess: (data) => queryClient.setQueryData(["lobby", lobbyId], data),
@@ -2390,7 +2417,7 @@ export interface MatchRosterSeat {
 export function useMatchRoster(matchId: string | null | undefined) {
   return useQuery({
     queryKey: ["match-roster", matchId],
-    queryFn: async (): Promise<{ seats: MatchRosterSeat[] }> => {
+    queryFn: async (): Promise<{ seats: MatchRosterSeat[]; loadout: ResolvedLoadout }> => {
       const res = await fetch(`/api/matches/${matchId}/roster`);
       if (!res.ok) throw new Error("Failed to load match roster");
       return res.json();
@@ -2761,7 +2788,8 @@ export type CreateShopItemInput =
   | (CreateShopItemCommon & { category: "STAT_HEALTH"; livesBonus: number })
   | (CreateShopItemCommon & { category: "POWERUP_MAGNET"; magnetDurationBonusSec: number; magnetCooldownReductionSec: number })
   | (CreateShopItemCommon & { category: "POWERUP_FIRE"; fireExtraUses: number; fireDurationBonusSec: number })
-  | (CreateShopItemCommon & { category: "POWERUP_SHIELD"; shieldDurationBonusSec: number; shieldCooldownReductionSec: number });
+  | (CreateShopItemCommon & { category: "POWERUP_SHIELD"; shieldDurationBonusSec: number; shieldCooldownReductionSec: number })
+  | (CreateShopItemCommon & { category: "RENTAL_BOT" });
 
 export function useCreateAdminShopItem() {
   const queryClient = useQueryClient();

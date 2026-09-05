@@ -94,21 +94,34 @@ export async function POST(request: NextRequest) {
     sortOrder,
   };
 
-  const effectFields =
-    body.category === "ROCKET_SHAPE"
-      ? { shapeKey: body.shapeKey, colorHex: body.colorHex }
-      : body.category === "STAT_SPEED"
-        ? { speedMultBonus: body.speedPct / 100 }
-        : body.category === "STAT_HEALTH"
-          ? { livesBonus: body.livesBonus }
-          : body.category === "POWERUP_MAGNET"
-            ? {
-                magnetDurationBonusSec: body.magnetDurationBonusSec,
-                magnetCooldownDeltaSec: -body.magnetCooldownReductionSec,
-              }
-            : body.category === "POWERUP_FIRE"
-              ? { fireExtraUses: body.fireExtraUses, fireDurationBonusSec: body.fireDurationBonusSec }
-              : { shieldDurationBonusSec: body.shieldDurationBonusSec, shieldCooldownDeltaSec: -body.shieldCooldownReductionSec };
+  let effectFields: Record<string, unknown>;
+  switch (body.category) {
+    case "ROCKET_SHAPE":
+      effectFields = { shapeKey: body.shapeKey, colorHex: body.colorHex };
+      break;
+    case "STAT_SPEED":
+      effectFields = { speedMultBonus: body.speedPct / 100 };
+      break;
+    case "STAT_HEALTH":
+      effectFields = { livesBonus: body.livesBonus };
+      break;
+    case "POWERUP_MAGNET":
+      effectFields = {
+        magnetDurationBonusSec: body.magnetDurationBonusSec,
+        magnetCooldownDeltaSec: -body.magnetCooldownReductionSec,
+      };
+      break;
+    case "POWERUP_FIRE":
+      effectFields = { fireExtraUses: body.fireExtraUses, fireDurationBonusSec: body.fireDurationBonusSec };
+      break;
+    case "POWERUP_SHIELD":
+      effectFields = { shieldDurationBonusSec: body.shieldDurationBonusSec, shieldCooldownDeltaSec: -body.shieldCooldownReductionSec };
+      break;
+    case "RENTAL_BOT":
+      // No effect columns at all — a pure boolean capability.
+      effectFields = {};
+      break;
+  }
 
   const created = await db.shopItemConfig.create({ data: { ...shared, ...effectFields } });
 

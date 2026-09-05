@@ -16,7 +16,8 @@ export type ShopItemCategory =
   | "POWERUP_MAGNET"
   | "POWERUP_FIRE"
   | "POWERUP_SHIELD"
-  | "EXTRA_TIME";
+  | "EXTRA_TIME"
+  | "RENTAL_BOT";
 
 export type ShopEntitlementType = "USES" | "TIME_WINDOW";
 
@@ -40,6 +41,11 @@ export interface ResolvedLoadout {
   fireDurationBonusSec: number | null;
   shieldDurationBonusSec: number | null;
   shieldCooldownDeltaSec: number | null;
+  // RENTAL_BOT — a pure boolean capability, no magnitude. Only ever
+  // true for a Play-with-Friends lobby match; solo/instant-play never
+  // resolves this true regardless of what a client sends (see
+  // consumeLoadoutSelections' own allowRentalBot param in shop.ts).
+  rentalBot: boolean;
 }
 
 // Every category an admin can actually create a NEW item in today —
@@ -54,7 +60,18 @@ export const SELLABLE_SHOP_CATEGORIES = [
   "POWERUP_MAGNET",
   "POWERUP_FIRE",
   "POWERUP_SHIELD",
+  "RENTAL_BOT",
 ] as const satisfies readonly ShopItemCategory[];
+
+// RENTAL_BOT is purchasable/admin-creatable like any other category
+// (SELLABLE_SHOP_CATEGORIES above) but deliberately excluded from the
+// solo pre-match loadout picker (LoadoutSelectModal.tsx) — it only
+// ever works in a Play-with-Friends lobby (equipped from the lobby
+// waiting-room page instead), server-enforced regardless of what a
+// client tries to send.
+export const SOLO_LOADOUT_CATEGORIES = SELLABLE_SHOP_CATEGORIES.filter(
+  (c): c is Exclude<(typeof SELLABLE_SHOP_CATEGORIES)[number], "RENTAL_BOT"> => c !== "RENTAL_BOT"
+);
 
 // Icon + glow color per category — reuses the EXACT symbols already
 // shown as the in-game power-up buttons (CoinRushArena.tsx) and the
@@ -72,6 +89,7 @@ export const SHOP_CATEGORY_META: Record<ShopItemCategory, { icon: string; color:
   POWERUP_FIRE: { icon: "🔥", color: "#ff8a3d", label: "Fire Upgrade" },
   POWERUP_SHIELD: { icon: "🛡️", color: "#33f2a4", label: "Shield Upgrade" },
   EXTRA_TIME: { icon: "⏱️", color: "#9aa1ab", label: "Extra Time" },
+  RENTAL_BOT: { icon: "🤖", color: "#8b7cf0", label: "Rental Bot" },
 };
 
 // Every effect field a catalog/owned item can carry — subset shape
@@ -117,6 +135,8 @@ export function describeShopItemEffectPlainEnglish(item: EffectSummaryInput): st
       return item.shieldDurationBonusSec !== null || item.shieldCooldownDeltaSec !== null
         ? `Shield: +${item.shieldDurationBonusSec ?? 0}s duration, ${item.shieldCooldownDeltaSec ?? 0}s cooldown`
         : null;
+    case "RENTAL_BOT":
+      return "Auto-plays your ship — Play with Friends only, equip from the lobby waiting room";
     default:
       return null;
   }
@@ -137,7 +157,8 @@ export type ShopEffectSummaryKey =
   | "effectMagnet"
   | "effectFireSingular"
   | "effectFirePlural"
-  | "effectShield";
+  | "effectShield"
+  | "effectRentalBot";
 
 export function shopItemEffectSummaryKey(
   item: EffectSummaryInput
@@ -166,6 +187,8 @@ export function shopItemEffectSummaryKey(
       return item.shieldDurationBonusSec !== null || item.shieldCooldownDeltaSec !== null
         ? { key: "effectShield", params: { duration: item.shieldDurationBonusSec ?? 0, cooldown: item.shieldCooldownDeltaSec ?? 0 } }
         : null;
+    case "RENTAL_BOT":
+      return { key: "effectRentalBot", params: {} };
     default:
       return null;
   }

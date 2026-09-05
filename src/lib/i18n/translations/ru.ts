@@ -1452,6 +1452,10 @@ const ru = {
     failedToGenerateLink: "Не удалось создать пригласительную ссылку",
     failedToStart: "Не удалось начать",
     failedToCancel: "Не удалось отменить",
+    rentalBotHeading: "Аренда Бота",
+    rentalBotSubtitle: "Пусть бот сыграет за вас — автоматически уклоняется и сдаёт в банк.",
+    rentalBotEmptyInventory: "У вас пока нет пропусков Аренды Бота.",
+    rentalBotFailedToSave: "Не удалось обновить выбор Аренды Бота",
   },
   gameArena: {
     title: "Coin Rush Arena",
@@ -1732,6 +1736,7 @@ const ru = {
     categoryMagnet: "Улучшение Магнита",
     categoryFire: "Улучшение Огня",
     categoryShield: "Улучшение Щита",
+    categoryRentalBot: "Аренда Бота",
     effectSpeed: "+{{pct}}% макс. скорость, весь матч",
     effectHealthSingular: "+{{count}} стартовая жизнь",
     effectHealthPlural: "+{{count}} стартовых жизни",
@@ -1739,6 +1744,7 @@ const ru = {
     effectFireSingular: "Огонь: +{{uses}} доп. использование, +{{duration}}с длительность",
     effectFirePlural: "Огонь: +{{uses}} доп. использований, +{{duration}}с длительность",
     effectShield: "Щит: +{{duration}}с длительность, {{cooldown}}с перезарядка",
+    effectRentalBot: "Автоматически управляет кораблём — только в Play with Friends",
   },
 } satisfies typeof en;
 

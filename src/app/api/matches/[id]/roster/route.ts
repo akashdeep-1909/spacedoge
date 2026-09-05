@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { pickBotNames, shortenWalletAddress } from "@/lib/game-config";
+import { getResolvedLoadoutForMatch } from "@/lib/shop";
 
 // GET /api/matches/[id]/roster — the real identity of every seat in a
 // match, ordered by slotNumber. CoinRushArena has no other way to know
@@ -41,5 +42,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return { slotNumber: p.slotNumber, isBot: p.isBot, isYou, label };
   });
 
-  return NextResponse.json({ seats });
+  // Lobby (Play-with-Friends) matches never pass a `loadout` prop into
+  // CoinRushArena today — this is how that page learns whether a
+  // Rental Bot (or any other shop item, generically) was actually
+  // resolved for the CALLER's own seat, reconstructed from the durable
+  // MatchLoadoutSelection audit trail regardless of how this match was
+  // created (see getResolvedLoadoutForMatch's own doc-comment — it's
+  // the exact same helper GET /api/matches/active already uses for the
+  // solo-resume-after-refresh case).
+  const loadout = await getResolvedLoadoutForMatch(id, session.walletProfileId);
+
+  return NextResponse.json({ seats, loadout });
 }

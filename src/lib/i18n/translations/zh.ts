@@ -1452,6 +1452,10 @@ const zh = {
     failedToGenerateLink: "生成邀请链接失败",
     failedToStart: "开始失败",
     failedToCancel: "取消失败",
+    rentalBotHeading: "租赁机器人",
+    rentalBotSubtitle: "让机器人代替你游玩 — 自动闪避并存入银行。",
+    rentalBotEmptyInventory: "您尚未拥有任何租赁机器人通行证。",
+    rentalBotFailedToSave: "更新租赁机器人选择失败",
   },
   gameArena: {
     title: "Coin Rush Arena",
@@ -1732,6 +1736,7 @@ const zh = {
     categoryMagnet: "磁铁升级",
     categoryFire: "火力升级",
     categoryShield: "护盾升级",
+    categoryRentalBot: "租赁机器人",
     effectSpeed: "全场 +{{pct}}% 最高速度",
     effectHealthSingular: "+{{count}} 条起始生命",
     effectHealthPlural: "+{{count}} 条起始生命",
@@ -1739,6 +1744,7 @@ const zh = {
     effectFireSingular: "火力：+{{uses}} 次额外使用，+{{duration}} 秒持续时间",
     effectFirePlural: "火力：+{{uses}} 次额外使用，+{{duration}} 秒持续时间",
     effectShield: "护盾：+{{duration}} 秒持续时间，{{cooldown}} 秒冷却",
+    effectRentalBot: "自动驾驶你的飞船 — 仅限 Play with Friends",
   },
 } satisfies typeof en;
 

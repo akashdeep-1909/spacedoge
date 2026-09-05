@@ -1214,6 +1214,7 @@ const en = {
     categoryMagnet: "Magnet Upgrades",
     categoryFire: "Fire Upgrades",
     categoryShield: "Shield Upgrades",
+    categoryRentalBot: "Rental Bots",
     // One-line effect summaries — src/lib/shop-shared.ts's own
     // shopItemEffectSummaryKey() picks which of these applies per item.
     effectSpeed: "+{{pct}}% top speed, all match",
@@ -1223,6 +1224,7 @@ const en = {
     effectFireSingular: "Fire: +{{uses}} extra use, +{{duration}}s duration",
     effectFirePlural: "Fire: +{{uses}} extra uses, +{{duration}}s duration",
     effectShield: "Shield: +{{duration}}s duration, {{cooldown}}s cooldown",
+    effectRentalBot: "Auto-plays your ship — Play with Friends only",
   },
   joinLobby: {
     invitedLabel: "You're Invited",
@@ -1276,6 +1278,10 @@ const en = {
     failedToGenerateLink: "Failed to generate invite link",
     failedToStart: "Failed to start",
     failedToCancel: "Failed to cancel",
+    rentalBotHeading: "Rental Bot",
+    rentalBotSubtitle: "Let a bot play this match for you — steers, dodges, and banks automatically.",
+    rentalBotEmptyInventory: "You don't own any Rental Bot passes yet.",
+    rentalBotFailedToSave: "Failed to update your Rental Bot selection",
   },
   gameArena: {
     title: "Coin Rush Arena",

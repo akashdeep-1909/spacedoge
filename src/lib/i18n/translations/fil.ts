@@ -1452,6 +1452,10 @@ const fil = {
     failedToGenerateLink: "Hindi nagawa ang invite link",
     failedToStart: "Hindi nagsimula",
     failedToCancel: "Hindi na-cancel",
+    rentalBotHeading: "Renta na Bot",
+    rentalBotSubtitle: "Hayaan ang isang bot na maglaro para sa iyo — awtomatikong umiiwas at nagbabangko.",
+    rentalBotEmptyInventory: "Wala ka pang Rental Bot pass.",
+    rentalBotFailedToSave: "Hindi na-update ang iyong pinili na Rental Bot",
   },
   gameArena: {
     title: "Coin Rush Arena",
@@ -1732,6 +1736,7 @@ const fil = {
     categoryMagnet: "Magnet Upgrade",
     categoryFire: "Fire Upgrade",
     categoryShield: "Shield Upgrade",
+    categoryRentalBot: "Renta na Bot",
     effectSpeed: "+{{pct}}% top speed, sa buong laban",
     effectHealthSingular: "+{{count}} extra buhay",
     effectHealthPlural: "+{{count}} extra na buhay",
@@ -1739,6 +1744,7 @@ const fil = {
     effectFireSingular: "Fire: +{{uses}} dagdag na gamit, +{{duration}}s tagal",
     effectFirePlural: "Fire: +{{uses}} dagdag na gamit, +{{duration}}s tagal",
     effectShield: "Shield: +{{duration}}s tagal, {{cooldown}}s cooldown",
+    effectRentalBot: "Awtomatikong maglalaro ang bot ng iyong barko — Play with Friends lang",
   },
 } satisfies typeof en;
 

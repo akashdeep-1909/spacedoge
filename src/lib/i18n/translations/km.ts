@@ -1452,6 +1452,10 @@ const km = {
     failedToGenerateLink: "បរាជ័យក្នុងការបង្កើតតំណភ្ជាប់អញ្ជើញ",
     failedToStart: "បរាជ័យក្នុងការចាប់ផ្តើម",
     failedToCancel: "បរាជ័យក្នុងការលុបចោល",
+    rentalBotHeading: "រ៉ូបូតជួល",
+    rentalBotSubtitle: "អនុញ្ញាតឱ្យរ៉ូបូតលេងជំនួសអ្នក — គេចវេស និងទុកប្រាក់ដោយស្វ័យប្រវត្តិ។",
+    rentalBotEmptyInventory: "អ្នកមិនទាន់មានប័ណ្ណរ៉ូបូតជួលទេ។",
+    rentalBotFailedToSave: "បរាជ័យក្នុងការធ្វើបច្ចុប្បន្នភាពជម្រើសរ៉ូបូតជួលរបស់អ្នក",
   },
   gameArena: {
     title: "Coin Rush Arena",
@@ -1732,6 +1736,7 @@ const km = {
     categoryMagnet: "Magnet Upgrade",
     categoryFire: "Fire Upgrade",
     categoryShield: "Shield Upgrade",
+    categoryRentalBot: "រ៉ូបូតជួល",
     effectSpeed: "+{{pct}}% ល្បឿនអតិបរមា គ្រប់ការប្រកួត",
     effectHealthSingular: "+{{count}} ជីវិតដំបូង",
     effectHealthPlural: "+{{count}} ជីវិតដំបូង",
@@ -1739,6 +1744,7 @@ const km = {
     effectFireSingular: "Fire: +{{uses}} ការប្រើបន្ថែម, +{{duration}}វិ រយៈពេល",
     effectFirePlural: "Fire: +{{uses}} ការប្រើបន្ថែម, +{{duration}}វិ រយៈពេល",
     effectShield: "Shield: +{{duration}}វិ រយៈពេល, {{cooldown}}វិ cooldown",
+    effectRentalBot: "លេងស្វ័យប្រវត្តិជំនួសអ្នក — សម្រាប់ Play with Friends ប៉ុណ្ណោះ",
   },
 } satisfies typeof en;
 

@@ -27,6 +27,7 @@ import {
   useMatchRoster,
   useLiveMatchState,
 } from "@/lib/hooks";
+import { RentalBotPanel } from "@/components/game/RentalBotPanel";
 
 function displayName(address: string, nickname?: string | null) {
   return nickname || `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -260,6 +261,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
             mode={lobbyMode}
             opponents={opponents}
             matchId={lobby.finalMatchId}
+            loadout={rosterData?.loadout}
           />
         </div>
       </div>
@@ -397,6 +399,15 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
           <p className="mt-3 text-center text-xs text-gold">{t("lobby.startingMatch")}</p>
         )}
       </div>
+
+      {/* Every one of the 3 ways to end up in this lobby (host, direct
+          invite accept, invite link, room code) lands right here before
+          the match starts — so this one panel is the only place a
+          Rental Bot ever needs to be equipped, for anyone in the room,
+          not just the host. */}
+      {(lobby.status === "WAITING" || lobby.status === "FULL") && (
+        <RentalBotPanel lobbyId={lobby.id} myRentalBot={lobby.myRentalBot} />
+      )}
 
       {lobby.isHost && (lobby.status === "WAITING" || lobby.status === "FULL") && (
         <>

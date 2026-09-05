@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useShopInventory, type OwnedShopItem } from "@/lib/hooks";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
-import { SELLABLE_SHOP_CATEGORIES, ShopItemCategory } from "@/lib/shop-shared";
+import { SOLO_LOADOUT_CATEGORIES, ShopItemCategory } from "@/lib/shop-shared";
 import { ShopItemIcon } from "@/components/game/ShopItemIcon";
 
 // The "before entering a game, which product does the wallet own and
@@ -35,21 +35,23 @@ export function LoadoutSelectModal({
 
   if (!open) return null;
 
-  const CATEGORY_LABEL: Record<ShopItemCategory, string> = {
+  // RENTAL_BOT is deliberately absent — solo/instant-play never offers
+  // it (see SOLO_LOADOUT_CATEGORIES' own doc-comment in shop-shared.ts);
+  // it's equipped from the Play-with-Friends lobby waiting room instead.
+  const CATEGORY_LABEL: Record<(typeof SOLO_LOADOUT_CATEGORIES)[number], string> = {
     ROCKET_SHAPE: t("shop.categoryRocket"),
     STAT_SPEED: t("shop.categorySpeed"),
     STAT_HEALTH: t("shop.categoryHealth"),
     POWERUP_MAGNET: t("shop.categoryMagnet"),
     POWERUP_FIRE: t("shop.categoryFire"),
     POWERUP_SHIELD: t("shop.categoryShield"),
-    EXTRA_TIME: t("shop.categoryRocket"), // unreachable — EXTRA_TIME is excluded from SELLABLE_SHOP_CATEGORIES below
   };
 
   // One section per category the wallet owns at least one usable item
   // in — a category with nothing owned isn't shown at all (nothing to
   // pick between, "None" is already the default with no section
   // needed to say so).
-  const sections = SELLABLE_SHOP_CATEGORIES.map((category) => ({
+  const sections = SOLO_LOADOUT_CATEGORIES.map((category) => ({
     category,
     items: (data?.items ?? []).filter((i): i is OwnedShopItem => i.category === category && i.isUsable),
   })).filter((s) => s.items.length > 0);

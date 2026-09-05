@@ -155,6 +155,18 @@ const STAT_POWERUP_SEEDS: SeedRow[] = [
     shieldCooldownDeltaSec: -5,
     sortOrder: 104,
   },
+  {
+    key: "RENTAL_BOT_AUTOPILOT",
+    category: ShopItemCategory.RENTAL_BOT,
+    label: "Autopilot Rental",
+    description: "A bot plays this match for you — steers, dodges, banks, and uses whatever power-ups you have equipped. Play with Friends only.",
+    priceUsdt: 2.5,
+    entitlementType: ShopEntitlementType.USES,
+    usesGranted: 5,
+    termDays: null,
+    ...NO_EFFECTS,
+    sortOrder: 105,
+  },
 ];
 
 const SEED_DEFAULTS: SeedRow[] = [...ROCKET_SEEDS, ...STAT_POWERUP_SEEDS];
@@ -162,8 +174,8 @@ const SEED_DEFAULTS: SeedRow[] = [...ROCKET_SEEDS, ...STAT_POWERUP_SEEDS];
 // Backfills whichever seed rows don't exist yet, by key — NOT gated on
 // "table is completely empty." An environment that already ran Phase
 // 1 (rocket skins only) has 6 real rows already, so a bare
-// count-is-zero check would never insert the 5 new STAT_POWERUP_SEEDS
-// rows added in Phase 2. This runs the same lookup either way (a fresh
+// count-is-zero check would never insert the STAT_POWERUP_SEEDS rows
+// added since. This runs the same lookup either way (a fresh
 // DB just has every key missing, so the effect is identical there),
 // and is safe to call on every read — an admin who's since edited or
 // disabled a seed row is untouched, this only ever inserts rows whose
@@ -308,6 +320,7 @@ const EMPTY_LOADOUT: ResolvedLoadout = {
   fireDurationBonusSec: null,
   shieldDurationBonusSec: null,
   shieldCooldownDeltaSec: null,
+  rentalBot: false,
 };
 
 // Validates + consumes a wallet's requested loadout selections into a
@@ -360,6 +373,14 @@ function applyItemEffect(resolved: ResolvedLoadout, category: ShopItemCategory, 
       // future phase can light it up with zero changes here) but its
       // effect is never resolved/applied.
       break;
+    case ShopItemCategory.RENTAL_BOT:
+      // No magnitude column to copy — a pure boolean capability. Only
+      // ever reached when the caller allowed it (see
+      // consumeLoadoutSelections' own allowRentalBot gate, which drops
+      // a RENTAL_BOT selection entirely before this function is ever
+      // called for it in a solo/instant-play match).
+      resolved.rentalBot = true;
+      break;
   }
 }
 
@@ -367,7 +388,17 @@ export async function consumeLoadoutSelections(
   tx: Prisma.TransactionClient,
   walletProfileId: string,
   matchId: string,
-  selections: LoadoutSelectionInput | undefined
+  selections: LoadoutSelectionInput | undefined,
+  // RENTAL_BOT is the ONE category that's server-restricted to a
+  // specific match TYPE rather than just "owned and usable" — it only
+  // ever works in a Play-with-Friends lobby match, per the user's own
+  // explicit requirement, and this is the actual enforcement of that
+  // rule (not just a UI omission — a RENTAL_BOT selection reaching
+  // here with allowRentalBot false is dropped exactly like an invalid/
+  // expired item already is, never resolved, never consumed). POST
+  // /api/matches (every solo mode, PRACTICE included) always passes
+  // false; finalizeLobby() (src/lib/lobby.ts) passes true.
+  opts: { allowRentalBot: boolean } = { allowRentalBot: false }
 ): Promise<ResolvedLoadout> {
   const resolved: ResolvedLoadout = { ...EMPTY_LOADOUT };
   if (!selections) return resolved;
@@ -379,6 +410,7 @@ export async function consumeLoadoutSelections(
   const validSelections: { category: ShopItemCategory; walletShopItemId: string }[] = [];
 
   for (const [category, walletShopItemId] of entries) {
+    if (category === ShopItemCategory.RENTAL_BOT && !opts.allowRentalBot) continue;
     const item = await tx.walletShopItem.findUnique({ where: { id: walletShopItemId } });
     if (!item || item.walletProfileId !== walletProfileId || item.category !== category || !item.active) continue;
     if (item.expiresAt !== null && item.expiresAt <= now) {

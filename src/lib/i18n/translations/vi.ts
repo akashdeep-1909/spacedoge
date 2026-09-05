@@ -1452,6 +1452,10 @@ const vi = {
     failedToGenerateLink: "Tạo liên kết mời không thành công",
     failedToStart: "Bắt đầu không thành công",
     failedToCancel: "Hủy không thành công",
+    rentalBotHeading: "Bot Cho Thuê",
+    rentalBotSubtitle: "Để bot chơi thay bạn — tự động né tránh và gửi ngân hàng.",
+    rentalBotEmptyInventory: "Bạn chưa sở hữu vé Bot Cho Thuê nào.",
+    rentalBotFailedToSave: "Cập nhật lựa chọn Bot Cho Thuê thất bại",
   },
   gameArena: {
     title: "Coin Rush Arena",
@@ -1732,6 +1736,7 @@ const vi = {
     categoryMagnet: "Nâng Cấp Nam Châm",
     categoryFire: "Nâng Cấp Hỏa Lực",
     categoryShield: "Nâng Cấp Khiên",
+    categoryRentalBot: "Bot Cho Thuê",
     effectSpeed: "+{{pct}}% tốc độ tối đa, suốt trận",
     effectHealthSingular: "+{{count}} mạng khởi đầu",
     effectHealthPlural: "+{{count}} mạng khởi đầu",
@@ -1739,6 +1744,7 @@ const vi = {
     effectFireSingular: "Hỏa lực: +{{uses}} lượt dùng thêm, +{{duration}}s thời lượng",
     effectFirePlural: "Hỏa lực: +{{uses}} lượt dùng thêm, +{{duration}}s thời lượng",
     effectShield: "Khiên: +{{duration}}s thời lượng, {{cooldown}}s hồi chiêu",
+    effectRentalBot: "Tự động chơi thay bạn — chỉ dành cho Play with Friends",
   },
 } satisfies typeof en;
 

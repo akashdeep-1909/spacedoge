@@ -224,28 +224,40 @@ function AddShopItemForm({ onDone }: { onDone: () => void }) {
       usesGranted: entitlementType === "USES" ? Number(usesGranted) || 0 : null,
       termDays: entitlementType === "TIME_WINDOW" ? Number(termDays) || 0 : null,
     };
-    const input: CreateShopItemInput =
-      category === "ROCKET_SHAPE"
-        ? { ...common, category, shapeKey, colorHex }
-        : category === "STAT_SPEED"
-          ? { ...common, category, speedPct: Number(speedPct) || 0 }
-          : category === "STAT_HEALTH"
-            ? { ...common, category, livesBonus: Number(livesBonus) || 0 }
-            : category === "POWERUP_MAGNET"
-              ? {
-                  ...common,
-                  category,
-                  magnetDurationBonusSec: Number(magnetDurationBonusSec) || 0,
-                  magnetCooldownReductionSec: Number(magnetCooldownReductionSec) || 0,
-                }
-              : category === "POWERUP_FIRE"
-                ? { ...common, category, fireExtraUses: Number(fireExtraUses) || 0, fireDurationBonusSec: Number(fireDurationBonusSec) || 0 }
-                : {
-                    ...common,
-                    category,
-                    shieldDurationBonusSec: Number(shieldDurationBonusSec) || 0,
-                    shieldCooldownReductionSec: Number(shieldCooldownReductionSec) || 0,
-                  };
+    let input: CreateShopItemInput;
+    switch (category) {
+      case "ROCKET_SHAPE":
+        input = { ...common, category, shapeKey, colorHex };
+        break;
+      case "STAT_SPEED":
+        input = { ...common, category, speedPct: Number(speedPct) || 0 };
+        break;
+      case "STAT_HEALTH":
+        input = { ...common, category, livesBonus: Number(livesBonus) || 0 };
+        break;
+      case "POWERUP_MAGNET":
+        input = {
+          ...common,
+          category,
+          magnetDurationBonusSec: Number(magnetDurationBonusSec) || 0,
+          magnetCooldownReductionSec: Number(magnetCooldownReductionSec) || 0,
+        };
+        break;
+      case "POWERUP_FIRE":
+        input = { ...common, category, fireExtraUses: Number(fireExtraUses) || 0, fireDurationBonusSec: Number(fireDurationBonusSec) || 0 };
+        break;
+      case "POWERUP_SHIELD":
+        input = {
+          ...common,
+          category,
+          shieldDurationBonusSec: Number(shieldDurationBonusSec) || 0,
+          shieldCooldownReductionSec: Number(shieldCooldownReductionSec) || 0,
+        };
+        break;
+      case "RENTAL_BOT":
+        input = { ...common, category };
+        break;
+    }
     try {
       await create.mutateAsync(input);
       onDone();

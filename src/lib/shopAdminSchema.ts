@@ -74,6 +74,12 @@ export const createShopItemSchema = z
       shieldCooldownReductionSec: z.number().min(0).max(30),
       ...baseFields,
     }),
+    // No extra fields at all — a pure boolean capability (see
+    // ShopItemCategory.RENTAL_BOT's own doc-comment in schema.prisma).
+    z.object({
+      category: z.literal("RENTAL_BOT"),
+      ...baseFields,
+    }),
   ])
   .refine((v) => (v.entitlementType === "USES" ? !!v.usesGranted : true), {
     message: "usesGranted is required for a USES-type item",
@@ -91,4 +97,5 @@ export const SHOP_ITEM_KEY_PREFIX: Record<z.infer<typeof createShopItemSchema>["
   POWERUP_MAGNET: "MAGNET",
   POWERUP_FIRE: "FIRE",
   POWERUP_SHIELD: "SHIELD",
+  RENTAL_BOT: "RENTALBOT",
 };

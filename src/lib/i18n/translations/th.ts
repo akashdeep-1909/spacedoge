@@ -1452,6 +1452,10 @@ const th = {
     failedToGenerateLink: "สร้างลิงก์คำเชิญไม่สำเร็จ",
     failedToStart: "เริ่มไม่สำเร็จ",
     failedToCancel: "ยกเลิกไม่สำเร็จ",
+    rentalBotHeading: "บอทเช่า",
+    rentalBotSubtitle: "ให้บอทเล่นแทนคุณ — หลบหลีกและฝากเงินอัตโนมัติ",
+    rentalBotEmptyInventory: "คุณยังไม่มีบัตรผ่านบอทเช่า",
+    rentalBotFailedToSave: "อัปเดตตัวเลือกบอทเช่าของคุณไม่สำเร็จ",
   },
   gameArena: {
     title: "Coin Rush Arena",
@@ -1732,6 +1736,7 @@ const th = {
     categoryMagnet: "อัปเกรดแม่เหล็ก",
     categoryFire: "อัปเกรดไฟ",
     categoryShield: "อัปเกรดโล่",
+    categoryRentalBot: "บอทเช่า",
     effectSpeed: "+{{pct}}% ความเร็วสูงสุด ตลอดแมตช์",
     effectHealthSingular: "+{{count}} ชีวิตเริ่มต้น",
     effectHealthPlural: "+{{count}} ชีวิตเริ่มต้น",
@@ -1739,6 +1744,7 @@ const th = {
     effectFireSingular: "ไฟ: +{{uses}} ครั้งใช้เพิ่ม, +{{duration}}วิ ระยะเวลา",
     effectFirePlural: "ไฟ: +{{uses}} ครั้งใช้เพิ่ม, +{{duration}}วิ ระยะเวลา",
     effectShield: "โล่: +{{duration}}วิ ระยะเวลา, {{cooldown}}วิ คูลดาวน์",
+    effectRentalBot: "เล่นแทนคุณโดยอัตโนมัติ — เฉพาะโหมด Play with Friends",
   },
 } satisfies typeof en;
 

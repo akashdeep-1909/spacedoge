@@ -1452,6 +1452,10 @@ const ko = {
     failedToGenerateLink: "초대 링크 생성에 실패했습니다",
     failedToStart: "시작하지 못했습니다",
     failedToCancel: "취소하지 못했습니다",
+    rentalBotHeading: "렌탈 봇",
+    rentalBotSubtitle: "봇이 대신 플레이합니다 — 자동으로 피하고 은행에 저장합니다.",
+    rentalBotEmptyInventory: "아직 보유한 렌탈 봇 이용권이 없습니다.",
+    rentalBotFailedToSave: "렌탈 봇 선택 업데이트에 실패했습니다",
   },
   gameArena: {
     title: "Coin Rush Arena",
@@ -1732,6 +1736,7 @@ const ko = {
     categoryMagnet: "마그넷 업그레이드",
     categoryFire: "파이어 업그레이드",
     categoryShield: "실드 업그레이드",
+    categoryRentalBot: "렌탈 봇",
     effectSpeed: "+{{pct}}% 최고 속도, 매치 내내",
     effectHealthSingular: "+{{count}} 시작 목숨",
     effectHealthPlural: "+{{count}} 시작 목숨",
@@ -1739,6 +1744,7 @@ const ko = {
     effectFireSingular: "파이어: +{{uses}}회 추가 사용, +{{duration}}초 지속시간",
     effectFirePlural: "파이어: +{{uses}}회 추가 사용, +{{duration}}초 지속시간",
     effectShield: "실드: +{{duration}}초 지속시간, {{cooldown}}초 쿨다운",
+    effectRentalBot: "자동으로 조종 — Play with Friends 전용",
   },
 } satisfies typeof en;
 

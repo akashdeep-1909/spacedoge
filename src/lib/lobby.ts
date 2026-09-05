@@ -7,6 +7,8 @@ import { getGameModeConfigs, getGameModeConfig, computeRoomEconomicsFromConfig }
 import { distributeEntryFeeToTreasuryAndReferrals } from "@/lib/referrals";
 import { getWalletBalances, lockWalletForBalanceChange, getLedgerBalance } from "@/lib/balances";
 import { sendPushToWallet } from "@/lib/push";
+import { consumeLoadoutSelections } from "@/lib/shop";
+import { ShopItemCategory } from "@/generated/prisma/enums";
 import type { GameLobby, LobbyParticipant } from "@/generated/prisma/client";
 
 // v3 multiplayer — "Play with Friends". A GameLobby holds 1-4 real
@@ -216,6 +218,27 @@ export async function finalizeLobby(lobbyId: string): Promise<{ matchId: string 
           joinSource: p.joinSource,
         },
       });
+      // Actually consumes this participant's own Rental Bot selection
+      // (if any — set any time before start via setLobbyRentalBot(),
+      // never at join/create time itself). Writes the real
+      // MatchLoadout/MatchLoadoutSelection audit row and decrements
+      // usesRemaining exactly like a solo match's own loadout
+      // consumption already does — allowRentalBot: true is what makes
+      // this the ONE place a RENTAL_BOT selection is ever actually
+      // resolved (see consumeLoadoutSelections' own doc-comment). A
+      // since-expired/exhausted selection is silently dropped by that
+      // function's own existing logic — this participant just plays
+      // manually instead, same graceful degradation solo already
+      // relies on for a stale client snapshot.
+      if (p.walletShopItemId) {
+        await consumeLoadoutSelections(
+          tx,
+          p.walletProfileId,
+          match.id,
+          { [ShopItemCategory.RENTAL_BOT]: p.walletShopItemId },
+          { allowRentalBot: true }
+        );
+      }
       slot++;
     }
     // Disclosed bots fill whatever seats real humans didn't — same
@@ -422,7 +445,10 @@ export async function serializeLobby(lobbyId: string, viewerWalletProfileId: str
       host: { select: { address: true } },
       participants: {
         where: { status: "JOINED" },
-        include: { walletProfile: { select: { address: true, nickname: true } } },
+        include: {
+          walletProfile: { select: { address: true, nickname: true } },
+          walletShopItem: { include: { shopItemConfig: { select: { label: true } } } },
+        },
         orderBy: { slotNumber: "asc" },
       },
       invitations: {
@@ -439,6 +465,18 @@ export async function serializeLobby(lobbyId: string, viewerWalletProfileId: str
   // could drift from what this specific room actually charged.
   const cfg = await getGameModeConfig(lobby.mode);
   const nominalRoomPoolUsdt = Number(lobby.entryFeeUsdt) * LOBBY_MAX_PLAYERS;
+  // The VIEWER's own current Rental Bot selection for this lobby (set/
+  // cleared any time before start via setLobbyRentalBot) — null if
+  // they haven't equipped one, or if viewerWalletProfileId isn't even
+  // a participant here. Not consumed yet at this point (see
+  // finalizeLobby's own consumeLoadoutSelections call for that) —
+  // just what they've currently got selected, for the lobby
+  // waiting-room UI to reflect back.
+  const viewerParticipant = lobby.participants.find((p) => p.walletProfileId === viewerWalletProfileId);
+  const myRentalBot =
+    viewerParticipant?.walletShopItemId && viewerParticipant.walletShopItem
+      ? { walletShopItemId: viewerParticipant.walletShopItemId, label: viewerParticipant.walletShopItem.shopItemConfig.label }
+      : null;
   const slots = Array.from({ length: LOBBY_MAX_PLAYERS }, (_, i) => i + 1).map((slotNumber) => {
     const occupant = lobby.participants.find((p) => p.slotNumber === slotNumber);
     if (!occupant) return { slotNumber, state: "EMPTY" as const };
@@ -463,6 +501,7 @@ export async function serializeLobby(lobbyId: string, viewerWalletProfileId: str
     nominalRoomPoolUsdt,
     host: { address: lobby.host.address },
     isHost: viewerWalletProfileId === lobby.hostWalletProfileId,
+    myRentalBot,
     slots,
     humanCount: lobby.participants.length,
     maxPlayers: LOBBY_MAX_PLAYERS,
@@ -478,6 +517,53 @@ export async function serializeLobby(lobbyId: string, viewerWalletProfileId: str
     finalMatchId: lobby.finalMatchId,
     serverTime: new Date(),
   };
+}
+
+// Sets or clears the CALLER's own Rental Bot selection for a lobby
+// they're already sitting in (host or joiner, whichever of the 3 join
+// paths got them there — this is the one shared surface every one of
+// them lands on before the match starts, per the lobby waiting-room
+// page). Only validates ownership/usability here — does NOT consume
+// the item (no uses-decrement, no ledger, no audit row yet); real
+// consumption happens exactly once, inside finalizeLobby(), via
+// consumeLoadoutSelections. Callable any time before the lobby leaves
+// WAITING/FULL (i.e. any time before STARTING/STARTED) — a player can
+// change their mind, swap to a different owned Rental Bot, or clear it
+// back to manual play, right up until the match actually begins.
+export async function setLobbyRentalBot(
+  lobbyId: string,
+  walletProfileId: string,
+  walletShopItemId: string | null
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const lobby = await db.gameLobby.findUnique({
+    where: { id: lobbyId },
+    include: { participants: { where: { walletProfileId, status: "JOINED" } } },
+  });
+  if (!lobby) return { ok: false, status: 404, error: "Lobby not found" };
+  if (lobby.status !== "WAITING" && lobby.status !== "FULL") {
+    return { ok: false, status: 409, error: "This lobby has already started — loadout can no longer be changed." };
+  }
+  const participant = lobby.participants[0];
+  if (!participant) return { ok: false, status: 403, error: "You're not in this lobby" };
+
+  if (walletShopItemId === null) {
+    await db.lobbyParticipant.update({ where: { id: participant.id }, data: { walletShopItemId: null } });
+    return { ok: true };
+  }
+
+  const item = await db.walletShopItem.findUnique({ where: { id: walletShopItemId } });
+  const now = new Date();
+  const isUsable =
+    !!item &&
+    item.walletProfileId === walletProfileId &&
+    item.category === ShopItemCategory.RENTAL_BOT &&
+    item.active &&
+    (item.expiresAt === null || item.expiresAt > now) &&
+    (item.usesRemaining === null || item.usesRemaining > 0);
+  if (!isUsable) return { ok: false, status: 400, error: "That Rental Bot isn't available to use." };
+
+  await db.lobbyParticipant.update({ where: { id: participant.id }, data: { walletShopItemId } });
+  return { ok: true };
 }
 
 type JoinResult = { ok: true; lobbyId: string } | { ok: false; status: number; error: string };

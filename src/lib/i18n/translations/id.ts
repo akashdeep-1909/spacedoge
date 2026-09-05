@@ -1452,6 +1452,10 @@ const id = {
     failedToGenerateLink: "Gagal membuat tautan undangan",
     failedToStart: "Gagal memulai",
     failedToCancel: "Gagal membatalkan",
+    rentalBotHeading: "Bot Sewaan",
+    rentalBotSubtitle: "Biarkan bot bermain untuk Anda — menghindar dan menabung secara otomatis.",
+    rentalBotEmptyInventory: "Anda belum memiliki pass Bot Sewaan.",
+    rentalBotFailedToSave: "Gagal memperbarui pilihan Bot Sewaan Anda",
   },
   gameArena: {
     title: "Coin Rush Arena",
@@ -1732,6 +1736,7 @@ const id = {
     categoryMagnet: "Magnet Upgrade",
     categoryFire: "Fire Upgrade",
     categoryShield: "Shield Upgrade",
+    categoryRentalBot: "Bot Sewaan",
     effectSpeed: "+{{pct}}% top speed, sepanjang pertandingan",
     effectHealthSingular: "+{{count}} nyawa awal",
     effectHealthPlural: "+{{count}} nyawa awal",
@@ -1739,6 +1744,7 @@ const id = {
     effectFireSingular: "Fire: +{{uses}} penggunaan tambahan, +{{duration}}dtk durasi",
     effectFirePlural: "Fire: +{{uses}} penggunaan tambahan, +{{duration}}dtk durasi",
     effectShield: "Shield: +{{duration}}dtk durasi, {{cooldown}}dtk cooldown",
+    effectRentalBot: "Bermain otomatis untuk kapal Anda — hanya untuk Play with Friends",
   },
 } satisfies typeof en;
 
