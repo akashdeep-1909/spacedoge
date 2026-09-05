@@ -16,7 +16,7 @@ import {
   type OwnedShopItem,
   type FundingSource,
 } from "@/lib/hooks";
-import { SELLABLE_SHOP_CATEGORIES, SHOP_CATEGORY_META, shopItemEffectSummaryKey, type ShopItemCategory } from "@/lib/shop-shared";
+import { SHOP_CATEGORY_META, shopItemEffectSummaryKey, type ShopItemCategory } from "@/lib/shop-shared";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 // A distinct, consistent ship color for a ROCKET_SHAPE item that has no
@@ -41,15 +41,6 @@ function ShopContent() {
     REFERRAL_USDT: t("dashboardHome.referralUsdt"),
     PLAY_USDT: t("dashboardHome.playUsdt"),
     RECYCLED_USDT: t("wallet.recycledUsdtLabel"),
-  };
-  const CATEGORY_LABEL: Record<ShopItemCategory, string> = {
-    ROCKET_SHAPE: t("shop.categoryRocket"),
-    STAT_SPEED: t("shop.categorySpeed"),
-    STAT_HEALTH: t("shop.categoryHealth"),
-    POWERUP_MAGNET: t("shop.categoryMagnet"),
-    POWERUP_FIRE: t("shop.categoryFire"),
-    POWERUP_SHIELD: t("shop.categoryShield"),
-    EXTRA_TIME: t("shop.categoryRocket"), // unreachable — EXTRA_TIME isn't sold anywhere yet
   };
   const { data: balances } = useBalances();
   const { data: catalog, isLoading: catalogLoading } = useShopCatalog();
@@ -90,15 +81,6 @@ function ShopContent() {
   }
 
   const ownedConfigIds = new Set((inventory?.items ?? []).filter((i) => i.isUsable).map((i) => i.configKey));
-
-  // Grouped by category (in the same fixed order the pre-match loadout
-  // picker uses) so a catalog spanning 6 categories reads as sections
-  // instead of one undifferentiated grid mixing rocket skins in with
-  // Fire upgrades.
-  const catalogSections = SELLABLE_SHOP_CATEGORIES.map((category) => ({
-    category,
-    items: (catalog?.items ?? []).filter((i) => i.category === category),
-  })).filter((s) => s.items.length > 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -191,26 +173,16 @@ function ShopContent() {
               <p className="text-xs text-muted">{t("shop.closedBody")}</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-5">
-              {catalogSections.map(({ category, items }) => (
-                <div key={category}>
-                  <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gold">
-                    <ShopItemIcon category={category} size={16} />
-                    {CATEGORY_LABEL[category]}
-                  </p>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {items.map((item) => (
-                      <CatalogItemCard
-                        key={item.id}
-                        item={item}
-                        owned={ownedConfigIds.has(item.key)}
-                        buying={buyingId === item.id}
-                        disabled={buyingId !== null || balanceForSource(source) < item.priceUsdt}
-                        onBuy={() => doPurchase(item)}
-                      />
-                    ))}
-                  </div>
-                </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {(catalog?.items ?? []).map((item) => (
+                <CatalogItemCard
+                  key={item.id}
+                  item={item}
+                  owned={ownedConfigIds.has(item.key)}
+                  buying={buyingId === item.id}
+                  disabled={buyingId !== null || balanceForSource(source) < item.priceUsdt}
+                  onBuy={() => doPurchase(item)}
+                />
               ))}
             </div>
           )}
