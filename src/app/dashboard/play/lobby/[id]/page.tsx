@@ -84,7 +84,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   const generateLink = useGenerateInviteLink(lobbyId);
   const disableLink = useDisableInviteLink(lobbyId);
   const { data: recentPlayersData } = useRecentPlayers();
-  const { data: rosterData } = useMatchRoster(lobby?.finalMatchId ?? null);
+  const { data: rosterData, error: rosterError } = useMatchRoster(lobby?.finalMatchId ?? null);
   // Fast-polled only while actually on the spectate screen (see the
   // waitingForOthers render below) — this app has no push infra, so
   // "watch the others' ships move live" comes from a dedicated,
@@ -92,10 +92,27 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   // app's normal-cadence traffic. See useLiveMatchState's own doc-comment.
   const { data: liveState } = useLiveMatchState(lobby?.finalMatchId ?? null, { enabled: !!waitingForOthers });
 
+  // CoinRushArena's setup effect depends on loadout.rentalBot (and the
+  // other loadout fields) treating them as fixed-at-mount — mounting
+  // the arena before this roster fetch resolves let `loadout` flip from
+  // undefined to its real value AFTER the match had already been
+  // running, which tore down and rebuilt the entire live match mid-play
+  // (see that effect's own doc-comment) and, worse, left "you" undriven
+  // (isYou-with-no-rentalBot falls into the human-input branch, which
+  // does nothing without a human touching the screen) for however long
+  // that gap lasted. Gating showGame on the roster having settled one
+  // way or the other closes that gap — this fetch is effectively
+  // instant once finalMatchId exists, so the loading beat below is
+  // barely visible. A hard fetch failure is treated as "settled with no
+  // loadout" rather than stranding the player on a loading screen
+  // forever — same graceful-degradation stance as an invalid/expired
+  // loadout selection elsewhere in this feature.
+  const rosterSettled = !!rosterData || !!rosterError;
+
   // Derived, not synced via an effect: the arena shows exactly while
   // the match is live, this client hasn't submitted its own result yet,
   // and no result (or wait state) has landed.
-  const showGame = lobby?.status === "STARTED" && !!lobby.finalMatchId && !submitted && !result && !waitingForOthers;
+  const showGame = lobby?.status === "STARTED" && !!lobby.finalMatchId && rosterSettled && !submitted && !result && !waitingForOthers;
   const lastScore = useRef({ score: 0, durationPlayedSec: 0 });
 
   // Shared by both the live-play render (showGame) and the post-finish
@@ -229,6 +246,10 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
         </button>
       </div>
     );
+  }
+
+  if (lobby.status === "STARTED" && lobby.finalMatchId && !rosterSettled && !submitted && !result && !waitingForOthers) {
+    return <p className="mx-auto max-w-md text-sm text-muted">{t("lobby.loading")}</p>;
   }
 
   if (showGame && lobby.finalMatchId) {
