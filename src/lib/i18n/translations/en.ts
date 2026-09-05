@@ -1178,11 +1178,11 @@ const en = {
   // Coin Rush Shop — Phase 1: cosmetic rocket skins only (no
   // gameplay-affecting items yet, see the shop plan for later phases).
   shop: {
-    pageTitle: "Rocket Shop",
-    pageSubtitle: "Buy cosmetic rocket skins for Coin Rush — no gameplay effect, just how your ship looks.",
+    pageTitle: "Coin Rush Shop",
+    pageSubtitle: "Rocket skins (purely cosmetic) plus real Speed/Health/Magnet/Fire/Shield upgrades for Coin Rush.",
     myItemsTitle: "My Items",
     walletsTitle: "Your Wallets",
-    catalogTitle: "Available Skins",
+    catalogTitle: "Available Items",
     buyButton: "Buy",
     buyingButton: "Buying…",
     ownedBadge: "Owned",
@@ -1199,13 +1199,30 @@ const en = {
     closedTitle: "Shop Closed",
     closedBody: "The shop is temporarily unavailable. Anything you already own still works in-game.",
     backToPlayButton: "Back to Play",
-    loadoutModalTitle: "Choose Your Rocket",
-    loadoutModalSubtitle: "Pick a rocket skin to fly this match — purely cosmetic, no effect on gameplay.",
-    loadoutNoneOption: "Default",
+    loadoutModalTitle: "Choose Your Loadout",
+    loadoutModalSubtitle: "Pick what to equip this match — rocket skins are cosmetic only; Speed/Health/Magnet/Fire/Shield items are real in-game bonuses.",
+    loadoutNoneOption: "None",
     loadoutStartButton: "Start Match",
     loadoutCancelButton: "Cancel",
-    loadoutEmptyInventory: "You don't own any rocket skins yet.",
+    loadoutEmptyInventory: "You don't own any shop items yet.",
     loadoutVisitShopLink: "Visit Shop",
+    // Category display names — shown on both the catalog/inventory
+    // grids and the pre-match loadout picker's per-category sections.
+    categoryRocket: "Rocket Skins",
+    categorySpeed: "Speed Boosts",
+    categoryHealth: "Extra Health",
+    categoryMagnet: "Magnet Upgrades",
+    categoryFire: "Fire Upgrades",
+    categoryShield: "Shield Upgrades",
+    // One-line effect summaries — src/lib/shop-shared.ts's own
+    // shopItemEffectSummaryKey() picks which of these applies per item.
+    effectSpeed: "+{{pct}}% top speed, all match",
+    effectHealthSingular: "+{{count}} starting life",
+    effectHealthPlural: "+{{count}} starting lives",
+    effectMagnet: "Magnet: +{{duration}}s duration, {{cooldown}}s cooldown",
+    effectFireSingular: "Fire: +{{uses}} extra use, +{{duration}}s duration",
+    effectFirePlural: "Fire: +{{uses}} extra uses, +{{duration}}s duration",
+    effectShield: "Shield: +{{duration}}s duration, {{cooldown}}s cooldown",
   },
   joinLobby: {
     invitedLabel: "You're Invited",

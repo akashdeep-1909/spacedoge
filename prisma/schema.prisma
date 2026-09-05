@@ -658,6 +658,12 @@ model ShopItemConfig {
   usesGranted            Int? // USES type only
   termDays               Int? // TIME_WINDOW type only
   shapeKey               String? // ROCKET_SHAPE: which cosmetic ship-render variant this grants
+  // ROCKET_SHAPE only — a hex color ("#rrggbb") the purchased ship
+  // renders in (src/lib/rocketShape.ts drawRocketShip), independent of
+  // shapeKey — two catalog items can share a geometry but differ only
+  // by color, or vice versa. Never affects collision size, same
+  // no-pay-to-win invariant shapeKey itself already holds.
+  colorHex               String?
   speedMultBonus         Decimal?            @db.Decimal(6, 4) // STAT_SPEED, e.g. 0.10 = +10% ship speed — Phase 2+
   livesBonus             Int? // STAT_HEALTH — Phase 2+
   magnetDurationBonusSec Decimal?            @db.Decimal(6, 2) // Phase 3+
@@ -690,6 +696,7 @@ model WalletShopItem {
   category               ShopItemCategory
   entitlementType        ShopEntitlementType
   shapeKey               String?
+  colorHex               String?
   speedMultBonus         Decimal?            @db.Decimal(6, 4)
   livesBonus             Int?
   magnetDurationBonusSec Decimal?            @db.Decimal(6, 2)

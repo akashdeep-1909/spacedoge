@@ -1,5 +1,28 @@
 import { ROCKET_SHAPE_GEOMETRY, type RocketShapeKey } from "@/lib/shop-shared";
 
+// Blends a base hull color toward the ship's chosen accent color by
+// `amount` (0 = pure base, 1 = pure tint) — used below so a rocket's
+// color purchase reads clearly across the WHOLE hull, not just the
+// glow + a small cockpit dot (which is all `color` affected before
+// this existed, confirmed too subtle to tell two colors apart at a
+// glance). Silently falls back to the base color for a malformed hex
+// (e.g. mid-typing in the admin color picker) rather than throwing —
+// this runs every animation frame, so it must never crash the canvas.
+function blendHex(base: string, tint: string, amount: number): string {
+  const b = /^#([0-9a-f]{6})$/i.exec(base);
+  const t = /^#([0-9a-f]{6})$/i.exec(tint);
+  if (!b || !t) return base;
+  const bv = parseInt(b[1], 16);
+  const tv = parseInt(t[1], 16);
+  const mix = (shift: number) => {
+    const bc = (bv >> shift) & 0xff;
+    const tc = (tv >> shift) & 0xff;
+    return Math.round(bc + (tc - bc) * amount);
+  };
+  const r = mix(16), g = mix(8), bl = mix(0);
+  return `#${((1 << 24) + (r << 16) + (g << 8) + bl).toString(16).slice(1)}`;
+}
+
 export interface DrawRocketShipOptions {
   x: number;
   y: number;
@@ -49,7 +72,7 @@ export function drawRocketShip(ctx: CanvasRenderingContext2D, opts: DrawRocketSh
   ctx.lineTo(-12 * scale * dpr, 4 * scale * dpr);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = "#aeb8c5";
+  ctx.fillStyle = blendHex("#aeb8c5", color, 0.4);
   ctx.beginPath();
   ctx.moveTo(-7 * scale * dpr, -5 * geo.bodyWidth * scale * dpr);
   ctx.lineTo(-14 * geo.wingLen * scale * dpr, -10 * geo.wingSpread * scale * dpr);
@@ -62,10 +85,13 @@ export function drawRocketShip(ctx: CanvasRenderingContext2D, opts: DrawRocketSh
   ctx.lineTo(-11 * scale * dpr, 2 * geo.bodyWidth * scale * dpr);
   ctx.closePath();
   ctx.fill();
+  // Blended toward the ship's own color (not just the original fixed
+  // white->gray chrome) so a color purchase is obviously visible on
+  // the whole hull at a glance, not just the glow + cockpit dot.
   const body = ctx.createLinearGradient(0, -8 * geo.bodyWidth * scale * dpr, 0, 8 * geo.bodyWidth * scale * dpr);
-  body.addColorStop(0, "#ffffff");
-  body.addColorStop(0.45, "#d8e1eb");
-  body.addColorStop(1, "#7f8b99");
+  body.addColorStop(0, blendHex("#ffffff", color, 0.25));
+  body.addColorStop(0.45, blendHex("#d8e1eb", color, 0.3));
+  body.addColorStop(1, blendHex("#7f8b99", color, 0.35));
   ctx.fillStyle = body;
   const noseX = 15 * geo.noseLen * scale * dpr;
   ctx.beginPath();

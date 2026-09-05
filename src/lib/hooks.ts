@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { WalletBalances } from "@/lib/balances";
 import type { LiveShipSample } from "@/lib/liveMatchStateTypes";
+import type { ResolvedLoadout } from "@/lib/shop-shared";
 
 export function useBalances() {
   return useQuery({
@@ -2523,6 +2524,11 @@ export type ActiveMatchInfo =
       prizePoolUsdt: number;
       players: number;
       startedAt: string;
+      // Rebuilt from the durable purchase audit trail (see
+      // getResolvedLoadoutForMatch's own doc-comment in src/lib/shop.ts)
+      // so resuming a match after a page refresh restores whatever was
+      // actually equipped, instead of reverting to base stats.
+      loadout: ResolvedLoadout;
     };
 
 // Backs the "Resume Game" banner on the Play page — checked on mount
@@ -2543,11 +2549,36 @@ export function useActiveMatch() {
 }
 
 // ---------------------------------------------------------------------
-// Coin Rush Shop (Phase 1: ROCKET_SHAPE cosmetics only) —
-// src/app/api/shop/*, src/lib/shop.ts, src/lib/shop-shared.ts.
+// Coin Rush Shop — src/app/api/shop/*, src/lib/shop.ts,
+// src/lib/shop-shared.ts. ROCKET_SHAPE (cosmetic shape + color, zero
+// gameplay effect) plus real stat/power-up upgrades (STAT_SPEED/
+// STAT_HEALTH/POWERUP_MAGNET/POWERUP_FIRE/POWERUP_SHIELD) sold as
+// upgrades to mechanics that are already free and built into every
+// match (see CoinRushArena.tsx's useMagnet/useShield/useOverclock/
+// useFire). EXTRA_TIME is a real category in the schema but has no
+// selling/UI/game-effect wiring anywhere yet — out of scope.
 // ---------------------------------------------------------------------
 
-export interface ShopCatalogItem {
+// Every effect column a catalog/owned item can carry, regardless of
+// category — only the ones relevant to that item's own category are
+// ever non-null (see ShopItemConfig's own doc-comment in
+// schema.prisma). Shared across ShopCatalogItem/OwnedShopItem/
+// AdminShopItemRow below so the three don't each hand-list the same 10
+// fields.
+export interface ShopItemEffects {
+  shapeKey: string | null;
+  colorHex: string | null;
+  speedMultBonus: number | null;
+  livesBonus: number | null;
+  magnetDurationBonusSec: number | null;
+  magnetCooldownDeltaSec: number | null;
+  fireExtraUses: number | null;
+  fireDurationBonusSec: number | null;
+  shieldDurationBonusSec: number | null;
+  shieldCooldownDeltaSec: number | null;
+}
+
+export interface ShopCatalogItem extends ShopItemEffects {
   id: string;
   key: string;
   category: string;
@@ -2557,7 +2588,6 @@ export interface ShopCatalogItem {
   entitlementType: "USES" | "TIME_WINDOW";
   usesGranted: number | null;
   termDays: number | null;
-  shapeKey: string | null;
 }
 
 export function useShopCatalog() {
@@ -2572,13 +2602,12 @@ export function useShopCatalog() {
   });
 }
 
-export interface OwnedShopItem {
+export interface OwnedShopItem extends ShopItemEffects {
   id: string;
   label: string;
   configKey: string;
   category: string;
   entitlementType: "USES" | "TIME_WINDOW";
-  shapeKey: string | null;
   usesRemaining: number | null;
   startsAt: string | null;
   expiresAt: string | null;
@@ -2665,7 +2694,7 @@ export function useUpdateGameModeConfig() {
   });
 }
 
-export interface AdminShopItemRow {
+export interface AdminShopItemRow extends ShopItemEffects {
   id: string;
   key: string;
   category: string;
@@ -2675,7 +2704,6 @@ export interface AdminShopItemRow {
   entitlementType: "USES" | "TIME_WINDOW";
   usesGranted: number | null;
   termDays: number | null;
-  shapeKey: string | null;
   enabled: boolean;
   sortOrder: number;
 }
@@ -2711,21 +2739,33 @@ export function useUpdateAdminShopItem() {
   });
 }
 
-// Phase 1 scope only — category is always ROCKET_SHAPE server-side
-// (see /api/admin/shop's own POST doc-comment), shapeKey picks one of
-// the 3 actually-coded geometries.
+// One variant per sellable category — mirrors the discriminated union
+// POST /api/admin/shop itself validates against. Every variant shares
+// label/description/priceUsdt/entitlementType/usesGranted/termDays;
+// only the effect fields differ. magnetCooldownReductionSec/
+// shieldCooldownReductionSec are POSITIVE admin-facing "shorten by X
+// seconds" numbers — the route negates them into the actual stored
+// columns, see that route's own doc-comment.
+type CreateShopItemCommon = {
+  label: string;
+  description: string;
+  priceUsdt: number;
+  entitlementType: "USES" | "TIME_WINDOW";
+  usesGranted?: number | null;
+  termDays?: number | null;
+};
+export type CreateShopItemInput =
+  | (CreateShopItemCommon & { category: "ROCKET_SHAPE"; shapeKey: "VOYAGER" | "INTERCEPTOR" | "CRUISER"; colorHex: string })
+  | (CreateShopItemCommon & { category: "STAT_SPEED"; speedPct: number })
+  | (CreateShopItemCommon & { category: "STAT_HEALTH"; livesBonus: number })
+  | (CreateShopItemCommon & { category: "POWERUP_MAGNET"; magnetDurationBonusSec: number; magnetCooldownReductionSec: number })
+  | (CreateShopItemCommon & { category: "POWERUP_FIRE"; fireExtraUses: number; fireDurationBonusSec: number })
+  | (CreateShopItemCommon & { category: "POWERUP_SHIELD"; shieldDurationBonusSec: number; shieldCooldownReductionSec: number });
+
 export function useCreateAdminShopItem() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: {
-      shapeKey: "VOYAGER" | "INTERCEPTOR" | "CRUISER";
-      label: string;
-      description: string;
-      priceUsdt: number;
-      entitlementType: "USES" | "TIME_WINDOW";
-      usesGranted?: number | null;
-      termDays?: number | null;
-    }) => {
+    mutationFn: async (input: CreateShopItemInput) => {
       const res = await fetch("/api/admin/shop", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

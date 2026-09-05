@@ -103,6 +103,7 @@ export async function POST(request: NextRequest) {
     id: outcome.item.id,
     category: outcome.item.category,
     shapeKey: outcome.item.shapeKey,
+    colorHex: outcome.item.colorHex,
     entitlementType: outcome.item.entitlementType,
     usesRemaining: outcome.item.usesRemaining,
     expiresAt: outcome.item.expiresAt,

@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { ShopItemCategory, ShopEntitlementType } from "@/generated/prisma/enums";
-import { SHOP_ROCKET_SHAPE_CATALOG } from "@/lib/shop-shared";
+import { SHOP_ROCKET_SHAPE_CATALOG, type ResolvedLoadout } from "@/lib/shop-shared";
+export type { ResolvedLoadout };
 
 // Selected equipment for one match, keyed by category — POST /api/matches'
 // own `loadout` request field, one walletShopItemId at most per
@@ -14,11 +15,15 @@ export type LoadoutSelectionInput = Partial<Record<ShopItemCategory, string>>;
 // and src/lib/settings.ts's seedWithdrawChainsIfEmpty(). Nothing changes
 // behaviorally until an admin actually edits a row via /admin/shop.
 //
-// Phase 1 seeds ROCKET_SHAPE items only — every other effect column
-// (speedMultBonus, magnetDurationBonusSec, etc.) stays null on every
-// row until a later phase adds STAT_SPEED/POWERUP_*/EXTRA_TIME catalog
-// entries. See the shop plan for the full phased rollout.
-const SEED_DEFAULTS: {
+// Phase 2 (this file, current state): rocket skins (cosmetic shape +
+// color, zero gameplay effect — see shop-shared.ts's own doc-comment
+// on why that's a hard rule) PLUS one seed item per real stat/power-up
+// category, each an upgrade to a mechanic that's already free and
+// built into every match (Magnet/Shield/Boost/Fire — see
+// CoinRushArena.tsx's useMagnet/useShield/useOverclock/useFire) or a
+// permanent whole-match bonus (Speed/Health). EXTRA_TIME stays
+// unseeded — out of scope this phase, see the plan's own doc-comment.
+type SeedRow = {
   key: string;
   category: ShopItemCategory;
   label: string;
@@ -28,8 +33,32 @@ const SEED_DEFAULTS: {
   usesGranted: number | null;
   termDays: number | null;
   shapeKey: string | null;
+  colorHex: string | null;
+  speedMultBonus: number | null;
+  livesBonus: number | null;
+  magnetDurationBonusSec: number | null;
+  magnetCooldownDeltaSec: number | null;
+  fireExtraUses: number | null;
+  fireDurationBonusSec: number | null;
+  shieldDurationBonusSec: number | null;
+  shieldCooldownDeltaSec: number | null;
   sortOrder: number;
-}[] = SHOP_ROCKET_SHAPE_CATALOG.map((shape, i) => {
+};
+
+const NO_EFFECTS = {
+  shapeKey: null,
+  colorHex: null,
+  speedMultBonus: null,
+  livesBonus: null,
+  magnetDurationBonusSec: null,
+  magnetCooldownDeltaSec: null,
+  fireExtraUses: null,
+  fireDurationBonusSec: null,
+  shieldDurationBonusSec: null,
+  shieldCooldownDeltaSec: null,
+} as const;
+
+const ROCKET_SEEDS: SeedRow[] = SHOP_ROCKET_SHAPE_CATALOG.map((shape, i) => {
   // Alternates entitlement type across the 6 seed rows so both pricing
   // models (a fixed number of games, and a day-limited pass) are live
   // and exercised end to end from day one, matching the user's own
@@ -47,18 +76,133 @@ const SEED_DEFAULTS: {
     entitlementType: useTimeWindow ? ShopEntitlementType.TIME_WINDOW : ShopEntitlementType.USES,
     usesGranted: useTimeWindow ? null : 15 + i * 5,
     termDays: useTimeWindow ? (i % 4 === 0 ? 7 : 3) : null,
+    ...NO_EFFECTS,
     shapeKey: shape.shapeKey,
+    colorHex: shape.colorHex,
     sortOrder: i,
   };
 });
 
+// One seed item per real gameplay category — admin can add more of the
+// same category later (different price/duration/uses combos), these
+// just make sure the shop isn't empty on first load.
+const STAT_POWERUP_SEEDS: SeedRow[] = [
+  {
+    key: "SPEED_NITRO_ENGINE",
+    category: ShopItemCategory.STAT_SPEED,
+    label: "Nitro Engine",
+    description: "Permanently boosts your ship's top speed for the whole match — stacks with the in-game Boost button.",
+    priceUsdt: 1.25,
+    entitlementType: ShopEntitlementType.USES,
+    usesGranted: 20,
+    termDays: null,
+    ...NO_EFFECTS,
+    speedMultBonus: 0.1,
+    sortOrder: 100,
+  },
+  {
+    key: "HEALTH_REINFORCED_HULL",
+    category: ShopItemCategory.STAT_HEALTH,
+    label: "Reinforced Hull",
+    description: "Grants 1 extra life at the start of every match you use it in.",
+    priceUsdt: 1.5,
+    entitlementType: ShopEntitlementType.TIME_WINDOW,
+    usesGranted: null,
+    termDays: 7,
+    ...NO_EFFECTS,
+    livesBonus: 1,
+    sortOrder: 101,
+  },
+  {
+    key: "MAGNET_OVERCHARGE",
+    category: ShopItemCategory.POWERUP_MAGNET,
+    label: "Magnet Overcharge",
+    description: "Makes your Magnet power-up last longer and recharge faster.",
+    priceUsdt: 1.0,
+    entitlementType: ShopEntitlementType.USES,
+    usesGranted: 25,
+    termDays: null,
+    ...NO_EFFECTS,
+    magnetDurationBonusSec: 2.5,
+    magnetCooldownDeltaSec: -4,
+    sortOrder: 102,
+  },
+  {
+    key: "FIRE_EXTRA_AMMO",
+    category: ShopItemCategory.POWERUP_FIRE,
+    label: "Extra Ammo",
+    description: "Lets you use Fire one additional time per match, and burns longer each time.",
+    priceUsdt: 1.75,
+    entitlementType: ShopEntitlementType.TIME_WINDOW,
+    usesGranted: null,
+    termDays: 3,
+    ...NO_EFFECTS,
+    fireExtraUses: 1,
+    fireDurationBonusSec: 3,
+    sortOrder: 103,
+  },
+  {
+    key: "SHIELD_CAPACITOR",
+    category: ShopItemCategory.POWERUP_SHIELD,
+    label: "Shield Capacitor",
+    description: "Makes your Shield power-up last longer and recharge faster.",
+    priceUsdt: 1.1,
+    entitlementType: ShopEntitlementType.USES,
+    usesGranted: 25,
+    termDays: null,
+    ...NO_EFFECTS,
+    shieldDurationBonusSec: 2,
+    shieldCooldownDeltaSec: -5,
+    sortOrder: 104,
+  },
+];
+
+const SEED_DEFAULTS: SeedRow[] = [...ROCKET_SEEDS, ...STAT_POWERUP_SEEDS];
+
+// Backfills whichever seed rows don't exist yet, by key — NOT gated on
+// "table is completely empty." An environment that already ran Phase
+// 1 (rocket skins only) has 6 real rows already, so a bare
+// count-is-zero check would never insert the 5 new STAT_POWERUP_SEEDS
+// rows added in Phase 2. This runs the same lookup either way (a fresh
+// DB just has every key missing, so the effect is identical there),
+// and is safe to call on every read — an admin who's since edited or
+// disabled a seed row is untouched, this only ever inserts rows whose
+// key doesn't exist at all yet.
+//
+// Also separately backfills colorHex specifically on the ORIGINAL 6
+// Phase 1 rocket rows, which is a genuinely different situation from
+// "row doesn't exist": those rows exist already (created before
+// colorHex existed at all) with colorHex still null, so the "insert
+// only if key is missing" logic above would never touch them — without
+// this, every environment that ran Phase 1 before this feature shipped
+// would show all 6 stock rocket skins in the same fallback gold,
+// defeating the entire point of adding per-item color. Only ever fills
+// in an actually-null value with the seed's own original color, never
+// overwrites a real (non-null) value — there's no admin-facing "edit
+// color" action yet, so the only way colorHex could already be
+// non-null here is this same backfill having already run.
 async function seedShopItemConfigsIfEmpty() {
-  const count = await db.shopItemConfig.count();
-  if (count > 0) return;
-  try {
-    await db.shopItemConfig.createMany({ data: SEED_DEFAULTS });
-  } catch {
-    // Lost a seed race — fine, another concurrent request already created these.
+  const existing = await db.shopItemConfig.findMany({ select: { id: true, key: true, colorHex: true } });
+  const existingByKey = new Map(existing.map((r) => [r.key, r]));
+
+  const missing = SEED_DEFAULTS.filter((row) => !existingByKey.has(row.key));
+  if (missing.length > 0) {
+    try {
+      await db.shopItemConfig.createMany({ data: missing });
+    } catch {
+      // Lost a seed race — fine, another concurrent request already created these.
+    }
+  }
+
+  const colorBackfills = ROCKET_SEEDS.filter((seed) => {
+    const row = existingByKey.get(seed.key);
+    return row && row.colorHex === null && seed.colorHex !== null;
+  });
+  for (const seed of colorBackfills) {
+    const row = existingByKey.get(seed.key)!;
+    await db.shopItemConfig.update({ where: { id: row.id }, data: { colorHex: seed.colorHex } }).catch(() => {
+      // Non-fatal — another concurrent request may have already backfilled this same row.
+    });
   }
 }
 
@@ -82,6 +226,7 @@ export async function getShopItemConfig(id: string) {
 export type ShopItemEffectFields = Pick<
   Prisma.ShopItemConfigGetPayload<object>,
   | "shapeKey"
+  | "colorHex"
   | "speedMultBonus"
   | "livesBonus"
   | "magnetDurationBonusSec"
@@ -96,6 +241,7 @@ export type ShopItemEffectFields = Pick<
 export function pickEffectFields(cfg: ShopItemEffectFields): ShopItemEffectFields {
   return {
     shapeKey: cfg.shapeKey,
+    colorHex: cfg.colorHex,
     speedMultBonus: cfg.speedMultBonus,
     livesBonus: cfg.livesBonus,
     magnetDurationBonusSec: cfg.magnetDurationBonusSec,
@@ -111,10 +257,29 @@ export function pickEffectFields(cfg: ShopItemEffectFields): ShopItemEffectField
 // What actually got equipped, resolved server-side — this is the ONLY
 // thing settlement/CoinRushArena should ever trust for "what loadout
 // applied to this match," never a client's own claim (see
-// MatchLoadout's own doc-comment in schema.prisma).
-export interface ResolvedLoadout {
-  shapeKey: string | null;
-}
+// MatchLoadout's own doc-comment in schema.prisma). ResolvedLoadout
+// itself lives in shop-shared.ts (a client-safe file) so CoinRushArena
+// and dashboard/play/page.tsx can import the exact same shape this
+// resolves into, without pulling this server-only file (imports `db`)
+// into the browser bundle. One field per sellable effect, populated
+// straight from whichever category each valid selection belongs to —
+// at most one selection per category (MatchLoadoutSelection's own
+// unique constraint), so this is always a direct copy, never a sum
+// across multiple items of the same kind. extraTimeSec is deliberately
+// absent — EXTRA_TIME items are out of scope for this phase (would
+// need anti-cheat ceiling/settlement changes not otherwise implied).
+const EMPTY_LOADOUT: ResolvedLoadout = {
+  shapeKey: null,
+  colorHex: null,
+  speedMultBonus: null,
+  livesBonus: null,
+  magnetDurationBonusSec: null,
+  magnetCooldownDeltaSec: null,
+  fireExtraUses: null,
+  fireDurationBonusSec: null,
+  shieldDurationBonusSec: null,
+  shieldCooldownDeltaSec: null,
+};
 
 // Validates + consumes a wallet's requested loadout selections into a
 // real MatchLoadout/MatchLoadoutSelection audit record, INSIDE the
@@ -128,13 +293,54 @@ export interface ResolvedLoadout {
 // match entirely. USES-type items have usesRemaining decremented by 1
 // here, flipping `active` false once it hits 0 — the one place that
 // counter is ever touched.
+// Copies whichever effect field(s) an item's category actually carries
+// onto `resolved` — every other field on `item` for a given category
+// is null anyway (see ShopItemConfig's own doc-comment), so this could
+// safely copy everything unconditionally; switching on category
+// instead keeps the intent explicit and matches pickEffectFields' own
+// per-category framing. Shared by consumeLoadoutSelections (the
+// match-creation path) and getResolvedLoadoutForMatch below (the
+// resume-after-refresh path) so the two can never resolve the same
+// stored selection into two different results.
+function applyItemEffect(resolved: ResolvedLoadout, category: ShopItemCategory, item: ShopItemEffectFields) {
+  switch (category) {
+    case ShopItemCategory.ROCKET_SHAPE:
+      resolved.shapeKey = item.shapeKey;
+      resolved.colorHex = item.colorHex;
+      break;
+    case ShopItemCategory.STAT_SPEED:
+      resolved.speedMultBonus = item.speedMultBonus !== null ? Number(item.speedMultBonus) : null;
+      break;
+    case ShopItemCategory.STAT_HEALTH:
+      resolved.livesBonus = item.livesBonus;
+      break;
+    case ShopItemCategory.POWERUP_MAGNET:
+      resolved.magnetDurationBonusSec = item.magnetDurationBonusSec !== null ? Number(item.magnetDurationBonusSec) : null;
+      resolved.magnetCooldownDeltaSec = item.magnetCooldownDeltaSec !== null ? Number(item.magnetCooldownDeltaSec) : null;
+      break;
+    case ShopItemCategory.POWERUP_FIRE:
+      resolved.fireExtraUses = item.fireExtraUses;
+      resolved.fireDurationBonusSec = item.fireDurationBonusSec !== null ? Number(item.fireDurationBonusSec) : null;
+      break;
+    case ShopItemCategory.POWERUP_SHIELD:
+      resolved.shieldDurationBonusSec = item.shieldDurationBonusSec !== null ? Number(item.shieldDurationBonusSec) : null;
+      resolved.shieldCooldownDeltaSec = item.shieldCooldownDeltaSec !== null ? Number(item.shieldCooldownDeltaSec) : null;
+      break;
+    case ShopItemCategory.EXTRA_TIME:
+      // Out of scope this phase — accepted as a valid selection (so a
+      // future phase can light it up with zero changes here) but its
+      // effect is never resolved/applied.
+      break;
+  }
+}
+
 export async function consumeLoadoutSelections(
   tx: Prisma.TransactionClient,
   walletProfileId: string,
   matchId: string,
   selections: LoadoutSelectionInput | undefined
 ): Promise<ResolvedLoadout> {
-  const resolved: ResolvedLoadout = { shapeKey: null };
+  const resolved: ResolvedLoadout = { ...EMPTY_LOADOUT };
   if (!selections) return resolved;
 
   const entries = Object.entries(selections) as [ShopItemCategory, string][];
@@ -162,7 +368,7 @@ export async function consumeLoadoutSelections(
       });
     }
     validSelections.push({ category, walletShopItemId: item.id });
-    if (category === ShopItemCategory.ROCKET_SHAPE) resolved.shapeKey = item.shapeKey;
+    applyItemEffect(resolved, category, item);
   }
 
   if (validSelections.length === 0) return resolved;
@@ -176,5 +382,24 @@ export async function consumeLoadoutSelections(
     })),
   });
 
+  return resolved;
+}
+
+// Rebuilds the exact ResolvedLoadout a match started with, straight
+// from the durable MatchLoadoutSelection audit trail — used by GET
+// /api/matches/active so resuming a match after a page refresh (or
+// disconnect/reconnect) restores whatever was actually equipped/paid
+// for, instead of silently reverting to base stats for the rest of the
+// match. Read-only, no wallet lock needed (nothing here mutates
+// anything — the items were already consumed once, at creation time).
+export async function getResolvedLoadoutForMatch(matchId: string, walletProfileId: string): Promise<ResolvedLoadout> {
+  const resolved: ResolvedLoadout = { ...EMPTY_LOADOUT };
+  const selections = await db.matchLoadoutSelection.findMany({
+    where: { matchLoadout: { matchId, walletProfileId } },
+    include: { walletShopItem: true },
+  });
+  for (const sel of selections) {
+    applyItemEffect(resolved, sel.category, sel.walletShopItem);
+  }
   return resolved;
 }

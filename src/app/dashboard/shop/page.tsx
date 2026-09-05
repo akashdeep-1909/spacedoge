@@ -6,6 +6,7 @@ import { ShoppingBag, Check, Lock } from "lucide-react";
 import { OnboardingGate } from "@/components/OnboardingGate";
 import { SuccessModal } from "@/components/SuccessModal";
 import { RocketPreview } from "@/components/game/RocketPreview";
+import { ShopItemIcon } from "@/components/game/ShopItemIcon";
 import {
   useBalances,
   useShopCatalog,
@@ -15,14 +16,14 @@ import {
   type OwnedShopItem,
   type FundingSource,
 } from "@/lib/hooks";
+import { SELLABLE_SHOP_CATEGORIES, SHOP_CATEGORY_META, shopItemEffectSummaryKey, type ShopItemCategory } from "@/lib/shop-shared";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 
-// A distinct, consistent ship color for every preview on this page —
-// deliberately NOT per-mode theme.shipColor (CoinRushArena picks that
-// per game mode, meaningless here) and not per-item either: every
-// shop card shows the same silhouette-defining color so the SHAPE is
-// what's being compared/sold, matching gold (this page's own brand
-// accent, see text-glow-gold below).
+// A distinct, consistent ship color for a ROCKET_SHAPE item that has no
+// colorHex of its own (older catalog rows created before that field
+// existed) — deliberately NOT per-mode theme.shipColor (CoinRushArena
+// picks that per game mode, meaningless here). Every real rocket item
+// going forward carries its own admin-set colorHex instead.
 const PREVIEW_COLOR = "#f4c15d";
 
 export default function ShopPage() {
@@ -40,6 +41,15 @@ function ShopContent() {
     REFERRAL_USDT: t("dashboardHome.referralUsdt"),
     PLAY_USDT: t("dashboardHome.playUsdt"),
     RECYCLED_USDT: t("wallet.recycledUsdtLabel"),
+  };
+  const CATEGORY_LABEL: Record<ShopItemCategory, string> = {
+    ROCKET_SHAPE: t("shop.categoryRocket"),
+    STAT_SPEED: t("shop.categorySpeed"),
+    STAT_HEALTH: t("shop.categoryHealth"),
+    POWERUP_MAGNET: t("shop.categoryMagnet"),
+    POWERUP_FIRE: t("shop.categoryFire"),
+    POWERUP_SHIELD: t("shop.categoryShield"),
+    EXTRA_TIME: t("shop.categoryRocket"), // unreachable — EXTRA_TIME isn't sold anywhere yet
   };
   const { data: balances } = useBalances();
   const { data: catalog, isLoading: catalogLoading } = useShopCatalog();
@@ -80,6 +90,15 @@ function ShopContent() {
   }
 
   const ownedConfigIds = new Set((inventory?.items ?? []).filter((i) => i.isUsable).map((i) => i.configKey));
+
+  // Grouped by category (in the same fixed order the pre-match loadout
+  // picker uses) so a catalog spanning 6 categories reads as sections
+  // instead of one undifferentiated grid mixing rocket skins in with
+  // Fire upgrades.
+  const catalogSections = SELLABLE_SHOP_CATEGORIES.map((category) => ({
+    category,
+    items: (catalog?.items ?? []).filter((i) => i.category === category),
+  })).filter((s) => s.items.length > 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -172,16 +191,26 @@ function ShopContent() {
               <p className="text-xs text-muted">{t("shop.closedBody")}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {(catalog?.items ?? []).map((item) => (
-                <CatalogItemCard
-                  key={item.id}
-                  item={item}
-                  owned={ownedConfigIds.has(item.key)}
-                  buying={buyingId === item.id}
-                  disabled={buyingId !== null || balanceForSource(source) < item.priceUsdt}
-                  onBuy={() => doPurchase(item)}
-                />
+            <div className="flex flex-col gap-5">
+              {catalogSections.map(({ category, items }) => (
+                <div key={category}>
+                  <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gold">
+                    <ShopItemIcon category={category} size={16} />
+                    {CATEGORY_LABEL[category]}
+                  </p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {items.map((item) => (
+                      <CatalogItemCard
+                        key={item.id}
+                        item={item}
+                        owned={ownedConfigIds.has(item.key)}
+                        buying={buyingId === item.id}
+                        disabled={buyingId !== null || balanceForSource(source) < item.priceUsdt}
+                        onBuy={() => doPurchase(item)}
+                      />
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -199,34 +228,64 @@ function ShopContent() {
   );
 }
 
-// The "what you actually get" badge — a live rocket-shape preview
-// (RocketPreview, same draw code the real game uses) inside a soft
-// radial glow with a slowly-spinning dashed orbit ring, so a shop card
-// reads as more than a plain list row. `glow` adds a pulsing box-shadow
-// (reused from src/app/globals.css's pulse-glow keyframe, same one the
-// Play page's KOL-bonus card and the wallet-connect button use) — kept
-// off for the denser "My Items" grid so a shelf of owned items doesn't
-// turn into a wall of pulsing lights.
-function RocketBadge({ shapeKey, size, glow }: { shapeKey: string | null; size: number; glow?: boolean }) {
+// The "what you actually get" badge for one item, in the same soft
+// radial-glow + slowly-spinning dashed orbit ring frame regardless of
+// what's inside — a live rocket preview (RocketPreview, same draw code
+// the real game uses, tinted with the item's own purchased color) for
+// ROCKET_SHAPE, or a glowing category icon (ShopItemIcon) for every
+// real stat/power-up upgrade. `glow` adds a pulsing box-shadow (reused
+// from src/app/globals.css's pulse-glow keyframe, same one the Play
+// page's KOL-bonus card and the wallet-connect button use) — kept off
+// for the denser "My Items" grid so a shelf of owned items doesn't turn
+// into a wall of pulsing lights.
+function ItemVisual({
+  category,
+  shapeKey,
+  colorHex,
+  size,
+  glow,
+}: {
+  category: string;
+  shapeKey: string | null;
+  colorHex: string | null;
+  size: number;
+  glow?: boolean;
+}) {
+  const ringColor = category === "ROCKET_SHAPE" ? (colorHex ?? PREVIEW_COLOR) : SHOP_CATEGORY_META[category as ShopItemCategory]?.color ?? PREVIEW_COLOR;
   return (
     <div
       className="relative shrink-0 rounded-full"
       style={{
         width: size,
         height: size,
-        background: "radial-gradient(circle at 50% 38%, rgba(244,193,93,.24), rgba(244,193,93,.04) 62%, transparent 76%)",
+        background: `radial-gradient(circle at 50% 38%, ${ringColor}3d, ${ringColor}0a 62%, transparent 76%)`,
         ...(glow ? { animation: "pulse-glow 3s ease-in-out infinite" } : {}),
       }}
     >
       <div
-        className="absolute inset-1.5 rounded-full border border-dashed border-gold/25"
-        style={{ animation: "spin-slow 16s linear infinite" }}
+        className="absolute inset-1.5 rounded-full border border-dashed"
+        style={{ borderColor: `${ringColor}40`, animation: "spin-slow 16s linear infinite" }}
       />
       <div className="absolute inset-0 grid place-items-center">
-        <RocketPreview shapeKey={shapeKey} size={size * 0.8} color={PREVIEW_COLOR} />
+        {category === "ROCKET_SHAPE" ? (
+          <RocketPreview shapeKey={shapeKey} size={size * 0.8} color={colorHex ?? PREVIEW_COLOR} />
+        ) : (
+          <ShopItemIcon category={category} size={size * 0.72} />
+        )}
       </div>
     </div>
   );
+}
+
+// Player-facing one-line effect summary — null (renders nothing) for
+// ROCKET_SHAPE, which has no gameplay effect to describe. See
+// shopItemEffectSummaryKey's own doc-comment in shop-shared.ts for why
+// this goes through an i18n key + params instead of a raw string.
+function EffectSummary({ item, className }: { item: ShopCatalogItem | OwnedShopItem; className?: string }) {
+  const { t } = useLocale();
+  const summary = shopItemEffectSummaryKey(item);
+  if (!summary) return null;
+  return <p className={className}>{t(`shop.${summary.key}`, summary.params)}</p>;
 }
 
 function OwnedItemCard({ item }: { item: OwnedShopItem }) {
@@ -237,8 +296,9 @@ function OwnedItemCard({ item }: { item: OwnedShopItem }) {
         item.isUsable ? "border-line hover:border-gold/40" : "border-line opacity-60"
       }`}
     >
-      <RocketBadge shapeKey={item.shapeKey} size={84} />
+      <ItemVisual category={item.category} shapeKey={item.shapeKey} colorHex={item.colorHex} size={84} />
       <p className="mt-2 truncate text-xs font-bold">{item.label}</p>
+      <EffectSummary item={item} className="mt-0.5 text-[10px] text-gold" />
       <p className="mt-0.5 text-[11px] text-muted">
         {item.usesRemaining !== null
           ? t("shop.usesRemainingLabel", { uses: item.usesRemaining })
@@ -278,12 +338,13 @@ function CatalogItemCard({
 
   return (
     <div className="game-panel hud-corner glow-gold flex flex-col items-center rounded-2xl border-line p-4 text-center transition hover:-translate-y-1 hover:border-gold/50">
-      <RocketBadge shapeKey={item.shapeKey} size={112} glow />
+      <ItemVisual category={item.category} shapeKey={item.shapeKey} colorHex={item.colorHex} size={112} glow />
       <p className="mt-2.5 rounded-full border border-gold/30 bg-gold-soft px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold">
         {pricingLabel}
       </p>
       <p className="mt-2 font-bold">{item.label}</p>
       <p className="mt-1 min-h-[2.5em] text-xs text-muted">{item.description}</p>
+      <EffectSummary item={item} className="mt-1 text-xs font-semibold text-gold" />
       <p className="stat-value mt-2 text-xl">${item.priceUsdt.toFixed(2)}</p>
       {/* Non-blocking — these are consumable (N-games/time-window),
           never a one-time permanent unlock, so owning an active one

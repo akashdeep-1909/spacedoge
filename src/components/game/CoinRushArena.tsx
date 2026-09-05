@@ -18,6 +18,7 @@ import {
   stopEngineSound,
 } from "@/lib/gameSound";
 import { drawRocketShip } from "@/lib/rocketShape";
+import type { ResolvedLoadout } from "@/lib/shop-shared";
 
 // Coin Rush Arena — visuals ported from the "Orbital Extraction" 4-player
 // prototype (rockets, USDT coins, a bank vault that cycles open/closed,
@@ -326,14 +327,16 @@ export function CoinRushArena({
   // Polled snapshot (see useLiveMatchState), keyed by the real
   // opponent's slotNumber — only read while spectate is true.
   liveOpponents?: Record<number, LiveShipSample>;
-  // Coin Rush Shop (Phase 1: ROCKET_SHAPE only) — resolved SERVER-SIDE
-  // by POST /api/matches (echoed straight back in its own response,
-  // see src/lib/shop.ts consumeLoadoutSelections' ResolvedLoadout) and
-  // passed through unchanged; this component never re-derives or
-  // trusts a client-side guess about what's equipped. Purely cosmetic
-  // in this phase — see drawRocket's own doc-comment for the fairness
-  // constraint (collision radius never varies by shape).
-  loadout?: { shapeKey: string | null };
+  // Coin Rush Shop — resolved SERVER-SIDE by POST /api/matches (echoed
+  // straight back in its own response, see src/lib/shop.ts
+  // consumeLoadoutSelections' ResolvedLoadout, mirrored client-safe in
+  // shop-shared.ts) and passed through unchanged; this component never
+  // re-derives or trusts a client-side guess about what's equipped.
+  // shapeKey/colorHex are purely cosmetic (see drawRocket's own
+  // doc-comment for the fairness constraint — collision radius never
+  // varies); every other field is a real, server-validated gameplay
+  // bonus applied at the exact spots noted on each one below.
+  loadout?: ResolvedLoadout;
 }) {
   const { t } = useLocale();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -389,7 +392,7 @@ export function CoinRushArena({
     time: Math.max(0, durationSec - startElapsedSec),
     vaultOpen: true,
     rank: 4,
-    lives: diff.startLives,
+    lives: diff.startLives + (loadout?.livesBonus ?? 0),
     youBanked: 0,
     youCarry: 0,
     board: [] as { name: string; color: string; isYou: boolean; carry: number; banked: number }[],
@@ -414,12 +417,14 @@ export function CoinRushArena({
     floaters: { x: number; y: number; vy: number; life: number; text: string; color: string }[];
     dogeCoreT: number;
     boostCd: number; shieldCd: number; magnetCd: number;
-    // Fire has no cooldown to recharge — it's a single use for the
-    // whole match, gated by this flag instead of a Cd timer.
-    fireUsed: boolean;
+    // Fire has no cooldown to recharge — it's 1 use for the whole match
+    // by default (POWERUP_FIRE shop purchases add more via
+    // loadout.fireExtraUses), gated on this counter instead of a Cd
+    // timer.
+    fireUsesRemaining: number;
     // Time until the next burst goes out while fire is active — separate
-    // from `fireUsed`, which just gates whether fire can be triggered at
-    // all this match.
+    // from `fireUsesRemaining`, which just gates whether fire can be
+    // triggered at all right now.
     fireShotCd: number;
     // Damage feedback for the human ship, both decaying to 0 every
     // frame in update() — set to 1 in hitShip() the instant a real hit
@@ -509,12 +514,19 @@ export function CoinRushArena({
     const ships: ShipEntity[] = [
       {
         x: SPAWN_X, y: SPAWN_Y, r: 13 * DPR, vx: 0, vy: 0, angle: -Math.PI / 2,
-        color: theme.shipColor, name: youName, isYou: true,
+        // colorHex is a Coin Rush Shop cosmetic purchase (ROCKET_SHAPE
+        // category) — falls back to the mode's own theme color exactly
+        // as before whenever nothing's equipped.
+        color: loadout?.colorHex ?? theme.shipColor, name: youName, isYou: true,
         // Spectating: you already finished your own run, so "your" ship
         // never plays — parked and excluded from every hazard/item/bank
         // interaction below via the same `active` flag a dead ship uses.
-        lives: diff.startLives, carry: 0, banked: 0, active: !spectate, invuln: 0, knockback: 0,
-        speed: 150 * diff.playerSpeedMult * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
+        // STAT_HEALTH (livesBonus) and STAT_SPEED (speedMultBonus) are
+        // the only two REAL gameplay-affecting shop purchases applied
+        // here — both permanent for the whole match, distinct from the
+        // Boost button's own temporary multiplier applied in update().
+        lives: diff.startLives + (loadout?.livesBonus ?? 0), carry: 0, banked: 0, active: !spectate, invuln: 0, knockback: 0,
+        speed: 150 * diff.playerSpeedMult * (1 + (loadout?.speedMultBonus ?? 0)) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
         externallyDriven: false, oppSlot: null,
         shapeKey: loadout?.shapeKey ?? null,
       },
@@ -620,7 +632,7 @@ export function CoinRushArena({
       floaters: [],
       dogeCoreT: 0,
       boostCd: 0, shieldCd: 0, magnetCd: 0,
-      fireUsed: false,
+      fireUsesRemaining: 1 + (loadout?.fireExtraUses ?? 0),
       fireShotCd: 0,
       youHitFlash: 0,
       shakeMag: 0,
@@ -988,7 +1000,7 @@ export function CoinRushArena({
         }
       }
 
-      // Fire (one-time use, see useFire()) — for its whole 10s window
+      // Fire (limited uses per match, see useFire()) — for its whole 10s window
       // the rocket auto-fires a 3-bullet burst every ~0.16s from its
       // nose, aimed the direction it's currently facing. A bullet that
       // touches a hunter/dasher/mine destroys it outright, at zero cost
@@ -1598,13 +1610,32 @@ export function CoinRushArena({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  // loadout?.shapeKey specifically (not the whole `loadout` object) —
-  // a parent that re-creates the loadout object on every render (even
+  // Individual loadout fields, not the whole `loadout` object — a
+  // parent that re-creates the loadout object on every render (even
   // with identical content) must never re-trigger this whole effect,
   // which tears down and rebuilds the entire match state; only an
-  // actual shape CHANGE should ever do that, and shapeKey is resolved
-  // once at match creation and never changes mid-match in practice.
-  }, [mapSeed, durationSec, startElapsedSec, spawnItem, youName, diff, theme, opponents, matchId, spectate, loadout?.shapeKey]);
+  // actual VALUE change should ever do that, and every one of these is
+  // resolved once at match creation and never changes mid-match in
+  // practice (magnet/shield/fire's own duration/cooldown/uses bonuses
+  // are read fresh inside useMagnet/useShield/useFire themselves, not
+  // captured here, so they don't need to be listed).
+  }, [
+    mapSeed,
+    durationSec,
+    startElapsedSec,
+    spawnItem,
+    youName,
+    diff,
+    theme,
+    opponents,
+    matchId,
+    spectate,
+    loadout?.shapeKey,
+    loadout?.colorHex,
+    loadout?.speedMultBonus,
+    loadout?.livesBonus,
+    loadout?.fireExtraUses,
+  ]);
 
   // Pre-match "3, 2, 1, Go" — purely a local visual pause layered in
   // front of the setup effect above; it never touches match timing.
@@ -1635,18 +1666,24 @@ export function CoinRushArena({
     return () => timers.forEach(clearTimeout);
   }, []);
 
+  // Base 5s duration / 14s cooldown — a POWERUP_MAGNET shop purchase
+  // (loadout.magnetDurationBonusSec/magnetCooldownDeltaSec) extends the
+  // first and shortens the second. Cooldown is floored at 2s so a
+  // stacked reduction can never get close to "no real cooldown at all."
   const useMagnet = () => {
     const g = gRef.current;
     if (!g || !g.running || !g.ships[0].active || g.magnetCd > 0) return;
-    g.ships[0].magnet = 5;
-    g.magnetCd = 14;
+    g.ships[0].magnet = 5 + (loadout?.magnetDurationBonusSec ?? 0);
+    g.magnetCd = Math.max(2, 14 + (loadout?.magnetCooldownDeltaSec ?? 0));
     playMagnetSound();
   };
+  // Base 4s duration / 16s cooldown — same bonus pattern as Magnet
+  // above, via POWERUP_SHIELD's own effect fields.
   const useShield = () => {
     const g = gRef.current;
     if (!g || !g.running || !g.ships[0].active || g.shieldCd > 0) return;
-    g.ships[0].shield = 4;
-    g.shieldCd = 16;
+    g.ships[0].shield = 4 + (loadout?.shieldDurationBonusSec ?? 0);
+    g.shieldCd = Math.max(2, 16 + (loadout?.shieldCooldownDeltaSec ?? 0));
     playShieldSound();
   };
   const useOverclock = () => {
@@ -1656,13 +1693,16 @@ export function CoinRushArena({
     g.boostCd = 10;
     playBoostSound();
   };
-  // One-time per match — fireUsed never resets, unlike the Cd timers
-  // above which recharge and can be used again.
+  // Base 1 use per match, base 10s window each time — a POWERUP_FIRE
+  // shop purchase (loadout.fireExtraUses/fireDurationBonusSec) grants
+  // more uses and/or a longer window per use. fireUsesRemaining never
+  // recharges mid-match (unlike the Cd timers above), it's just a
+  // bigger fixed budget.
   const useFire = () => {
     const g = gRef.current;
-    if (!g || !g.running || !g.ships[0].active || g.fireUsed) return;
-    g.ships[0].fire = 10;
-    g.fireUsed = true;
+    if (!g || !g.running || !g.ships[0].active || g.fireUsesRemaining <= 0) return;
+    g.ships[0].fire = 10 + (loadout?.fireDurationBonusSec ?? 0);
+    g.fireUsesRemaining -= 1;
     playFireSound();
   };
 
@@ -1741,7 +1781,7 @@ export function CoinRushArena({
             accent="#ff6767"
             label={t("gameArena.yourRocketLabel")}
             value={youName}
-            sub={<LifeBar lives={hud.lives} total={diff.startLives} />}
+            sub={<LifeBar lives={hud.lives} total={diff.startLives + (loadout?.livesBonus ?? 0)} />}
           />
         </div>
       </div>

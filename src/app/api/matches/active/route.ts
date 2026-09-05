@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { getActiveBusyState } from "@/lib/lobby";
 import { getGameModeConfig } from "@/lib/gameModes";
+import { getResolvedLoadoutForMatch } from "@/lib/shop";
 
 // GET /api/matches/active — tells the client whether this wallet is
 // currently blocked by checkPaidEligibility's busy-check (an open
@@ -21,9 +22,15 @@ export async function GET() {
     return NextResponse.json({ type: "lobby", lobbyId: busy.lobbyId });
   }
 
-  const [modeCfg, players] = await Promise.all([
+  const [modeCfg, players, loadout] = await Promise.all([
     getGameModeConfig(busy.mode),
     db.matchParticipant.count({ where: { matchId: busy.matchId } }),
+    // So resuming after a page refresh restores whatever shop items
+    // were actually equipped/paid for (shape/color plus any real
+    // speed/health/magnet/fire/shield bonus), instead of the ship
+    // silently reverting to base stats for the rest of the match — see
+    // getResolvedLoadoutForMatch's own doc-comment.
+    getResolvedLoadoutForMatch(busy.matchId, session.walletProfileId),
   ]);
 
   return NextResponse.json({
@@ -36,5 +43,6 @@ export async function GET() {
     prizePoolUsdt: busy.prizePoolUsdt,
     players,
     startedAt: busy.startedAt,
+    loadout,
   });
 }

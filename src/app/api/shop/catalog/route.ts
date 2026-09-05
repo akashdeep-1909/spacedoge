@@ -39,6 +39,15 @@ export async function GET() {
       usesGranted: c.usesGranted,
       termDays: c.termDays,
       shapeKey: c.shapeKey,
+      colorHex: c.colorHex,
+      speedMultBonus: c.speedMultBonus !== null ? Number(c.speedMultBonus) : null,
+      livesBonus: c.livesBonus,
+      magnetDurationBonusSec: c.magnetDurationBonusSec !== null ? Number(c.magnetDurationBonusSec) : null,
+      magnetCooldownDeltaSec: c.magnetCooldownDeltaSec !== null ? Number(c.magnetCooldownDeltaSec) : null,
+      fireExtraUses: c.fireExtraUses,
+      fireDurationBonusSec: c.fireDurationBonusSec !== null ? Number(c.fireDurationBonusSec) : null,
+      shieldDurationBonusSec: c.shieldDurationBonusSec !== null ? Number(c.shieldDurationBonusSec) : null,
+      shieldCooldownDeltaSec: c.shieldCooldownDeltaSec !== null ? Number(c.shieldCooldownDeltaSec) : null,
     })),
   });
 }

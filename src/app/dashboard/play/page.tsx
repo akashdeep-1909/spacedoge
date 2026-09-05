@@ -25,6 +25,7 @@ import { MatchResultReveal, type MatchParticipantResult, type MatchPoolSummary }
 import { LoadoutSelectModal } from "@/components/game/LoadoutSelectModal";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { gameModeLabel, gameModeDescription } from "@/lib/game-mode-labels";
+import type { ResolvedLoadout, ShopItemCategory } from "@/lib/shop-shared";
 
 type ModeKey =
   | "PRACTICE"
@@ -47,14 +48,14 @@ interface MatchInit {
   prizePoolUsdt: number;
   players: number;
   startElapsedSec?: number;
-  // Coin Rush Shop (Phase 1) — resolved server-side by POST /api/matches
-  // (see src/lib/shop.ts consumeLoadoutSelections), never re-derived
-  // here. Absent on resumeMatch() (GET /api/matches/active doesn't
-  // currently echo it back — a resumed match keeps whatever shape was
-  // already applied server-side at creation time; the visual default
-  // on resume is a known, harmless cosmetic-only gap, not a fairness
-  // issue).
-  loadout?: { shapeKey: string | null };
+  // Coin Rush Shop — resolved server-side, never re-derived here.
+  // startMatch() gets this straight back from POST /api/matches (see
+  // src/lib/shop.ts consumeLoadoutSelections); resumeMatch() rebuilds
+  // the same shape from the durable purchase audit trail via GET
+  // /api/matches/active (see getResolvedLoadoutForMatch), so a page
+  // refresh mid-match never silently reverts an equipped bonus back to
+  // base stats.
+  loadout?: ResolvedLoadout;
 }
 
 interface SettleResult {
@@ -139,6 +140,7 @@ function PlayFlow() {
       prizePoolUsdt: activeMatch.prizePoolUsdt,
       players: activeMatch.players,
       startElapsedSec,
+      loadout: activeMatch.loadout,
     });
     setResult(null);
   }
@@ -149,7 +151,7 @@ function PlayFlow() {
   const promoModes = PROMO_MODES.filter((m) => modesByKey.has(m));
   const kolBonus = modesData?.kolBonus;
 
-  async function startMatch(mode: ModeKey, shapeItemId?: string | null) {
+  async function startMatch(mode: ModeKey, selections?: Partial<Record<ShopItemCategory, string>>) {
     const row = modesByKey.get(mode);
     setError(null);
     setStarting(mode);
@@ -159,12 +161,12 @@ function PlayFlow() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode,
-          // Only sent when a real shape was actually picked — an
-          // absent/empty loadout is exactly what "Default" on the
-          // pre-match screen means, no different from never having
-          // opened that screen at all (e.g. resumeMatch/quick-replay
-          // paths that skip it entirely).
-          ...(shapeItemId ? { loadout: { ROCKET_SHAPE: shapeItemId } } : {}),
+          // Only sent when at least one real item was actually picked —
+          // an absent/empty loadout is exactly what "None" on every slot
+          // of the pre-match screen means, no different from never
+          // having opened that screen at all (e.g. resumeMatch/
+          // quick-replay paths that skip it entirely).
+          ...(selections && Object.keys(selections).length > 0 ? { loadout: selections } : {}),
         }),
       });
       const body = await res.json();
@@ -485,8 +487,8 @@ function PlayFlow() {
       <LoadoutSelectModal
         open={pendingMode !== null}
         onCancel={() => setPendingMode(null)}
-        onStart={(shapeItemId) => {
-          if (pendingMode) void startMatch(pendingMode, shapeItemId);
+        onStart={(selections) => {
+          if (pendingMode) void startMatch(pendingMode, selections);
         }}
         starting={starting !== null}
       />
