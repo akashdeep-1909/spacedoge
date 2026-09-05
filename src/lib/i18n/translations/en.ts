@@ -1092,7 +1092,14 @@ const en = {
     miningButton: "View / Power Mining Rig",
     actionsHeading: "Actions",
     actionActivatePower: "Activate / Power",
-    kolVipBadgeLabel: "KOL · {{tier}}",
+    // Standalone "KOL" chip — shown whenever isKol is true, independent
+    // of whether a VIP tier has ever been confirmed (see this badge's
+    // own doc-comment in dashboard/page.tsx). kolVipBadgeLabel below is
+    // just the tier text on its own ("VIP 5"), since the "KOL" wording
+    // now comes from this chip whenever both are shown together.
+    kolBadgeLabel: "KOL",
+    kolBadgeSubtext: "You're a Key Opinion Leader on Space DOGE.",
+    kolVipBadgeLabel: "{{tier}}",
     kolVipBadgeSubtext: "Confirmed for {{month}}",
     kolVipViewDetails: "View Details",
   },

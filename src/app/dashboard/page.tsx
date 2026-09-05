@@ -165,17 +165,24 @@ function DashboardContent() {
   );
 }
 
-// Renders nothing unless this wallet has a real, admin-approved VIP
-// tier on record (src/lib/kolVip.ts) — no badge just for "on track this
-// month" (that's still just a projection, shown in full on the Refer
-// page instead). currentTier is specifically the most recent APPROVED
-// payout, not just the most recent one — a still-pending or rejected
-// month never shows a stale confirmed badge.
+// Two independent things can be true about this wallet, and both get
+// their own badge here: isKol (WalletProfile.isKol, an admin's manual
+// classification — can be true from day one, long before any monthly
+// VIP tier is ever earned) and currentTier (a real, admin-APPROVED VIP
+// tier on record, src/lib/kolVip.ts — no badge just for "on track this
+// month", that's still just a projection shown in full on the Refer
+// page instead; currentTier is specifically the most recent APPROVED
+// payout, so a still-pending or rejected month never shows a stale
+// confirmed badge). A wallet can be KOL without VIP yet, or — once the
+// system is disabled — VIP history without the isKol flag being set;
+// showing both independently (rather than only ever the combined
+// "KOL · VIP 5" case) means neither status silently goes unshown.
 function KolVipBadge() {
   const { t } = useLocale();
   const { data } = useReferrals();
-  const currentTier = data?.kolVip.currentTier;
-  if (!data?.kolVip.enabled || !currentTier) return null;
+  if (!data) return null;
+  const currentTier = data.kolVip.enabled ? data.kolVip.currentTier : null;
+  if (!data.isKol && !currentTier) return null;
 
   return (
     <Link
@@ -185,10 +192,19 @@ function KolVipBadge() {
       <div className="flex items-center gap-3">
         <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gold-soft text-xl">👑</div>
         <div>
-          <p className="text-glow-gold text-sm font-black uppercase tracking-wide text-gold">
-            {t("dashboardHome.kolVipBadgeLabel", { tier: currentTier.tierLabel })}
+          <p className="text-glow-gold flex flex-wrap items-center gap-1.5 text-sm font-black uppercase tracking-wide text-gold">
+            {data.isKol && (
+              <span className="rounded-full border border-mint/40 bg-mint-soft px-2 py-0.5 text-[10px] text-mint">
+                {t("dashboardHome.kolBadgeLabel")}
+              </span>
+            )}
+            {currentTier && <span>{t("dashboardHome.kolVipBadgeLabel", { tier: currentTier.tierLabel })}</span>}
           </p>
-          <p className="mt-0.5 text-xs text-muted">{t("dashboardHome.kolVipBadgeSubtext", { month: currentTier.periodMonth })}</p>
+          <p className="mt-0.5 text-xs text-muted">
+            {currentTier
+              ? t("dashboardHome.kolVipBadgeSubtext", { month: currentTier.periodMonth })
+              : t("dashboardHome.kolBadgeSubtext")}
+          </p>
         </div>
       </div>
       <span className="btn-game-outline shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide">

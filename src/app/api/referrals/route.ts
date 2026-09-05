@@ -14,7 +14,14 @@ export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const [referredBy, direct, ledgerSums, miningLedgerSums] = await Promise.all([
+  const [myProfile, referredBy, direct, ledgerSums, miningLedgerSums] = await Promise.all([
+    // isKol wasn't previously exposed to the wallet it belongs to at
+    // all (admin-only, see WalletProfile.isKol's own doc-comment) — now
+    // surfaced read-only so the dashboard can show a KOL badge
+    // independent of whether a VIP tier has ever been confirmed (a
+    // wallet can be admin-flagged KOL long before it first qualifies
+    // for a monthly VIP tier payout).
+    db.walletProfile.findUnique({ where: { id: session.walletProfileId }, select: { isKol: true } }),
     db.referral.findUnique({
       where: { referredProfileId: session.walletProfileId },
       select: { status: true, referrer: { select: { address: true } } },
@@ -136,6 +143,7 @@ export async function GET() {
 
   return NextResponse.json({
     myAddress: session.address,
+    isKol: myProfile?.isKol ?? false,
     referredBy: referredBy
       ? { status: referredBy.status, referrerAddress: referredBy.referrer.address }
       : null,

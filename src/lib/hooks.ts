@@ -427,6 +427,11 @@ export interface KolVipLastPayout {
 
 export interface ReferralInfo {
   myAddress: string;
+  // Admin-flagged Key Opinion Leader (WalletProfile.isKol) — a manual
+  // toggle, separate from kolVip.currentTier below (that's a COMPUTED,
+  // month-by-month earned VIP tier; this is admin's own classification
+  // and can be true long before any VIP tier is ever confirmed).
+  isKol: boolean;
   referredBy: { status: string; referrerAddress: string } | null;
   l1PctOfPlatformFee: number;
   l2PctOfPlatformFee: number;
