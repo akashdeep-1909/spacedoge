@@ -30,7 +30,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { SiweMessage } from "siwe";
 import { db } from "../src/lib/db";
 import { getWalletBlockStatus } from "../src/lib/accountBlock";
-import { riskFlagBodySchema } from "../src/app/api/admin/users/[id]/risk-flag/route";
+import { riskFlagBodySchema } from "../src/lib/riskFlagSchema";
 
 const BASE = "http://localhost:3000";
 let failures = 0;

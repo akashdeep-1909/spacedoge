@@ -57,9 +57,11 @@ export default function AdminShopPage() {
           gameplay or collision size. Speed/Health/Magnet/Fire/Shield items are real upgrades to
           mechanics every player already has for free in every match (see each category&apos;s own
           fields below) — a Magnet/Shield/Fire upgrade extends its duration/uses and shortens its
-          cooldown; Speed/Health are permanent whole-match bonuses. Label, description, price, and
-          enabled state are editable live; category/pricing-model/effect columns are fixed at
-          creation so an edit here can never retroactively change what an already-sold item does.
+          cooldown; Speed/Health are permanent whole-match bonuses. Label, description, price,
+          validity/matches included, and enabled state are all editable live — a purchase already
+          snapshots its own copy of these at purchase time, so changing them here only ever affects
+          a NEW purchase. Category, pricing model (matches-vs-days), and every true effect
+          column (shape, color, speed %, etc.) are fixed at creation and can never be edited after.
         </p>
       </div>
 
@@ -377,6 +379,14 @@ function ShopItemRow({ row }: { row: AdminShopItemRow }) {
   const [label, setLabel] = useState(row.label);
   const [description, setDescription] = useState(row.description);
   const [priceUsdt, setPriceUsdt] = useState(String(row.priceUsdt));
+  // Validity (days, TIME_WINDOW items) / matches included (USES items)
+  // — editable per-item like price, see the PATCH route's own
+  // doc-comment for why this is safe (a purchase already snapshots the
+  // number it got at purchase time, so this only ever affects what a
+  // NEW purchase gets). entitlementType itself stays fixed, so only
+  // whichever one of these two actually applies to this row is shown.
+  const [usesGranted, setUsesGranted] = useState(String(row.usesGranted ?? ""));
+  const [termDays, setTermDays] = useState(String(row.termDays ?? ""));
   const [error, setError] = useState<string | null>(null);
 
   const pricingSummary =
@@ -400,6 +410,7 @@ function ShopItemRow({ row }: { row: AdminShopItemRow }) {
         label: label.trim(),
         description: description.trim(),
         priceUsdt: Number(priceUsdt) || 0,
+        ...(row.entitlementType === "USES" ? { usesGranted: Number(usesGranted) || 0 } : { termDays: Number(termDays) || 0 }),
       });
       setEditing(false);
     } catch (err) {
@@ -457,6 +468,15 @@ function ShopItemRow({ row }: { row: AdminShopItemRow }) {
             <Field label="Price (USDT)">
               <input type="number" min="0" step="0.01" value={priceUsdt} onChange={(e) => setPriceUsdt(e.target.value)} className={plainInputClass} />
             </Field>
+            {row.entitlementType === "USES" ? (
+              <Field label="Matches included">
+                <input type="number" min="1" value={usesGranted} onChange={(e) => setUsesGranted(e.target.value)} className={plainInputClass} />
+              </Field>
+            ) : (
+              <Field label="Validity (days)">
+                <input type="number" min="1" value={termDays} onChange={(e) => setTermDays(e.target.value)} className={plainInputClass} />
+              </Field>
+            )}
             <Field label="Description" hint="shown to players in the shop">
               <input value={description} onChange={(e) => setDescription(e.target.value)} className={plainInputClass} />
             </Field>

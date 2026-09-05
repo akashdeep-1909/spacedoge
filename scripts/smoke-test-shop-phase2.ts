@@ -28,7 +28,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { SiweMessage } from "siwe";
 import { db } from "../src/lib/db";
 import { getResolvedLoadoutForMatch } from "../src/lib/shop";
-import { createSchema } from "../src/app/api/admin/shop/route";
+import { createShopItemSchema } from "../src/lib/shopAdminSchema";
 
 const BASE = "http://localhost:3000";
 let failures = 0;
@@ -81,7 +81,7 @@ async function main() {
   // --- 1. Admin schema validation (no HTTP — no real admin session
   // available in this script, same reasoning as smoke-test-admin-
   // block.ts's own risk-flag schema check). ---
-  const rocketMissingColor = !createSchema.safeParse({
+  const rocketMissingColor = !createShopItemSchema.safeParse({
     category: "ROCKET_SHAPE",
     shapeKey: "VOYAGER",
     label: "Test",
@@ -92,7 +92,7 @@ async function main() {
   }).success;
   log("ROCKET_SHAPE without colorHex is rejected", rocketMissingColor);
 
-  const rocketBadColor = !createSchema.safeParse({
+  const rocketBadColor = !createShopItemSchema.safeParse({
     category: "ROCKET_SHAPE",
     shapeKey: "VOYAGER",
     colorHex: "not-a-color",
@@ -104,7 +104,7 @@ async function main() {
   }).success;
   log("ROCKET_SHAPE with a malformed colorHex is rejected", rocketBadColor);
 
-  const speedOk = createSchema.safeParse({
+  const speedOk = createShopItemSchema.safeParse({
     category: "STAT_SPEED",
     speedPct: 15,
     label: "Test Speed",

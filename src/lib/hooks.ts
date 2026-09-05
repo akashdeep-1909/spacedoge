@@ -2725,7 +2725,8 @@ export function useUpdateAdminShopItem() {
     mutationFn: async ({
       id,
       ...patch
-    }: Pick<AdminShopItemRow, "id"> & Partial<Pick<AdminShopItemRow, "label" | "description" | "priceUsdt" | "enabled" | "sortOrder">>) => {
+    }: Pick<AdminShopItemRow, "id"> &
+      Partial<Pick<AdminShopItemRow, "label" | "description" | "priceUsdt" | "usesGranted" | "termDays" | "enabled" | "sortOrder">>) => {
       const res = await fetch(`/api/admin/shop/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

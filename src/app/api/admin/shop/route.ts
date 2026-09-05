@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { requireAdminSession } from "@/lib/admin";
 import { db } from "@/lib/db";
 import { getShopItemConfigs } from "@/lib/shop";
-import { ROCKET_SHAPES } from "@/lib/shop-shared";
+import { createShopItemSchema, SHOP_ITEM_KEY_PREFIX } from "@/lib/shopAdminSchema";
 import { ShopItemCategory, ShopEntitlementType } from "@/generated/prisma/enums";
 
 // GET /api/admin/shop — every shop catalog item, enabled or not (unlike
@@ -45,20 +44,10 @@ export async function GET() {
   });
 }
 
-// POST /api/admin/shop — creates a new catalog item, one variant per
-// sellable category (a discriminated union on `category` — each
-// variant only requires the fields that category actually uses, same
-// spirit as GameModeConfig's own per-mode admin form). Common to every
-// variant: label/description/price/pricing-model, validated by the
-// same usesGranted/termDays refine every category shares.
-//
-// magnetCooldownReductionSec/shieldCooldownReductionSec are admin-
-// facing POSITIVE numbers ("shorten the cooldown by this many
-// seconds") — negated below into the actual stored
-// magnetCooldownDeltaSec/shieldCooldownDeltaSec columns (negative =
-// shorter cooldown, per those columns' own doc-comment in
-// schema.prisma) so an admin never has to type a negative number to
-// mean "better."
+// POST /api/admin/shop — creates a new catalog item using
+// createShopItemSchema (src/lib/shopAdminSchema.ts — see that file's
+// own doc-comment for the full validation shape and why it isn't
+// defined inline here).
 //
 // No delete endpoint exists — same "disable, never delete" rule as
 // GameModeConfig, since a real WalletShopItem purchase has a required
@@ -67,77 +56,6 @@ export async function GET() {
 // enabled rows) without breaking anyone who already owns one. Every
 // effect column is immutable once created (see PATCH /api/admin/shop/
 // [id]'s own doc-comment) for the same reason.
-const baseFields = {
-  label: z.string().trim().min(1),
-  description: z.string().trim().min(1),
-  priceUsdt: z.number().positive(),
-  entitlementType: z.enum(["USES", "TIME_WINDOW"]),
-  usesGranted: z.number().int().positive().nullable().optional(),
-  termDays: z.number().int().positive().nullable().optional(),
-};
-
-// Exported so scripts/smoke-test-shop-phase2.ts can assert each
-// category's own required-fields shape directly, the same way this
-// route enforces it, without needing a real admin session cookie.
-export const createSchema = z
-  .discriminatedUnion("category", [
-    z.object({
-      category: z.literal("ROCKET_SHAPE"),
-      shapeKey: z.enum(ROCKET_SHAPES),
-      colorHex: z
-        .string()
-        .regex(/^#[0-9a-fA-F]{6}$/, "colorHex must be a 6-digit hex color, e.g. #f4c15d"),
-      ...baseFields,
-    }),
-    z.object({
-      category: z.literal("STAT_SPEED"),
-      // A whole-number percent (e.g. 10 => +10% top speed) — stored as
-      // the fraction speedMultBonus expects (0.10).
-      speedPct: z.number().positive().max(200),
-      ...baseFields,
-    }),
-    z.object({
-      category: z.literal("STAT_HEALTH"),
-      livesBonus: z.number().int().positive().max(10),
-      ...baseFields,
-    }),
-    z.object({
-      category: z.literal("POWERUP_MAGNET"),
-      magnetDurationBonusSec: z.number().min(0).max(60),
-      magnetCooldownReductionSec: z.number().min(0).max(30),
-      ...baseFields,
-    }),
-    z.object({
-      category: z.literal("POWERUP_FIRE"),
-      fireExtraUses: z.number().int().min(0).max(10),
-      fireDurationBonusSec: z.number().min(0).max(60),
-      ...baseFields,
-    }),
-    z.object({
-      category: z.literal("POWERUP_SHIELD"),
-      shieldDurationBonusSec: z.number().min(0).max(60),
-      shieldCooldownReductionSec: z.number().min(0).max(30),
-      ...baseFields,
-    }),
-  ])
-  .refine((v) => (v.entitlementType === "USES" ? !!v.usesGranted : true), {
-    message: "usesGranted is required for a USES-type item",
-    path: ["usesGranted"],
-  })
-  .refine((v) => (v.entitlementType === "TIME_WINDOW" ? !!v.termDays : true), {
-    message: "termDays is required for a TIME_WINDOW-type item",
-    path: ["termDays"],
-  });
-
-const KEY_PREFIX: Record<z.infer<typeof createSchema>["category"], string> = {
-  ROCKET_SHAPE: "ROCKET",
-  STAT_SPEED: "SPEED",
-  STAT_HEALTH: "HEALTH",
-  POWERUP_MAGNET: "MAGNET",
-  POWERUP_FIRE: "FIRE",
-  POWERUP_SHIELD: "SHIELD",
-};
-
 function slugifyKey(prefix: string, label: string): string {
   const slug = label
     .trim()
@@ -155,7 +73,7 @@ export async function POST(request: NextRequest) {
   const session = await requireAdminSession();
   if (!session) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
-  const parsed = createSchema.safeParse(await request.json().catch(() => null));
+  const parsed = createShopItemSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid request" }, { status: 400 });
   }
@@ -165,7 +83,7 @@ export async function POST(request: NextRequest) {
   const sortOrder = await db.shopItemConfig.count();
 
   const shared = {
-    key: slugifyKey(KEY_PREFIX[body.category], body.label),
+    key: slugifyKey(SHOP_ITEM_KEY_PREFIX[body.category], body.label),
     category: body.category as ShopItemCategory,
     label: body.label,
     description: body.description,
