@@ -171,61 +171,54 @@ export function shopItemEffectSummaryKey(
   }
 }
 
-// The rocket shapes a ROCKET_SHAPE item can grant — Phase 1's whole
-// purchasable catalog. Three distinct geometric silhouettes (not just
-// three recolors): CoinRushArena.tsx's drawRocket() multiplies its
-// existing nose/wing/body path coordinates by these factors per shape,
-// reusing the same drawing code rather than three hand-written path
-// sets. Deliberately does NOT include any collision-radius factor —
-// every shape must render at the exact same hitbox as the default
-// look (drawRocket's own `r` param, passed through unchanged), so a
-// cosmetic purchase can never be a disguised pay-to-win advantage. See
-// the shop plan's own explicit constraint on this.
-export const ROCKET_SHAPES = ["VOYAGER", "INTERCEPTOR", "CRUISER"] as const;
+// The rocket shapes a ROCKET_SHAPE item can grant — 6 genuinely
+// different silhouettes (a "sci-fi mixed fleet": classic rocket,
+// saucer, orb drone, stealth wedge, comet, twin-boom fighter), each
+// with its OWN hand-drawn canvas path in src/lib/rocketShape.ts — not
+// the same base ship with nose/wing proportions nudged (that was the
+// original Phase 1 model; confirmed via a real side-by-side that the
+// difference read as too subtle to call "different shapes"). Every
+// shape still renders at the exact same collision hitbox regardless of
+// which one's equipped (drawRocketShip's own `r` param, passed through
+// unchanged) — a cosmetic purchase can never be a disguised
+// pay-to-win advantage, the one hard rule this whole feature is built
+// around.
+//
+// VOYAGER/INTERCEPTOR/CRUISER are kept as recognized (but no longer
+// offered in the admin dropdown) LEGACY keys — real WalletShopItem
+// rows already sold under the old 3-shape model still carry these
+// values verbatim (snapshotted at purchase time, never rewritten), so
+// they must keep resolving to SOMETHING via LEGACY_SHAPE_ALIAS below
+// rather than silently falling through to a default. New purchases
+// only ever get one of the 6 keys in ROCKET_SHAPES.
+export const ROCKET_SHAPES = ["ROCKET", "SAUCER", "ORB", "WEDGE", "COMET", "FIGHTER"] as const;
 export type RocketShapeKey = (typeof ROCKET_SHAPES)[number];
 
-export interface RocketShapeGeometry {
-  noseLen: number; // nose-cone length multiplier
-  wingSpread: number; // how far the wings splay outward
-  wingLen: number; // wing length
-  bodyWidth: number; // hull half-width
-  flameLenMult: number; // engine flame length multiplier
-}
-
-export const ROCKET_SHAPE_GEOMETRY: Record<RocketShapeKey, RocketShapeGeometry> = {
-  // The existing, original silhouette — every non-shop rocket (bots,
-  // any "you" ship with no shape equipped) still renders exactly this
-  // way, byte-identical to before this feature existed.
-  VOYAGER: { noseLen: 1, wingSpread: 1, wingLen: 1, bodyWidth: 1, flameLenMult: 1 },
-  // Sleeker, narrower — a longer nose and swept-in wings read as
-  // "built for speed" without actually changing real speed (that's a
-  // separate, later-phase purchase category).
-  INTERCEPTOR: { noseLen: 1.25, wingSpread: 0.7, wingLen: 0.8, bodyWidth: 0.85, flameLenMult: 1.15 },
-  // Bulkier, wider — a shorter nose and broad, swept-out wings read as
-  // "built tough."
-  CRUISER: { noseLen: 0.85, wingSpread: 1.35, wingLen: 1.25, bodyWidth: 1.2, flameLenMult: 0.9 },
+// Old Phase 1 geometry-variant keys → the closest-feeling one of the 6
+// real shapes above, so a wallet that bought a rocket under the old
+// model keeps seeing a real, still-cosmetic-only ship rather than an
+// error or an unstyled fallback. See rocketShape.ts's drawRocketShip
+// for where this is actually consulted.
+export const LEGACY_SHAPE_ALIAS: Record<string, RocketShapeKey> = {
+  VOYAGER: "ROCKET",
+  INTERCEPTOR: "WEDGE",
+  CRUISER: "FIGHTER",
 };
 
-// Phase 1's fixed 6-item catalog, 2 cosmetic variants per geometric
-// shape — display names only, kept separate from ROCKET_SHAPES (the
-// underlying geometry key) since several catalog items intentionally
-// share one silhouette. Real i18n keys/pricing live server-side in
-// src/lib/shop.ts's own seed defaults; this list exists so the client
-// shape-preview renderer (the loadout picker) can draw every catalog
-// option without waiting on a network round-trip for the geometry
-// itself, only for price/ownership.
-//
-// colorHex gives each of the 6 seed SKUs a distinct look even where
-// two share a geometry (Voyager/Zephyr are both the VOYAGER shape,
-// Interceptor/Raptor both INTERCEPTOR, Cruiser/Juggernaut both
-// CRUISER) — Phase 2 (admin-configurable color, see ShopItemConfig.
-// colorHex) lets an admin pick anything; these are just the seeded
-// starting values.
+// Fixed 6-item seed catalog — each of the 6 named SKUs maps onto one
+// of the 6 real distinct shapes above (no more sharing one silhouette
+// across multiple SKUs, unlike the old model). Real i18n keys/pricing
+// live server-side in src/lib/shop.ts's own seed defaults; this list
+// exists so the client shape-preview renderer (the loadout picker) can
+// draw every catalog option without waiting on a network round-trip
+// for the geometry itself, only for price/ownership. `key` values are
+// permanent (already real unique DB keys) — only `shapeKey`/`colorHex`
+// changed from the original Phase 1 seed.
 export const SHOP_ROCKET_SHAPE_CATALOG: { key: string; shapeKey: RocketShapeKey; name: string; colorHex: string }[] = [
-  { key: "ROCKET_VOYAGER", shapeKey: "VOYAGER", name: "Voyager", colorHex: "#f4c15d" },
-  { key: "ROCKET_ZEPHYR", shapeKey: "VOYAGER", name: "Zephyr", colorHex: "#4fd1ff" },
-  { key: "ROCKET_INTERCEPTOR", shapeKey: "INTERCEPTOR", name: "Interceptor", colorHex: "#8b7cf0" },
-  { key: "ROCKET_RAPTOR", shapeKey: "INTERCEPTOR", name: "Raptor", colorHex: "#ff6b4a" },
-  { key: "ROCKET_CRUISER", shapeKey: "CRUISER", name: "Cruiser", colorHex: "#2dd4a7" },
-  { key: "ROCKET_JUGGERNAUT", shapeKey: "CRUISER", name: "Juggernaut", colorHex: "#ff4fd8" },
+  { key: "ROCKET_VOYAGER", shapeKey: "ROCKET", name: "Voyager", colorHex: "#f4c15d" },
+  { key: "ROCKET_ZEPHYR", shapeKey: "SAUCER", name: "Zephyr", colorHex: "#4fd1ff" },
+  { key: "ROCKET_INTERCEPTOR", shapeKey: "WEDGE", name: "Interceptor", colorHex: "#8b7cf0" },
+  { key: "ROCKET_RAPTOR", shapeKey: "FIGHTER", name: "Raptor", colorHex: "#ff6b4a" },
+  { key: "ROCKET_CRUISER", shapeKey: "ORB", name: "Cruiser", colorHex: "#2dd4a7" },
+  { key: "ROCKET_JUGGERNAUT", shapeKey: "COMET", name: "Juggernaut", colorHex: "#ff4fd8" },
 ];

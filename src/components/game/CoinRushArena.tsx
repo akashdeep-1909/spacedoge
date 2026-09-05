@@ -83,9 +83,9 @@ interface ShipEntity {
   // under), or null for "you" and for true local bots.
   externallyDriven: boolean;
   oppSlot: number | null;
-  // Coin Rush Shop (Phase 1: ROCKET_SHAPE) — null for every bot/
+  // Coin Rush Shop (ROCKET_SHAPE category) — null for every bot/
   // opponent ship and for "you" with nothing equipped, which both
-  // render as the original VOYAGER silhouette. Purely cosmetic — see
+  // render as the default ROCKET silhouette. Purely cosmetic — see
   // drawRocket's own doc-comment for the fairness constraint this is
   // built to respect (collision radius never varies by shape).
   shapeKey: string | null;
@@ -1287,15 +1287,15 @@ export function CoinRushArena({
       }
       ctx!.closePath();
     }
-    // shapeKey selects a purely cosmetic silhouette variant (Coin Rush
-    // Shop, ROCKET_SHAPE items) — the geometry factors below scale
-    // individual path coordinates (nose length, wing spread/length,
-    // body width, flame length), but `r` (and therefore `scale`) is
-    // untouched by shape choice: collision radius stays byte-identical
-    // across every shape, so a cosmetic purchase can never be a
-    // disguised pay-to-win hitbox change. Bots and any "you" ship with
-    // no shape equipped fall through to VOYAGER, the original,
-    // unchanged-since-before-this-feature silhouette.
+    // shapeKey selects a purely cosmetic silhouette (Coin Rush Shop,
+    // ROCKET_SHAPE items) — one of 6 genuinely distinct hand-drawn
+    // shapes (rocket/saucer/orb/wedge/comet/fighter, see
+    // src/lib/rocketShape.ts), each with its own path, but `r` (and
+    // therefore `scale`) is untouched by shape choice: collision
+    // radius stays byte-identical across every shape, so a cosmetic
+    // purchase can never be a disguised pay-to-win hitbox change. Bots
+    // and any "you" ship with no shape equipped fall through to the
+    // default ROCKET silhouette.
     function drawRocket(x: number, y: number, angle: number, color: string, r: number, shapeKey?: string | null) {
       // Path math lives in src/lib/rocketShape.ts now, shared verbatim
       // with the Shop's live preview (RocketPreview.tsx) — see that

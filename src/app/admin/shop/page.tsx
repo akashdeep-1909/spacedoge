@@ -157,9 +157,12 @@ function ShopMasterSwitch() {
 }
 
 const ROCKET_SHAPE_LABEL: Record<RocketShapeKey, string> = {
-  VOYAGER: "Voyager — balanced",
-  INTERCEPTOR: "Interceptor — long nose, swept wings",
-  CRUISER: "Cruiser — short nose, wide wings",
+  ROCKET: "Rocket — classic nose-and-wings silhouette",
+  SAUCER: "Saucer — flying-disc UFO, no rear jet",
+  ORB: "Orb — small glowing drone sphere",
+  WEDGE: "Wedge — flat angular stealth fighter",
+  COMET: "Comet — round head, long wispy tail",
+  FIGHTER: "Fighter — twin-boom, twin engines",
 };
 
 const DEFAULT_COLOR = "#f4c15d";
@@ -184,7 +187,7 @@ function AddShopItemForm({ onDone }: { onDone: () => void }) {
 
   // Category-specific fields — only the ones relevant to the currently
   // selected category are ever read on submit.
-  const [shapeKey, setShapeKey] = useState<RocketShapeKey>("VOYAGER");
+  const [shapeKey, setShapeKey] = useState<RocketShapeKey>("ROCKET");
   const [colorHex, setColorHex] = useState(DEFAULT_COLOR);
   const [speedPct, setSpeedPct] = useState("10");
   const [livesBonus, setLivesBonus] = useState("1");

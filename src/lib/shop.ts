@@ -181,8 +181,32 @@ const SEED_DEFAULTS: SeedRow[] = [...ROCKET_SEEDS, ...STAT_POWERUP_SEEDS];
 // overwrites a real (non-null) value — there's no admin-facing "edit
 // color" action yet, so the only way colorHex could already be
 // non-null here is this same backfill having already run.
+//
+// shapeKey gets the same treatment, but UNCONDITIONALLY re-synced
+// (not "only if some other value is missing/null") specifically for
+// these 6 known, app-owned seed keys: the "sci-fi mixed fleet"
+// redesign (6 genuinely distinct silhouettes replacing the old 3
+// same-ship-different-proportions model) reassigned which shape each
+// of these 6 SKUs grants — e.g. ROCKET_ZEPHYR went from the old
+// "VOYAGER" geometry key to the real "SAUCER" shape — and an existing
+// row's shapeKey column still has the stale pre-redesign value stored,
+// which would otherwise never update since these rows already exist
+// (the "insert only if key is missing" logic above never touches
+// them). Safe specifically because: (1) these exact 6 keys are only
+// ever created by this seed code, never admin-typed (an admin-created
+// custom rocket item gets a random suffixed key, e.g.
+// ROCKET_XYZ_AB12CD, which can never collide with one of these 6); (2)
+// shapeKey is still fully immutable via the admin PATCH route — this
+// is a one-time code-level migration accompanying a code change, the
+// same category as the colorHex backfill above, not a new admin
+// capability; (3) already-ISSUED WalletShopItem rows from past
+// purchases keep whatever shapeKey they snapshotted at purchase time
+// regardless — only the ShopItemConfig CATALOG row (governing what a
+// NEW purchase gets) changes, exactly the same "catalog edits only
+// affect future purchases" principle price/usesGranted/termDays edits
+// already rely on.
 async function seedShopItemConfigsIfEmpty() {
-  const existing = await db.shopItemConfig.findMany({ select: { id: true, key: true, colorHex: true } });
+  const existing = await db.shopItemConfig.findMany({ select: { id: true, key: true, colorHex: true, shapeKey: true } });
   const existingByKey = new Map(existing.map((r) => [r.key, r]));
 
   const missing = SEED_DEFAULTS.filter((row) => !existingByKey.has(row.key));
@@ -194,15 +218,20 @@ async function seedShopItemConfigsIfEmpty() {
     }
   }
 
-  const colorBackfills = ROCKET_SEEDS.filter((seed) => {
+  for (const seed of ROCKET_SEEDS) {
     const row = existingByKey.get(seed.key);
-    return row && row.colorHex === null && seed.colorHex !== null;
-  });
-  for (const seed of colorBackfills) {
-    const row = existingByKey.get(seed.key)!;
-    await db.shopItemConfig.update({ where: { id: row.id }, data: { colorHex: seed.colorHex } }).catch(() => {
-      // Non-fatal — another concurrent request may have already backfilled this same row.
-    });
+    if (!row) continue;
+    const needsColor = row.colorHex === null && seed.colorHex !== null;
+    const needsShape = row.shapeKey !== seed.shapeKey;
+    if (!needsColor && !needsShape) continue;
+    await db.shopItemConfig
+      .update({
+        where: { id: row.id },
+        data: { ...(needsColor ? { colorHex: seed.colorHex } : {}), ...(needsShape ? { shapeKey: seed.shapeKey } : {}) },
+      })
+      .catch(() => {
+        // Non-fatal — another concurrent request may have already backfilled this same row.
+      });
   }
 }
 

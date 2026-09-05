@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { WalletBalances } from "@/lib/balances";
 import type { LiveShipSample } from "@/lib/liveMatchStateTypes";
-import type { ResolvedLoadout } from "@/lib/shop-shared";
+import type { ResolvedLoadout, RocketShapeKey } from "@/lib/shop-shared";
 
 export function useBalances() {
   return useQuery({
@@ -2756,7 +2756,7 @@ type CreateShopItemCommon = {
   termDays?: number | null;
 };
 export type CreateShopItemInput =
-  | (CreateShopItemCommon & { category: "ROCKET_SHAPE"; shapeKey: "VOYAGER" | "INTERCEPTOR" | "CRUISER"; colorHex: string })
+  | (CreateShopItemCommon & { category: "ROCKET_SHAPE"; shapeKey: RocketShapeKey; colorHex: string })
   | (CreateShopItemCommon & { category: "STAT_SPEED"; speedPct: number })
   | (CreateShopItemCommon & { category: "STAT_HEALTH"; livesBonus: number })
   | (CreateShopItemCommon & { category: "POWERUP_MAGNET"; magnetDurationBonusSec: number; magnetCooldownReductionSec: number })
