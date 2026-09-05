@@ -47,6 +47,21 @@ export const PREFUNDED_POOL_USDT: Partial<Record<GameMode, number>> = {
 export const SPONSORED_DROP_COOLDOWN_HOURS = 24;
 export const FORGE_CUP_COOLDOWN_DAYS = 7;
 
+// Coin Rush Shop RENTAL_BOT category — "only works with real friends,
+// never solo" (src/lib/shop.ts consumeLoadoutSelections' own
+// allowRentalBot gate closes the solo-endpoint half of that). Without
+// this, the Play-with-Friends lobby's OWN "Start with Random Players"
+// button let a host equip a Rental Bot and immediately fill the other
+// 3 seats with AI — functionally solo play wearing a lobby costume.
+// Counts the host, so this many real JOINED humans (not AI fill) must
+// be in the room before a Rental Bot selection is allowed to actually
+// start a match — see src/lib/lobby.ts (finalizeLobby's own consume
+// gate + lobbyNeedsMoreHumansForRentalBot, used by POST
+// /api/lobbies/[id]/start to hard-block the manual action) and the
+// lobby waiting-room page (client-side mirror, disables the button
+// pre-emptively instead of letting the host hit a server error).
+export const RENTAL_BOT_MIN_HUMANS = 3;
+
 // v3 economy: two-level referral, carved out of the platform fee (O =
 // 0.30T above) and paid at match entry, not settlement — see
 // src/lib/referrals.ts. Both are percentages of platformFeeUsdt itself

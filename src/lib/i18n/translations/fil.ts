@@ -1456,6 +1456,7 @@ const fil = {
     rentalBotSubtitle: "Hayaan ang isang bot na maglaro para sa iyo — awtomatikong umiiwas at nagbabangko.",
     rentalBotEmptyInventory: "Wala ka pang Rental Bot pass.",
     rentalBotFailedToSave: "Hindi na-update ang iyong pinili na Rental Bot",
+    rentalBotNeedsFriends: "Gumagana lang ang Rental Bot kapag kasama ang totoong kaibigan — mag-imbita pa ng {{count}} bago magsimula, o i-clear ito sa itaas para magsimula gamit ang random na manlalaro.",
   },
   gameArena: {
     title: "Coin Rush Arena",

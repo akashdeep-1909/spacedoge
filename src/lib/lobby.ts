@@ -2,7 +2,7 @@ import { randomBytes, createHash } from "node:crypto";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { BalanceType, GameMode } from "@/generated/prisma/enums";
-import { GAME_MODE_CONFIG, botScore } from "@/lib/game-config";
+import { GAME_MODE_CONFIG, botScore, RENTAL_BOT_MIN_HUMANS } from "@/lib/game-config";
 import { getGameModeConfigs, getGameModeConfig, computeRoomEconomicsFromConfig } from "@/lib/gameModes";
 import { distributeEntryFeeToTreasuryAndReferrals } from "@/lib/referrals";
 import { getWalletBalances, lockWalletForBalanceChange, getLedgerBalance } from "@/lib/balances";
@@ -207,6 +207,18 @@ export async function finalizeLobby(lobbyId: string): Promise<{ matchId: string 
       },
     });
 
+    // Below RENTAL_BOT_MIN_HUMANS real humans, a Rental Bot selection is
+    // never actually consumed — this is the passive-path half of "only
+    // works with real friends" (POST /api/lobbies/[id]/start hard-
+    // blocks the deliberate manual action via
+    // lobbyNeedsMoreHumansForRentalBot below; this covers the lazy-
+    // expiry/auto-fill paths that have no button to disable and
+    // shouldn't be stranded forever waiting for friends who never
+    // join). Silently skipped, not an error — same graceful
+    // degradation an expired/exhausted selection already gets from
+    // consumeLoadoutSelections itself.
+    const enoughHumansForRentalBot = humanParticipants.length >= RENTAL_BOT_MIN_HUMANS;
+
     let slot = 1;
     for (const p of humanParticipants) {
       await tx.matchParticipant.create({
@@ -230,7 +242,7 @@ export async function finalizeLobby(lobbyId: string): Promise<{ matchId: string 
       // function's own existing logic — this participant just plays
       // manually instead, same graceful degradation solo already
       // relies on for a stale client snapshot.
-      if (p.walletShopItemId) {
+      if (p.walletShopItemId && enoughHumansForRentalBot) {
         await consumeLoadoutSelections(
           tx,
           p.walletProfileId,
@@ -284,6 +296,25 @@ export async function finalizeLobby(lobbyId: string): Promise<{ matchId: string 
 
     return { matchId: match.id };
   });
+}
+
+// Used by POST /api/lobbies/[id]/start to hard-block the host's
+// deliberate "Start with Random Players" click when a Rental Bot is
+// equipped but the room doesn't yet have enough real friends in it —
+// the actual enforcement of "only works with real friends" for the
+// one action a host can take to bypass that on purpose (see
+// RENTAL_BOT_MIN_HUMANS's own doc-comment). The passive expiry/auto-
+// fill paths are handled separately, inside finalizeLobby itself,
+// since neither has a button to disable and shouldn't strand a room
+// forever waiting on friends who never show up.
+export async function lobbyNeedsMoreHumansForRentalBot(lobbyId: string): Promise<boolean> {
+  const lobby = await db.gameLobby.findUnique({
+    where: { id: lobbyId },
+    include: { participants: { where: { status: "JOINED" } } },
+  });
+  if (!lobby) return false;
+  if (lobby.participants.length >= RENTAL_BOT_MIN_HUMANS) return false;
+  return lobby.participants.some((p) => !!p.walletShopItemId);
 }
 
 // Lazy expiry — no cron/queue infra exists in this stack (confirmed).

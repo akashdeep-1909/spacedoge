@@ -1456,6 +1456,7 @@ const id = {
     rentalBotSubtitle: "Biarkan bot bermain untuk Anda — menghindar dan menabung secara otomatis.",
     rentalBotEmptyInventory: "Anda belum memiliki pass Bot Sewaan.",
     rentalBotFailedToSave: "Gagal memperbarui pilihan Bot Sewaan Anda",
+    rentalBotNeedsFriends: "Bot Sewaan hanya berfungsi dengan teman sungguhan — undang {{count}} orang lagi sebelum memulai, atau hapus pilihannya di atas untuk memulai dengan pemain acak.",
   },
   gameArena: {
     title: "Coin Rush Arena",

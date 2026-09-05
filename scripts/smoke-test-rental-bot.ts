@@ -5,13 +5,17 @@
 //      actual server-side enforcement of "Play with Friends only,"
 //      not just a UI omission (LoadoutSelectModal never even offers
 //      it, but this proves the server independently refuses it too).
-//   3. Creating a real lobby, setting the Rental Bot via
-//      PATCH /api/lobbies/[id]/rental-bot, then starting it (host
-//      early-start, bots fill the rest) DOES resolve+consume it: a
-//      real MatchLoadoutSelection row is written, usesRemaining
-//      decrements by exactly 1, and both getResolvedLoadoutForMatch
-//      and GET /api/matches/[id]/roster report rentalBot: true for
-//      that participant.
+//   3. Creating a real lobby and setting the Rental Bot via
+//      PATCH /api/lobbies/[id]/rental-bot with just the host in the
+//      room hard-blocks POST /api/lobbies/[id]/start (409) — "only
+//      works with real friends" also blocks the one deliberate action
+//      that could otherwise fill the room with AI the instant a Rental
+//      Bot is equipped. Inviting 2 more real humans (RENTAL_BOT_MIN_
+//      HUMANS) up to that same lobby then lets start succeed: a real
+//      MatchLoadoutSelection row is written, usesRemaining decrements
+//      by exactly 1, and both getResolvedLoadoutForMatch and
+//      GET /api/matches/[id]/roster report rentalBot: true for that
+//      participant.
 //   4. Clearing the selection back to null before starting works, and
 //      a lobby that starts with no Rental Bot selected never resolves
 //      one (no audit row, no consumption).
@@ -174,8 +178,32 @@ async function main() {
     body: JSON.stringify({ walletShopItemId }),
   });
 
+  // --- 3b. "Only works with real friends": a Rental Bot equipped with
+  // just the host in the room hard-blocks "Start with Random Players" —
+  // the one deliberate action that could otherwise fill the other 3
+  // seats with AI the instant a Rental Bot is equipped, functionally
+  // soloing with a lobby costume on. ---
+  const { res: blockedStartRes, body: blockedStartBody } = await host.req(`/api/lobbies/${lobbyId}/start`, { method: "POST" });
+  log(
+    "Starting with random players is blocked while under-crewed with a Rental Bot equipped",
+    blockedStartRes.status === 409,
+    JSON.stringify(blockedStartBody)
+  );
+  const lobbyStillWaiting = await db.gameLobby.findUniqueOrThrow({ where: { id: lobbyId } });
+  log("The lobby is still WAITING after the blocked start attempt", lobbyStillWaiting.status === "WAITING");
+
+  // Bring in 2 more real humans via a shared invite link — once the
+  // room has RENTAL_BOT_MIN_HUMANS real players, the same "start" call
+  // must succeed.
+  const { body: linkBody } = await host.req(`/api/lobbies/${lobbyId}/invite-link`, { method: "POST" });
+  const friend1 = await makeClient();
+  const friend2 = await makeClient();
+  const { res: join1Res } = await friend1.req(`/api/invite-links/${linkBody.token}/join`, { method: "POST" });
+  const { res: join2Res } = await friend2.req(`/api/invite-links/${linkBody.token}/join`, { method: "POST" });
+  log("Both friends joined the lobby", join1Res.ok && join2Res.ok);
+
   const { res: startRes, body: startedLobby } = await host.req(`/api/lobbies/${lobbyId}/start`, { method: "POST" });
-  log("Lobby starts (host early-start, bots fill the rest)", startRes.ok, JSON.stringify(startedLobby));
+  log("Lobby starts once enough real friends have joined (host early-start, 1 bot fills the last seat)", startRes.ok, JSON.stringify(startedLobby));
   const matchId: string = startedLobby.finalMatchId;
 
   const loadoutRow = await db.matchLoadout.findFirst({
@@ -200,14 +228,17 @@ async function main() {
   const { body: rosterBody } = await host.req(`/api/matches/${matchId}/roster`);
   log("GET /api/matches/[id]/roster also reports rentalBot: true", rosterBody.loadout?.rentalBot === true, JSON.stringify(rosterBody.loadout));
 
-  // Submit results for the lobby match (only 1 human — the host — so
-  // this alone settles it) — otherwise this wallet stays "busy" and
+  // Submit results for all 3 real humans in this match (host + the 2
+  // friends who joined above) — a match only settles once every human
+  // participant has reported, otherwise this wallet stays "busy" and
   // can't create the second lobby below.
-  await host.req(`/api/matches/${matchId}/results`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ score: 0, durationPlayedSec: 0 }),
-  });
+  for (const client of [host, friend1, friend2]) {
+    await client.req(`/api/matches/${matchId}/results`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ score: 0, durationPlayedSec: 0 }),
+    });
+  }
 
   // --- 4. A second lobby with NO Rental Bot selected resolves nothing. ---
   const { body: lobby2 } = await host.req("/api/lobbies", {
@@ -219,7 +250,7 @@ async function main() {
   const reconstructed2 = await getResolvedLoadoutForMatch(started2.finalMatchId, host.walletProfileId);
   log("A lobby with no Rental Bot selected resolves rentalBot: false", reconstructed2.rentalBot === false);
 
-  // Cleanup — throwaway synthetic wallet + everything it touched.
+  // Cleanup — throwaway synthetic wallets + everything they touched.
   for (const mid of [matchId, started2.finalMatchId, soloMatch.matchId]) {
     await db.matchLoadoutSelection.deleteMany({ where: { matchLoadout: { matchId: mid } } });
     await db.matchLoadout.deleteMany({ where: { matchId: mid } });
@@ -228,9 +259,11 @@ async function main() {
   }
   await db.lobbyParticipant.deleteMany({ where: { lobby: { hostWalletProfileId: host.walletProfileId } } });
   await db.gameLobby.deleteMany({ where: { hostWalletProfileId: host.walletProfileId } });
-  await db.walletShopItem.deleteMany({ where: { walletProfileId: host.walletProfileId } });
-  await db.ledgerEntry.deleteMany({ where: { walletProfileId: host.walletProfileId } });
-  await db.walletProfile.delete({ where: { id: host.walletProfileId } });
+  for (const client of [host, friend1, friend2]) {
+    await db.walletShopItem.deleteMany({ where: { walletProfileId: client.walletProfileId } });
+    await db.ledgerEntry.deleteMany({ where: { walletProfileId: client.walletProfileId } });
+    await db.walletProfile.delete({ where: { id: client.walletProfileId } });
+  }
   await db.platformSettings.update({ where: { id: "singleton" }, data: { shopEnabled: shopEnabledBefore } });
 
   console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) FAILED.`);

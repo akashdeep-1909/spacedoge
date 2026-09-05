@@ -11,7 +11,7 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { getPublicOrigin } from "@/lib/publicUrl";
 import { NotificationsPrompt } from "@/components/NotificationsPrompt";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
-import { THEME_BY_MODE } from "@/lib/game-config";
+import { THEME_BY_MODE, RENTAL_BOT_MIN_HUMANS } from "@/lib/game-config";
 import type { GameMode } from "@/generated/prisma/enums";
 import { MatchResultReveal, type MatchParticipantResult, type MatchPoolSummary } from "@/components/game/MatchResultReveal";
 import { gameModeLabel } from "@/lib/game-mode-labels";
@@ -368,6 +368,15 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   const secondsLeft = Math.max(0, Math.round((new Date(lobby.expiresAt).getTime() - new Date(lobby.serverTime).getTime()) / 1000));
   const countdownLabel = `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`;
   const emptySeats = lobby.maxPlayers - lobby.humanCount;
+  // Proactive mirror of the server's own hard block (POST
+  // /api/lobbies/[id]/start, via lobbyNeedsMoreHumansForRentalBot) —
+  // disables "Start with Random Players" instead of letting the host
+  // hit a 409 after clicking it. Only reflects the VIEWER's own
+  // selection (lobby.myRentalBot) since that's all this payload
+  // exposes per-participant; the server check itself covers every
+  // participant's selection regardless, so a non-host joiner equipping
+  // a Rental Bot the host can't see here still gets enforced there.
+  const rentalBotNeedsMoreHumans = !!lobby.myRentalBot && lobby.humanCount < RENTAL_BOT_MIN_HUMANS;
 
   // Recent opponents not already occupying a seat or already invited —
   // no point quick-inviting someone who's already in or already pending.
@@ -505,13 +514,19 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
           </div>
 
           <div className="mt-4 flex flex-col gap-2">
-            <button
-              onClick={() => start.mutateAsync().catch((e) => setActionError(e instanceof Error ? e.message : t("lobby.failedToStart")))}
-              disabled={start.isPending}
-              className="btn-game hud-corner w-full whitespace-nowrap rounded-full px-4 py-2 text-sm disabled:opacity-50"
-            >
-              {emptySeats > 0 ? t("lobby.startWithRandomPlayers") : t("lobby.startMatchButton")}
-            </button>
+            {rentalBotNeedsMoreHumans ? (
+              <p className="rounded-xl border border-gold/25 bg-gold-soft px-3 py-2 text-center text-xs text-gold">
+                {t("lobby.rentalBotNeedsFriends", { count: RENTAL_BOT_MIN_HUMANS - lobby.humanCount })}
+              </p>
+            ) : (
+              <button
+                onClick={() => start.mutateAsync().catch((e) => setActionError(e instanceof Error ? e.message : t("lobby.failedToStart")))}
+                disabled={start.isPending}
+                className="btn-game hud-corner w-full whitespace-nowrap rounded-full px-4 py-2 text-sm disabled:opacity-50"
+              >
+                {emptySeats > 0 ? t("lobby.startWithRandomPlayers") : t("lobby.startMatchButton")}
+              </button>
+            )}
             <button
               onClick={() => cancel.mutateAsync().catch((e) => setActionError(e instanceof Error ? e.message : t("lobby.failedToCancel")))}
               disabled={cancel.isPending}

@@ -1282,6 +1282,7 @@ const en = {
     rentalBotSubtitle: "Let a bot play this match for you — steers, dodges, and banks automatically.",
     rentalBotEmptyInventory: "You don't own any Rental Bot passes yet.",
     rentalBotFailedToSave: "Failed to update your Rental Bot selection",
+    rentalBotNeedsFriends: "Your Rental Bot only works with real friends — invite {{count}} more before starting, or clear it above to start with random players.",
   },
   gameArena: {
     title: "Coin Rush Arena",

@@ -1456,6 +1456,7 @@ const vi = {
     rentalBotSubtitle: "Để bot chơi thay bạn — tự động né tránh và gửi ngân hàng.",
     rentalBotEmptyInventory: "Bạn chưa sở hữu vé Bot Cho Thuê nào.",
     rentalBotFailedToSave: "Cập nhật lựa chọn Bot Cho Thuê thất bại",
+    rentalBotNeedsFriends: "Bot Cho Thuê chỉ hoạt động khi chơi với bạn bè thật — hãy mời thêm {{count}} người trước khi bắt đầu, hoặc xóa lựa chọn ở trên để bắt đầu với người chơi ngẫu nhiên.",
   },
   gameArena: {
     title: "Coin Rush Arena",

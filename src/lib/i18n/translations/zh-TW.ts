@@ -1456,6 +1456,7 @@ const zhTW = {
     rentalBotSubtitle: "讓機器人代替你遊玩 — 自動閃避並存入銀行。",
     rentalBotEmptyInventory: "您尚未擁有任何租借機器人通行證。",
     rentalBotFailedToSave: "更新租借機器人選擇失敗",
+    rentalBotNeedsFriends: "租借機器人僅在與真實朋友同玩時生效——請再邀請 {{count}} 位朋友後再開始，或在上方清除此選擇以隨機玩家開始。",
   },
   gameArena: {
     title: "Coin Rush Arena",

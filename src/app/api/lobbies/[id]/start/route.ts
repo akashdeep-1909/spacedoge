@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { finalizeLobby, serializeLobby } from "@/lib/lobby";
+import { finalizeLobby, serializeLobby, lobbyNeedsMoreHumansForRentalBot } from "@/lib/lobby";
+import { RENTAL_BOT_MIN_HUMANS } from "@/lib/game-config";
 
 // POST /api/lobbies/[id]/start — host-only "Start Game with AI Racers"
 // early-start button. Fills every empty seat with a deterministic bot
@@ -19,6 +20,18 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   }
   if (lobby.status !== "WAITING" && lobby.status !== "FULL") {
     return NextResponse.json({ error: "Lobby can no longer be started" }, { status: 409 });
+  }
+
+  // Real enforcement of "Rental Bot only works with real friends" for
+  // this specific action — the one deliberate way a host could
+  // otherwise fill the room with AI the instant a Rental Bot is
+  // equipped, functionally soloing with a lobby costume on. See
+  // lobbyNeedsMoreHumansForRentalBot's own doc-comment.
+  if (await lobbyNeedsMoreHumansForRentalBot(id)) {
+    return NextResponse.json(
+      { error: `A Rental Bot is equipped in this lobby — it only works with real friends. Invite at least ${RENTAL_BOT_MIN_HUMANS} players total before starting with random players, or clear the Rental Bot selection first.` },
+      { status: 409 }
+    );
   }
 
   await db.gameLobby.updateMany({

@@ -1456,6 +1456,7 @@ const ko = {
     rentalBotSubtitle: "봇이 대신 플레이합니다 — 자동으로 피하고 은행에 저장합니다.",
     rentalBotEmptyInventory: "아직 보유한 렌탈 봇 이용권이 없습니다.",
     rentalBotFailedToSave: "렌탈 봇 선택 업데이트에 실패했습니다",
+    rentalBotNeedsFriends: "렌탈 봇은 실제 친구와 함께할 때만 작동합니다 — 시작하기 전에 {{count}}명을 더 초대하거나, 위에서 선택을 취소하고 무작위 플레이어로 시작하세요.",
   },
   gameArena: {
     title: "Coin Rush Arena",
