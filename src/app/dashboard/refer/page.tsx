@@ -18,6 +18,7 @@ import { ShareSheet } from "@/components/ShareSheet";
 import { copyToClipboard } from "@/lib/clipboard";
 import { getPublicOrigin } from "@/lib/publicUrl";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
+import { CHART } from "@/lib/chart-theme";
 
 // bonusPct is stored as at most 4 decimal fraction digits (Decimal(6,4)
 // in the schema), so the percentage has at most 2 decimal digits — a
@@ -280,6 +281,33 @@ function MiningCommissionActivityTable() {
   );
 }
 
+// Ratio-against-a-threshold meter — same visual language as
+// src/app/dashboard/mining/page.tsx's own Meter (fill carries the
+// value, the unfilled track is the same hue at low opacity), just
+// parameterized on a raw count/target pair instead of a 0-100 pct.
+function ProgressMeter({ label, value, target, color }: { label: string; value: number; target: number; color: string }) {
+  const pct = target > 0 ? Math.max(0, Math.min(100, (value / target) * 100)) : 0;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{label}</p>
+        <p className="stat-value text-xs" style={{ color }}>
+          {value} / {target}
+        </p>
+      </div>
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full" style={{ background: `${color}1f` }}>
+        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+      </div>
+    </div>
+  );
+}
+
+const KOL_VIP_STATUS_STYLE: Record<KolVipLastPayout["status"], string> = {
+  PENDING: "border-gold/30 bg-gold-soft text-gold",
+  APPROVED: "border-mint/30 bg-mint-soft text-mint",
+  REJECTED: "border-risk/30 bg-risk-soft text-risk",
+};
+
 // A separate monthly bonus on top of the L1/L2 rewards above — only
 // rendered when an admin has turned the master switch on (src/lib/
 // kolVip.ts, PlatformSettings.kolVipEnabled). liveProgress reflects the
@@ -292,6 +320,18 @@ function KolVipSection({
   kolVip: { tiers: KolVipTierSummary[]; liveProgress: KolVipLiveProgress | null; lastPayout: KolVipLastPayout | null };
 }) {
   const { t } = useLocale();
+  const directCount = kolVip.liveProgress?.qualifiedDirectCount ?? 0;
+  const indirectCount = kolVip.liveProgress?.qualifiedIndirectCount ?? 0;
+  // nextTierLabel only carries a display string — cross-referencing the
+  // tier ladder by label recovers the actual thresholds the progress
+  // meters below need.
+  const nextTier = kolVip.tiers.find((tier) => tier.label === kolVip.liveProgress?.nextTierLabel);
+  const statusLabel: Record<KolVipLastPayout["status"], string> = {
+    PENDING: t("refer.kolVipStatusPending"),
+    APPROVED: t("refer.kolVipStatusApproved"),
+    REJECTED: t("refer.kolVipStatusRejected"),
+  };
+
   return (
     <div className="game-panel hud-corner rounded-2xl border-gold/15 p-5">
       <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gold">
@@ -299,60 +339,130 @@ function KolVipSection({
         <InfoTooltip text={t("refer.kolVipTooltip")} />
       </p>
 
-      <div className="mt-2 rounded-xl border border-line bg-panel-2 p-4 text-sm">
-        <p className="font-bold">{t("refer.kolVipThisMonthTitle")}</p>
-        <p className="mt-1 text-muted">
-          {t("refer.kolVipDirectProgress", { count: kolVip.liveProgress?.qualifiedDirectCount ?? 0 })} ·{" "}
-          {t("refer.kolVipIndirectProgress", { count: kolVip.liveProgress?.qualifiedIndirectCount ?? 0 })}
-        </p>
-        <p className="stat-value text-glow-gold mt-2 text-base text-gold">
-          {kolVip.liveProgress?.currentTierLabel
-            ? t("refer.kolVipCurrentTierLabel", { tier: kolVip.liveProgress.currentTierLabel })
-            : t("refer.kolVipNotQualified")}
-        </p>
-        {kolVip.liveProgress?.nextTierLabel && (
-          <p className="mt-1 text-xs text-muted">{t("refer.kolVipNextTierLabel", { tier: kolVip.liveProgress.nextTierLabel })}</p>
-        )}
-      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        {/* This Month So Far */}
+        <div className="rounded-xl border border-line bg-panel-2 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-bold text-foreground">{t("refer.kolVipThisMonthTitle")}</p>
+            <span
+              className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                kolVip.liveProgress?.currentTierLabel ? "border-gold/30 bg-gold-soft text-gold" : "border-line bg-panel text-muted"
+              }`}
+            >
+              {kolVip.liveProgress?.currentTierLabel
+                ? t("refer.kolVipCurrentTierLabel", { tier: kolVip.liveProgress.currentTierLabel })
+                : t("refer.kolVipNotQualified")}
+            </span>
+          </div>
 
-      <div className="mt-2 rounded-xl border border-line bg-panel-2 p-4 text-sm">
-        <p className="font-bold">{t("refer.kolVipLastPayoutTitle")}</p>
-        {kolVip.lastPayout ? (
-          <>
-            <p className="stat-value text-glow-gold mt-2 text-base text-gold">
-              {t("refer.kolVipLastPayoutBody", {
-                month: kolVip.lastPayout.periodMonth,
-                tier: kolVip.lastPayout.tierLabel,
-                usdt: kolVip.lastPayout.bonusUsdt.toFixed(4),
-                mhs: kolVip.lastPayout.bonusHashrateMhs.toFixed(2),
-              })}
-            </p>
-            {kolVip.lastPayout.status === "PENDING" && (
-              <p className="mt-1 text-xs text-muted">{t("refer.kolVipPendingNote")}</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-lg border border-line bg-panel px-3 py-2">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-muted">{t("refer.kolVipDirectStatLabel")}</p>
+              <p className="stat-value text-glow-gold mt-0.5 text-lg text-gold">{directCount}</p>
+            </div>
+            <div className="rounded-lg border border-line bg-panel px-3 py-2">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-muted">{t("refer.kolVipIndirectStatLabel")}</p>
+              <p className="stat-value text-glow-gold mt-0.5 text-lg text-gold">{indirectCount}</p>
+            </div>
+          </div>
+
+          {nextTier ? (
+            <div className="mt-3 flex flex-col gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted">
+                {t("refer.kolVipProgressToNext", { tier: nextTier.label })}
+              </p>
+              <ProgressMeter label={t("refer.kolVipColDirect")} value={directCount} target={nextTier.minDirectReferrals} color={CHART.gold} />
+              <ProgressMeter label={t("refer.kolVipColIndirect")} value={indirectCount} target={nextTier.minIndirectReferrals} color={CHART.mint} />
+            </div>
+          ) : (
+            kolVip.liveProgress?.currentTierLabel && (
+              <p className="mt-3 text-xs font-semibold text-gold">
+                {t("refer.kolVipMaxTierReached", { tier: kolVip.liveProgress.currentTierLabel })}
+              </p>
+            )
+          )}
+        </div>
+
+        {/* Last Month's Reward */}
+        <div className="rounded-xl border border-line bg-panel-2 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-bold text-foreground">{t("refer.kolVipLastPayoutTitle")}</p>
+            {kolVip.lastPayout && (
+              <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${KOL_VIP_STATUS_STYLE[kolVip.lastPayout.status]}`}>
+                {statusLabel[kolVip.lastPayout.status]}
+              </span>
             )}
-            {kolVip.lastPayout.status === "REJECTED" && (
-              <p className="mt-1 text-xs text-risk">{t("refer.kolVipRejectedNote")}</p>
-            )}
-          </>
-        ) : (
-          <p className="mt-1 text-muted">{t("refer.kolVipNoPayoutYet")}</p>
-        )}
+          </div>
+
+          {kolVip.lastPayout ? (
+            <>
+              <p className="mt-1 text-xs text-muted">
+                {kolVip.lastPayout.periodMonth} · {kolVip.lastPayout.tierLabel}
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-line bg-panel px-3 py-2">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-muted">{t("refer.kolVipUsdtStatLabel")}</p>
+                  <p className="stat-value text-glow-mint mt-0.5 text-lg text-mint">${kolVip.lastPayout.bonusUsdt.toFixed(4)}</p>
+                </div>
+                <div className="rounded-lg border border-line bg-panel px-3 py-2">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-muted">{t("refer.kolVipHashrateStatLabel")}</p>
+                  <p className="stat-value text-glow-gold mt-0.5 text-lg text-gold">{kolVip.lastPayout.bonusHashrateMhs.toFixed(2)} MH/s</p>
+                </div>
+              </div>
+              {kolVip.lastPayout.status === "PENDING" && <p className="mt-2 text-[11px] text-muted">{t("refer.kolVipPendingNote")}</p>}
+              {kolVip.lastPayout.status === "REJECTED" && <p className="mt-2 text-[11px] text-risk">{t("refer.kolVipRejectedNote")}</p>}
+            </>
+          ) : (
+            <p className="mt-3 text-xs text-muted">{t("refer.kolVipNoPayoutYet")}</p>
+          )}
+        </div>
       </div>
 
       {kolVip.tiers.length > 0 && (
-        <div className="mt-2">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-muted">{t("refer.kolVipTierLadderTitle")}</p>
-          <div className="mt-1.5 flex flex-col gap-1">
-            {kolVip.tiers.map((tier) => (
-              <p key={tier.key} className="text-xs text-muted">
-                {t("refer.kolVipTierRow", {
-                  label: tier.label,
-                  direct: tier.minDirectReferrals,
-                  indirect: tier.minIndirectReferrals,
-                  pct: pctDisplay(tier.bonusPct),
+        <div className="mt-3">
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted">{t("refer.kolVipTierLadderTitle")}</p>
+          <div className="overflow-hidden rounded-xl border border-line">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gold/15 bg-panel-2 text-left text-[10px] uppercase tracking-widest text-gold">
+                  <th className="whitespace-nowrap px-3 py-2 font-bold">{t("refer.kolVipColTier")}</th>
+                  <th className="whitespace-nowrap px-3 py-2 text-right font-bold">{t("refer.kolVipColDirect")}</th>
+                  <th className="whitespace-nowrap px-3 py-2 text-right font-bold">{t("refer.kolVipColIndirect")}</th>
+                  <th className="whitespace-nowrap px-3 py-2 text-right font-bold">{t("refer.kolVipColBonus")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {kolVip.tiers.map((tier) => {
+                  const isCurrent = tier.label === kolVip.liveProgress?.currentTierLabel;
+                  const isNext = tier.label === kolVip.liveProgress?.nextTierLabel;
+                  return (
+                    <tr
+                      key={tier.key}
+                      className={`border-b border-line last:border-0 ${isCurrent ? "bg-gold-soft" : "bg-panel"}`}
+                    >
+                      <td className="stat-value whitespace-nowrap px-3 py-2 text-[13px]">
+                        <span className={isCurrent ? "font-bold text-gold" : "text-foreground"}>{tier.label}</span>
+                        {isCurrent && (
+                          <span className="ml-1.5 rounded-full border border-gold/30 bg-panel px-1.5 py-0.5 text-[9px] font-bold uppercase text-gold">
+                            {t("refer.kolVipCurrentRowTag")}
+                          </span>
+                        )}
+                        {!isCurrent && isNext && (
+                          <span className="ml-1.5 rounded-full border border-line bg-panel px-1.5 py-0.5 text-[9px] font-bold uppercase text-muted">
+                            {t("refer.kolVipNextRowTag")}
+                          </span>
+                        )}
+                      </td>
+                      <td className="stat-value whitespace-nowrap px-3 py-2 text-right text-[13px] text-muted">{tier.minDirectReferrals}</td>
+                      <td className="stat-value whitespace-nowrap px-3 py-2 text-right text-[13px] text-muted">{tier.minIndirectReferrals}</td>
+                      <td className="stat-value whitespace-nowrap px-3 py-2 text-right text-[13px] font-bold text-gold">
+                        {pctDisplay(tier.bonusPct)}%
+                      </td>
+                    </tr>
+                  );
                 })}
-              </p>
-            ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
