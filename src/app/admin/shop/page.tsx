@@ -225,6 +225,29 @@ function AddShopItemForm({ onDone }: { onDone: () => void }) {
       termDays: entitlementType === "TIME_WINDOW" ? Number(termDays) || 0 : null,
     };
     let input: CreateShopItemInput;
+    if (category === "RENTAL_BOT") {
+      // Both compulsory, not a choice — the "Pricing model"
+      // uses-or-days picker above is hidden for this category (see the
+      // JSX below), always both fields together. See
+      // ShopEntitlementType.USES_AND_TIME_WINDOW's own doc-comment in
+      // schema.prisma.
+      input = {
+        category,
+        label: label.trim(),
+        description: description.trim(),
+        priceUsdt: Number(priceUsdt) || 0,
+        entitlementType: "USES_AND_TIME_WINDOW",
+        usesGranted: Number(usesGranted) || 0,
+        termDays: Number(termDays) || 0,
+      };
+      try {
+        await create.mutateAsync(input);
+        onDone();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to create item");
+      }
+      return;
+    }
     switch (category) {
       case "ROCKET_SHAPE":
         input = { ...common, category, shapeKey, colorHex };
@@ -253,9 +276,6 @@ function AddShopItemForm({ onDone }: { onDone: () => void }) {
           shieldDurationBonusSec: Number(shieldDurationBonusSec) || 0,
           shieldCooldownReductionSec: Number(shieldCooldownReductionSec) || 0,
         };
-        break;
-      case "RENTAL_BOT":
-        input = { ...common, category };
         break;
     }
     try {
@@ -296,24 +316,42 @@ function AddShopItemForm({ onDone }: { onDone: () => void }) {
         <Field label="Price (USDT)">
           <input type="number" min="0" step="0.01" value={priceUsdt} onChange={(e) => setPriceUsdt(e.target.value)} className={plainInputClass} />
         </Field>
-        <Field label="Pricing model">
-          <select
-            value={entitlementType}
-            onChange={(e) => setEntitlementType(e.target.value as "USES" | "TIME_WINDOW")}
-            className={plainInputClass}
-          >
-            <option value="USES">Fixed number of matches</option>
-            <option value="TIME_WINDOW">Time-limited pass (days)</option>
-          </select>
-        </Field>
-        {entitlementType === "USES" ? (
-          <Field label="Matches included">
-            <input type="number" min="1" value={usesGranted} onChange={(e) => setUsesGranted(e.target.value)} className={plainInputClass} />
-          </Field>
+        {category === "RENTAL_BOT" ? (
+          // Both compulsory, not a choice — a Rental Bot pass always
+          // expires on whichever limit is hit first (e.g. "10 games,
+          // valid 3 days"), never just one or the other. See
+          // ShopEntitlementType.USES_AND_TIME_WINDOW's own doc-comment
+          // in schema.prisma.
+          <>
+            <Field label="Matches included" hint="expires when either this or the validity window runs out — whichever first">
+              <input type="number" min="1" value={usesGranted} onChange={(e) => setUsesGranted(e.target.value)} className={plainInputClass} />
+            </Field>
+            <Field label="Validity (days)" hint="expires when either this or the match count runs out — whichever first">
+              <input type="number" min="1" value={termDays} onChange={(e) => setTermDays(e.target.value)} className={plainInputClass} />
+            </Field>
+          </>
         ) : (
-          <Field label="Pass length (days)">
-            <input type="number" min="1" value={termDays} onChange={(e) => setTermDays(e.target.value)} className={plainInputClass} />
-          </Field>
+          <>
+            <Field label="Pricing model">
+              <select
+                value={entitlementType}
+                onChange={(e) => setEntitlementType(e.target.value as "USES" | "TIME_WINDOW")}
+                className={plainInputClass}
+              >
+                <option value="USES">Fixed number of matches</option>
+                <option value="TIME_WINDOW">Time-limited pass (days)</option>
+              </select>
+            </Field>
+            {entitlementType === "USES" ? (
+              <Field label="Matches included">
+                <input type="number" min="1" value={usesGranted} onChange={(e) => setUsesGranted(e.target.value)} className={plainInputClass} />
+              </Field>
+            ) : (
+              <Field label="Pass length (days)">
+                <input type="number" min="1" value={termDays} onChange={(e) => setTermDays(e.target.value)} className={plainInputClass} />
+              </Field>
+            )}
+          </>
         )}
 
         {category === "ROCKET_SHAPE" && (
@@ -395,17 +433,22 @@ function ShopItemRow({ row }: { row: AdminShopItemRow }) {
   const [description, setDescription] = useState(row.description);
   const [priceUsdt, setPriceUsdt] = useState(String(row.priceUsdt));
   // Validity (days, TIME_WINDOW items) / matches included (USES items)
-  // — editable per-item like price, see the PATCH route's own
-  // doc-comment for why this is safe (a purchase already snapshots the
-  // number it got at purchase time, so this only ever affects what a
-  // NEW purchase gets). entitlementType itself stays fixed, so only
-  // whichever one of these two actually applies to this row is shown.
+  // / both (USES_AND_TIME_WINDOW — RENTAL_BOT only) — editable per-item
+  // like price, see the PATCH route's own doc-comment for why this is
+  // safe (a purchase already snapshots the number it got at purchase
+  // time, so this only ever affects what a NEW purchase gets).
+  // entitlementType itself stays fixed, so only whichever of these two
+  // actually apply to this row are shown.
   const [usesGranted, setUsesGranted] = useState(String(row.usesGranted ?? ""));
   const [termDays, setTermDays] = useState(String(row.termDays ?? ""));
   const [error, setError] = useState<string | null>(null);
 
   const pricingSummary =
-    row.entitlementType === "USES" ? `${row.usesGranted ?? 0} matches` : `${row.termDays ?? 0}-day pass`;
+    row.entitlementType === "USES"
+      ? `${row.usesGranted ?? 0} matches`
+      : row.entitlementType === "TIME_WINDOW"
+        ? `${row.termDays ?? 0}-day pass`
+        : `${row.usesGranted ?? 0} matches, ${row.termDays ?? 0}-day validity — whichever first`;
   const effectSummary = describeShopItemEffectPlainEnglish(row);
 
   async function toggleEnabled() {
@@ -425,7 +468,8 @@ function ShopItemRow({ row }: { row: AdminShopItemRow }) {
         label: label.trim(),
         description: description.trim(),
         priceUsdt: Number(priceUsdt) || 0,
-        ...(row.entitlementType === "USES" ? { usesGranted: Number(usesGranted) || 0 } : { termDays: Number(termDays) || 0 }),
+        ...(row.entitlementType !== "TIME_WINDOW" ? { usesGranted: Number(usesGranted) || 0 } : {}),
+        ...(row.entitlementType !== "USES" ? { termDays: Number(termDays) || 0 } : {}),
       });
       setEditing(false);
     } catch (err) {
@@ -483,11 +527,12 @@ function ShopItemRow({ row }: { row: AdminShopItemRow }) {
             <Field label="Price (USDT)">
               <input type="number" min="0" step="0.01" value={priceUsdt} onChange={(e) => setPriceUsdt(e.target.value)} className={plainInputClass} />
             </Field>
-            {row.entitlementType === "USES" ? (
+            {row.entitlementType !== "TIME_WINDOW" && (
               <Field label="Matches included">
                 <input type="number" min="1" value={usesGranted} onChange={(e) => setUsesGranted(e.target.value)} className={plainInputClass} />
               </Field>
-            ) : (
+            )}
+            {row.entitlementType !== "USES" && (
               <Field label="Validity (days)">
                 <input type="number" min="1" value={termDays} onChange={(e) => setTermDays(e.target.value)} className={plainInputClass} />
               </Field>

@@ -25,10 +25,17 @@ import { ROCKET_SHAPES } from "@/lib/shop-shared";
 // shorter cooldown, per those columns' own doc-comment in
 // schema.prisma) so an admin never has to type a negative number to
 // mean "better."
-const baseFields = {
+const commonFields = {
   label: z.string().trim().min(1),
   description: z.string().trim().min(1),
   priceUsdt: z.number().positive(),
+};
+
+// USES-or-TIME_WINDOW pricing model, shared by every category EXCEPT
+// RENTAL_BOT — see that variant's own fields below for why it's
+// different (both compulsory, not a choice).
+const baseFields = {
+  ...commonFields,
   entitlementType: z.enum(["USES", "TIME_WINDOW"]),
   usesGranted: z.number().int().positive().nullable().optional(),
   termDays: z.number().int().positive().nullable().optional(),
@@ -76,9 +83,19 @@ export const createShopItemSchema = z
     }),
     // No extra fields at all — a pure boolean capability (see
     // ShopItemCategory.RENTAL_BOT's own doc-comment in schema.prisma).
+    // entitlementType is fixed, not admin-selectable, and BOTH
+    // usesGranted and termDays are compulsory (plain required numbers,
+    // not the optional/nullable shape every other category's pricing
+    // model uses) — confirmed live as a real requirement: "10 games,
+    // valid 3 days," expiring on whichever limit is hit first, never a
+    // choice of one or the other. See ShopEntitlementType.
+    // USES_AND_TIME_WINDOW's own doc-comment in schema.prisma.
     z.object({
       category: z.literal("RENTAL_BOT"),
-      ...baseFields,
+      entitlementType: z.literal("USES_AND_TIME_WINDOW"),
+      usesGranted: z.number().int().positive(),
+      termDays: z.number().int().positive(),
+      ...commonFields,
     }),
   ])
   .refine((v) => (v.entitlementType === "USES" ? !!v.usesGranted : true), {

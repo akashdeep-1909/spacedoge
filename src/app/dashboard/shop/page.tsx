@@ -276,13 +276,17 @@ function OwnedItemCard({ item }: { item: OwnedShopItem }) {
       <p className="mt-2 truncate text-xs font-bold">{item.label}</p>
       <EffectSummary item={item} className="mt-0.5 text-[10px] text-gold" />
       <p className="mt-0.5 text-[11px] text-muted">
-        {item.usesRemaining !== null
-          ? t("shop.usesRemainingLabel", { uses: item.usesRemaining })
-          : item.expiresAt
-            ? t(item.isUsable ? "shop.expiresLabel" : "shop.expiredLabel", {
-                date: new Date(item.expiresAt).toLocaleDateString(),
-              })
-            : null}
+        {[
+          item.usesRemaining !== null ? t("shop.usesRemainingLabel", { uses: item.usesRemaining }) : null,
+          // Always the factual date, even when !isUsable for a
+          // DIFFERENT reason (uses ran out first, on a combined
+          // uses-and-validity item) — the separate "Expired" badge
+          // below already covers "not usable right now" regardless of
+          // which limit actually caused it.
+          item.expiresAt ? t("shop.expiresLabel", { date: new Date(item.expiresAt).toLocaleDateString() }) : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
       </p>
       {!item.isUsable && (
         <span className="mt-1.5 rounded-full bg-panel-2 px-2.5 py-0.5 text-[10px] font-bold uppercase text-muted">

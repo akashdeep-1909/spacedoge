@@ -19,7 +19,7 @@ export type ShopItemCategory =
   | "EXTRA_TIME"
   | "RENTAL_BOT";
 
-export type ShopEntitlementType = "USES" | "TIME_WINDOW";
+export type ShopEntitlementType = "USES" | "TIME_WINDOW" | "USES_AND_TIME_WINDOW";
 
 // Client-safe mirror of src/lib/shop.ts's own ResolvedLoadout (a
 // server-only file — it imports `db`) — what CoinRushArena.tsx and

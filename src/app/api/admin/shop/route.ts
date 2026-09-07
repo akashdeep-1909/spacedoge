@@ -89,8 +89,11 @@ export async function POST(request: NextRequest) {
     description: body.description,
     priceUsdt: body.priceUsdt,
     entitlementType: body.entitlementType as ShopEntitlementType,
-    usesGranted: body.entitlementType === "USES" ? body.usesGranted! : null,
-    termDays: body.entitlementType === "TIME_WINDOW" ? body.termDays! : null,
+    // TIME_WINDOW never wants usesGranted, USES never wants termDays —
+    // USES_AND_TIME_WINDOW (RENTAL_BOT only, both compulsory on that
+    // variant's own schema) wants both, so neither is excluded for it.
+    usesGranted: body.entitlementType !== "TIME_WINDOW" ? (body.usesGranted ?? null) : null,
+    termDays: body.entitlementType !== "USES" ? (body.termDays ?? null) : null,
     sortOrder,
   };
 

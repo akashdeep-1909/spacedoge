@@ -16,11 +16,12 @@ import { db } from "@/lib/db";
 // time onto its own WalletShopItem row (usesRemaining/expiresAt), so
 // raising or lowering "20 matches" to "30 matches" here only ever
 // changes what a NEW purchase gets — exactly like a price change. Only
-// the field matching the row's own existing entitlementType is
-// accepted (usesGranted for a USES row, termDays for a TIME_WINDOW
-// row) — the OTHER one is rejected rather than silently ignored, so a
-// client bug can never write a number into the field this row's
-// pricing model doesn't actually use.
+// the field(s) the row's own existing entitlementType actually uses
+// are accepted — usesGranted for USES, termDays for TIME_WINDOW, both
+// for USES_AND_TIME_WINDOW (RENTAL_BOT) — the field a row's pricing
+// model genuinely doesn't use is rejected rather than silently
+// ignored, so a client bug can never write a number into a column this
+// row will never read.
 const patchSchema = z
   .object({
     label: z.string().trim().min(1).optional(),
@@ -45,11 +46,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const existing = await db.shopItemConfig.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: "Shop item not found" }, { status: 404 });
 
-  if (body.usesGranted !== undefined && existing.entitlementType !== "USES") {
-    return NextResponse.json({ error: "usesGranted only applies to a USES-type item" }, { status: 400 });
+  if (body.usesGranted !== undefined && existing.entitlementType === "TIME_WINDOW") {
+    return NextResponse.json({ error: "usesGranted doesn't apply to a TIME_WINDOW-type item" }, { status: 400 });
   }
-  if (body.termDays !== undefined && existing.entitlementType !== "TIME_WINDOW") {
-    return NextResponse.json({ error: "termDays only applies to a TIME_WINDOW-type item" }, { status: 400 });
+  if (body.termDays !== undefined && existing.entitlementType === "USES") {
+    return NextResponse.json({ error: "termDays doesn't apply to a USES-type item" }, { status: 400 });
   }
 
   const updated = await db.shopItemConfig.update({

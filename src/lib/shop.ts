@@ -162,9 +162,14 @@ const STAT_POWERUP_SEEDS: SeedRow[] = [
     label: "Autopilot Rental",
     description: "A bot plays this match for you — steers, dodges, banks, and uses whatever power-ups you have equipped. Play with Friends only.",
     priceUsdt: 2.5,
-    entitlementType: ShopEntitlementType.USES,
-    usesGranted: 5,
-    termDays: null,
+    // RENTAL_BOT is the one category where both a games cap AND a
+    // validity window are compulsory together, not a choice — expires
+    // on whichever limit is hit first (confirmed live: "10 Games have
+    // 3 days validity... whichever come first"). See
+    // ShopEntitlementType.USES_AND_TIME_WINDOW's own doc-comment.
+    entitlementType: ShopEntitlementType.USES_AND_TIME_WINDOW,
+    usesGranted: 10,
+    termDays: 3,
     ...NO_EFFECTS,
     sortOrder: 105,
   },
@@ -218,8 +223,23 @@ const SEED_DEFAULTS: SeedRow[] = [...ROCKET_SEEDS, ...STAT_POWERUP_SEEDS];
 // NEW purchase gets) changes, exactly the same "catalog edits only
 // affect future purchases" principle price/usesGranted/termDays edits
 // already rely on.
+// RENTAL_BOT_AUTOPILOT specifically gets the same one-time-migration
+// treatment as shapeKey above: it used to be a plain USES-only pass
+// (5 games, no expiry) before "both compulsory" became the rule for
+// this category (see ShopEntitlementType.USES_AND_TIME_WINDOW's own
+// doc-comment) — an environment that seeded this row under the old
+// shape would otherwise never pick up the new one, since the
+// "insert only if key is missing" logic above never touches an
+// existing row. Only fires while the row is still sitting at that
+// exact stale USES shape — an admin who's since edited this row's own
+// uses/validity (whether that landed on the same numbers or different
+// ones) is left alone.
+const RENTAL_BOT_SEED_KEY = "RENTAL_BOT_AUTOPILOT";
+
 async function seedShopItemConfigsIfEmpty() {
-  const existing = await db.shopItemConfig.findMany({ select: { id: true, key: true, colorHex: true, shapeKey: true } });
+  const existing = await db.shopItemConfig.findMany({
+    select: { id: true, key: true, colorHex: true, shapeKey: true, entitlementType: true },
+  });
   const existingByKey = new Map(existing.map((r) => [r.key, r]));
 
   const missing = SEED_DEFAULTS.filter((row) => !existingByKey.has(row.key));
@@ -241,6 +261,19 @@ async function seedShopItemConfigsIfEmpty() {
       .update({
         where: { id: row.id },
         data: { ...(needsColor ? { colorHex: seed.colorHex } : {}), ...(needsShape ? { shapeKey: seed.shapeKey } : {}) },
+      })
+      .catch(() => {
+        // Non-fatal — another concurrent request may have already backfilled this same row.
+      });
+  }
+
+  const rentalBotRow = existingByKey.get(RENTAL_BOT_SEED_KEY);
+  if (rentalBotRow && rentalBotRow.entitlementType === ShopEntitlementType.USES) {
+    const seed = SEED_DEFAULTS.find((s) => s.key === RENTAL_BOT_SEED_KEY)!;
+    await db.shopItemConfig
+      .update({
+        where: { id: rentalBotRow.id },
+        data: { entitlementType: seed.entitlementType, usesGranted: seed.usesGranted, termDays: seed.termDays },
       })
       .catch(() => {
         // Non-fatal — another concurrent request may have already backfilled this same row.

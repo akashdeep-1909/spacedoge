@@ -87,11 +87,12 @@ export function RentalBotPanel({
             >
               <span className="font-bold">{item.label}</span>
               <span className="ml-2 text-[11px] text-muted">
-                {item.usesRemaining !== null
-                  ? t("shop.usesRemainingLabel", { uses: item.usesRemaining })
-                  : item.expiresAt
-                    ? t("shop.expiresLabel", { date: new Date(item.expiresAt).toLocaleDateString() })
-                    : null}
+                {[
+                  item.usesRemaining !== null ? t("shop.usesRemainingLabel", { uses: item.usesRemaining }) : null,
+                  item.expiresAt ? t("shop.expiresLabel", { date: new Date(item.expiresAt).toLocaleDateString() }) : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </span>
             </button>
           ))}

@@ -648,6 +648,17 @@ enum ShopItemCategory {
 enum ShopEntitlementType {
   USES // consumed 1 per match actually played (an "N games" pass)
   TIME_WINDOW // valid for every match started within [startsAt, expiresAt] (a "3-day"/"7-day" pass)
+  // Both a games cap AND a validity window at once — e.g. "10 games,
+  // valid 3 days": expires on WHICHEVER limit is hit first. Required
+  // for RENTAL_BOT specifically (confirmed live as a real ask — a
+  // Rental Bot pass must always carry both, never a choice of one or
+  // the other), optional for every other category (the admin create
+  // form only offers this type for RENTAL_BOT today). No new
+  // consumption logic needed for this: consumeLoadoutSelections
+  // already independently checks expiresAt AND usesRemaining whenever
+  // either is non-null, so a row with both set already degrades on
+  // whichever condition trips first.
+  USES_AND_TIME_WINDOW
 }
 
 // Admin-editable catalog — same lazy-seed-on-first-read convention as

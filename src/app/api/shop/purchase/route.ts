@@ -45,12 +45,18 @@ export async function POST(request: NextRequest) {
 
   const priceUsdt = Number(cfg.priceUsdt);
   const now = new Date();
-  const startsAt = cfg.entitlementType === "TIME_WINDOW" ? now : null;
+  // USES_AND_TIME_WINDOW (RENTAL_BOT only — see that entitlement
+  // type's own doc-comment in schema.prisma) sets BOTH a real
+  // usesRemaining AND a real expiresAt — consumeLoadoutSelections
+  // already independently checks each whenever it's non-null, so a
+  // row with both set naturally expires on whichever limit is hit
+  // first with zero extra consumption logic needed.
+  const startsAt = cfg.entitlementType !== "USES" ? now : null;
   const expiresAt =
-    cfg.entitlementType === "TIME_WINDOW" && cfg.termDays
+    cfg.entitlementType !== "USES" && cfg.termDays
       ? new Date(now.getTime() + cfg.termDays * 24 * 60 * 60 * 1000)
       : null;
-  const usesRemaining = cfg.entitlementType === "USES" ? cfg.usesGranted : null;
+  const usesRemaining = cfg.entitlementType !== "TIME_WINDOW" ? cfg.usesGranted : null;
 
   // Single lock — unlike mining's purchase-power route, there's no
   // shared scarce resource here (no fleet-capacity-style global cap on

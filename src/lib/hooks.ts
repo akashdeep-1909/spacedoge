@@ -2618,7 +2618,7 @@ export interface ShopCatalogItem extends ShopItemEffects {
   label: string;
   description: string;
   priceUsdt: number;
-  entitlementType: "USES" | "TIME_WINDOW";
+  entitlementType: "USES" | "TIME_WINDOW" | "USES_AND_TIME_WINDOW";
   usesGranted: number | null;
   termDays: number | null;
 }
@@ -2640,7 +2640,7 @@ export interface OwnedShopItem extends ShopItemEffects {
   label: string;
   configKey: string;
   category: string;
-  entitlementType: "USES" | "TIME_WINDOW";
+  entitlementType: "USES" | "TIME_WINDOW" | "USES_AND_TIME_WINDOW";
   usesRemaining: number | null;
   startsAt: string | null;
   expiresAt: string | null;
@@ -2734,7 +2734,7 @@ export interface AdminShopItemRow extends ShopItemEffects {
   label: string;
   description: string;
   priceUsdt: number;
-  entitlementType: "USES" | "TIME_WINDOW";
+  entitlementType: "USES" | "TIME_WINDOW" | "USES_AND_TIME_WINDOW";
   usesGranted: number | null;
   termDays: number | null;
   enabled: boolean;
@@ -2775,8 +2775,9 @@ export function useUpdateAdminShopItem() {
 
 // One variant per sellable category — mirrors the discriminated union
 // POST /api/admin/shop itself validates against. Every variant shares
-// label/description/priceUsdt/entitlementType/usesGranted/termDays;
-// only the effect fields differ. magnetCooldownReductionSec/
+// label/description/priceUsdt; the 6 non-RENTAL_BOT ones additionally
+// share entitlementType/usesGranted/termDays (a USES-or-TIME_WINDOW
+// choice) via CreateShopItemCommon. magnetCooldownReductionSec/
 // shieldCooldownReductionSec are POSITIVE admin-facing "shorten by X
 // seconds" numbers — the route negates them into the actual stored
 // columns, see that route's own doc-comment.
@@ -2795,7 +2796,17 @@ export type CreateShopItemInput =
   | (CreateShopItemCommon & { category: "POWERUP_MAGNET"; magnetDurationBonusSec: number; magnetCooldownReductionSec: number })
   | (CreateShopItemCommon & { category: "POWERUP_FIRE"; fireExtraUses: number; fireDurationBonusSec: number })
   | (CreateShopItemCommon & { category: "POWERUP_SHIELD"; shieldDurationBonusSec: number; shieldCooldownReductionSec: number })
-  | (CreateShopItemCommon & { category: "RENTAL_BOT" });
+  // Both compulsory, not a choice — see ShopEntitlementType.
+  // USES_AND_TIME_WINDOW's own doc-comment in schema.prisma.
+  | {
+      category: "RENTAL_BOT";
+      label: string;
+      description: string;
+      priceUsdt: number;
+      entitlementType: "USES_AND_TIME_WINDOW";
+      usesGranted: number;
+      termDays: number;
+    };
 
 export function useCreateAdminShopItem() {
   const queryClient = useQueryClient();
