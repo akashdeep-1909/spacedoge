@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { useShopInventory, type OwnedShopItem } from "@/lib/hooks";
+import { useShopInventory, usePublicSettings, type OwnedShopItem } from "@/lib/hooks";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { SOLO_LOADOUT_CATEGORIES, ShopItemCategory } from "@/lib/shop-shared";
 import { ShopItemIcon } from "@/components/game/ShopItemIcon";
@@ -31,9 +31,17 @@ export function LoadoutSelectModal({
 }) {
   const { t } = useLocale();
   const { data, isLoading } = useShopInventory();
+  const { data: publicSettings } = usePublicSettings();
   const [selected, setSelected] = useState<Partial<Record<ShopItemCategory, string>>>({});
 
   if (!open) return null;
+
+  // Admin shop master switch (PlatformSettings.shopEnabled) — while
+  // it's off, nothing owned is offered here even if the inventory
+  // fetch itself still lists it; consumeLoadoutSelections (src/lib/
+  // shop.ts) refuses to resolve a selection server-side regardless, so
+  // this is a proactive hint, not the only thing enforcing it.
+  const shopClosed = publicSettings?.shopEnabled === false;
 
   // RENTAL_BOT is deliberately absent — solo/instant-play never offers
   // it (see SOLO_LOADOUT_CATEGORIES' own doc-comment in shop-shared.ts);
@@ -51,10 +59,12 @@ export function LoadoutSelectModal({
   // in — a category with nothing owned isn't shown at all (nothing to
   // pick between, "None" is already the default with no section
   // needed to say so).
-  const sections = SOLO_LOADOUT_CATEGORIES.map((category) => ({
-    category,
-    items: (data?.items ?? []).filter((i): i is OwnedShopItem => i.category === category && i.isUsable),
-  })).filter((s) => s.items.length > 0);
+  const sections = shopClosed
+    ? []
+    : SOLO_LOADOUT_CATEGORIES.map((category) => ({
+        category,
+        items: (data?.items ?? []).filter((i): i is OwnedShopItem => i.category === category && i.isUsable),
+      })).filter((s) => s.items.length > 0);
 
   function select(category: ShopItemCategory, itemId: string | null) {
     setSelected((prev) => {
@@ -75,6 +85,8 @@ export function LoadoutSelectModal({
 
           {isLoading ? (
             <p className="mt-4 text-sm text-muted">…</p>
+          ) : shopClosed ? (
+            <p className="mt-4 rounded-xl border border-line bg-panel-2 p-3 text-xs text-muted">{t("shop.loadoutShopClosed")}</p>
           ) : sections.length === 0 ? (
             <p className="mt-4 rounded-xl border border-line bg-panel-2 p-3 text-xs text-muted">
               {t("shop.loadoutEmptyInventory")}{" "}

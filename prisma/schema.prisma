@@ -1321,14 +1321,19 @@ model PlatformSettings {
   docsMenuEnabled           Boolean   @default(false)
   // Master switch for the whole Coin Rush Shop feature (src/lib/shop.ts)
   // — ON by default since the feature is already live. Flipping this
-  // off hides the Shop nav link and storefront catalog and blocks new
-  // purchases (POST /api/shop/purchase), but deliberately does NOT
-  // touch anything already owned: GET /api/shop/inventory and the
-  // pre-match loadout picker keep working regardless, so a paying
-  // customer's cosmetics never get stranded by an admin closing the
-  // storefront. Per-item visibility still comes from each
-  // ShopItemConfig's own `enabled` — this is the "close the whole shop"
-  // switch, not a replacement for that.
+  // off hides the Shop nav link and storefront catalog, blocks new
+  // purchases (POST /api/shop/purchase), AND stops anything already
+  // owned from being usable in a match: the pre-match loadout picker
+  // and the Play-with-Friends Rental Bot panel both show nothing while
+  // it's off, and consumeLoadoutSelections (src/lib/shop.ts) refuses
+  // to resolve/consume a selection server-side too, so a stale client
+  // can't bypass the UI. Nothing owned is touched or expired by this —
+  // uses/expiry are untouched, GET /api/shop/inventory still lists
+  // everything — it just can't be equipped into a new match while the
+  // shop is closed, and picks back up automatically the moment it
+  // reopens. Per-item visibility still comes from each ShopItemConfig's
+  // own `enabled` — this is the "close the whole shop" switch, not a
+  // replacement for that.
   shopEnabled               Boolean   @default(true)
   // Master switch for the KOL VIP Tiers monthly bonus (src/lib/kolVip.ts)
   // — OFF by default, unlike shopEnabled: this is a brand-new feature

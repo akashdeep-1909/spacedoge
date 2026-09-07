@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useShopInventory, usePatchLobbyRentalBot, type OwnedShopItem } from "@/lib/hooks";
+import { useShopInventory, usePatchLobbyRentalBot, usePublicSettings, type OwnedShopItem } from "@/lib/hooks";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { ShopItemIcon } from "@/components/game/ShopItemIcon";
 
@@ -23,10 +23,19 @@ export function RentalBotPanel({
 }) {
   const { t } = useLocale();
   const { data: inventory, isLoading } = useShopInventory();
+  const { data: publicSettings } = usePublicSettings();
   const patch = usePatchLobbyRentalBot(lobbyId);
   const [error, setError] = useState<string | null>(null);
 
-  const owned = (inventory?.items ?? []).filter((i): i is OwnedShopItem => i.category === "RENTAL_BOT" && i.isUsable);
+  // Admin shop master switch (PlatformSettings.shopEnabled) — while
+  // it's off, nothing owned is offered here even if already equipped
+  // (myRentalBot); finalizeLobby's own consumeLoadoutSelections call
+  // (src/lib/shop.ts) refuses to resolve it server-side regardless, so
+  // this is a proactive hint, not the only thing enforcing it.
+  const shopClosed = publicSettings?.shopEnabled === false;
+  const owned = shopClosed
+    ? []
+    : (inventory?.items ?? []).filter((i): i is OwnedShopItem => i.category === "RENTAL_BOT" && i.isUsable);
 
   async function select(walletShopItemId: string | null) {
     setError(null);
@@ -47,6 +56,8 @@ export function RentalBotPanel({
 
       {isLoading ? (
         <p className="mt-3 text-xs text-muted">…</p>
+      ) : shopClosed ? (
+        <p className="mt-3 rounded-xl border border-line bg-panel-2 p-3 text-xs text-muted">{t("lobby.rentalBotShopClosed")}</p>
       ) : owned.length === 0 ? (
         <p className="mt-3 rounded-xl border border-line bg-panel-2 p-3 text-xs text-muted">
           {t("lobby.rentalBotEmptyInventory")}{" "}

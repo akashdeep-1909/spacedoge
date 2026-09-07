@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { ShopItemCategory, ShopEntitlementType } from "@/generated/prisma/enums";
 import { SHOP_ROCKET_SHAPE_CATALOG, type ResolvedLoadout } from "@/lib/shop-shared";
+import { getShopEnabled } from "@/lib/settings";
 export type { ResolvedLoadout };
 
 // Selected equipment for one match, keyed by category — POST /api/matches'
@@ -405,6 +406,19 @@ export async function consumeLoadoutSelections(
 
   const entries = Object.entries(selections) as [ShopItemCategory, string][];
   if (entries.length === 0) return resolved;
+
+  // Admin shop master switch (PlatformSettings.shopEnabled) — while
+  // it's off, nothing already owned is ever resolved/consumed into a
+  // new match, even if a stale client still sends a selection (a
+  // pre-match screen opened before an admin flipped this). Silently
+  // dropped exactly like an invalid/expired item below, not an error —
+  // and just as harmless: nothing here is touched (not consumed, not
+  // expired), so every owned item picks back up the instant the shop
+  // reopens. This is the real enforcement behind the pre-match loadout
+  // picker and the Rental Bot panel both showing nothing while closed
+  // (see their own doc-comments) — a defense against a stale client,
+  // not the only thing stopping it.
+  if (!(await getShopEnabled())) return resolved;
 
   const now = new Date();
   const validSelections: { category: ShopItemCategory; walletShopItemId: string }[] = [];

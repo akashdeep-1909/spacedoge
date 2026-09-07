@@ -1197,7 +1197,7 @@ const en = {
     sourceLabel: "Pay with",
     purchaseSuccessTitle: "Item Purchased!",
     closedTitle: "Shop Closed",
-    closedBody: "The shop is temporarily unavailable. Anything you already own still works in-game.",
+    closedBody: "The shop is temporarily unavailable. New purchases are paused, and anything you already own can't be equipped into a match until it reopens.",
     backToPlayButton: "Back to Play",
     loadoutModalTitle: "Choose Your Loadout",
     loadoutModalSubtitle: "Pick what to equip this match — rocket skins are cosmetic only; Speed/Health/Magnet/Fire/Shield items are real in-game bonuses.",
@@ -1205,6 +1205,7 @@ const en = {
     loadoutStartButton: "Start Match",
     loadoutCancelButton: "Cancel",
     loadoutEmptyInventory: "You don't own any shop items yet.",
+    loadoutShopClosed: "The shop is currently closed — you'll play with your base rocket until it reopens.",
     loadoutVisitShopLink: "Visit Shop",
     // Category display names — shown on both the catalog/inventory
     // grids and the pre-match loadout picker's per-category sections.
@@ -1281,6 +1282,7 @@ const en = {
     rentalBotHeading: "Rental Bot",
     rentalBotSubtitle: "Let a bot play this match for you — steers, dodges, and banks automatically.",
     rentalBotEmptyInventory: "You don't own any Rental Bot passes yet.",
+    rentalBotShopClosed: "The shop is currently closed — Rental Bot can't be used until it reopens.",
     rentalBotFailedToSave: "Failed to update your Rental Bot selection",
     rentalBotNeedsFriends: "Your Rental Bot only works with real friends — invite {{count}} more before starting, or clear it above to start with random players.",
   },

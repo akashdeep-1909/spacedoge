@@ -163,8 +163,12 @@ function ShopContent() {
             <p className="text-sm text-muted">…</p>
           ) : catalog?.shopEnabled === false ? (
             // Admin master switch is off (PlatformSettings.shopEnabled)
-            // — already-owned items above are untouched, only new
-            // purchases stop and the catalog itself hides.
+            // — new purchases stop and the catalog itself hides here;
+            // "My Items" above still lists everything owned (nothing is
+            // touched/expired), but none of it can be equipped into a
+            // new match until the shop reopens (LoadoutSelectModal /
+            // RentalBotPanel both show nothing while it's off, and
+            // consumeLoadoutSelections refuses server-side too).
             <div className="game-panel hud-corner flex flex-col items-center gap-2 rounded-2xl border-line p-6 text-center">
               <div className="grid h-11 w-11 place-items-center rounded-full bg-panel-2 text-muted">
                 <Lock size={20} />

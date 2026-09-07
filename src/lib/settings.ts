@@ -87,9 +87,12 @@ export async function getMinDogeWithdrawal(): Promise<number> {
 // Master switch for the Coin Rush Shop storefront — see the schema
 // doc-comment on PlatformSettings.shopEnabled for exactly what this
 // does and doesn't gate. Called from GET /api/shop/catalog and POST
-// /api/shop/purchase (the two things this actually restricts); GET
-// /api/shop/inventory and match-loadout consumption deliberately never
-// call this.
+// /api/shop/purchase (blocks the storefront + new purchases) AND from
+// consumeLoadoutSelections in src/lib/shop.ts (blocks equipping
+// anything already owned into a new match while the shop is closed).
+// GET /api/shop/inventory deliberately never calls this — a wallet can
+// still see everything it owns while the shop is closed, it just can't
+// use any of it in a match until it reopens.
 export async function getShopEnabled(): Promise<boolean> {
   const settings = await getPlatformSettings();
   return settings.shopEnabled;
