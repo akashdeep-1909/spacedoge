@@ -29,7 +29,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   // lobbyNeedsMoreHumansForRentalBot's own doc-comment.
   if (await lobbyNeedsMoreHumansForRentalBot(id)) {
     return NextResponse.json(
-      { error: `A Rental Bot is equipped in this lobby — it only works with real friends. Invite at least ${RENTAL_BOT_MIN_HUMANS} players total before starting with random players, or clear the Rental Bot selection first.` },
+      { error: `A Space DOGE BOT is equipped in this lobby — it only works with real friends. Invite at least ${RENTAL_BOT_MIN_HUMANS} players total before starting with random players, or clear the Space DOGE BOT selection first.` },
       { status: 409 }
     );
   }

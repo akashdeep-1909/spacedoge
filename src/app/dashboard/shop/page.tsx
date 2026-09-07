@@ -311,10 +311,16 @@ function CatalogItemCard({
   onBuy: () => void;
 }) {
   const { t } = useLocale();
+  // USES_AND_TIME_WINDOW (RENTAL_BOT only — both compulsory, expires on
+  // whichever limit is hit first) shows both tags together; every other
+  // category still shows exactly one, matching its own single pricing
+  // model.
   const pricingLabel =
-    item.entitlementType === "USES"
-      ? t("shop.usesPricingLabel", { uses: item.usesGranted ?? 0 })
-      : t("shop.daysPricingLabel", { days: item.termDays ?? 0 });
+    item.entitlementType === "USES_AND_TIME_WINDOW"
+      ? `${t("shop.usesPricingLabel", { uses: item.usesGranted ?? 0 })} · ${t("shop.daysPricingLabel", { days: item.termDays ?? 0 })}`
+      : item.entitlementType === "USES"
+        ? t("shop.usesPricingLabel", { uses: item.usesGranted ?? 0 })
+        : t("shop.daysPricingLabel", { days: item.termDays ?? 0 });
 
   return (
     <div className="game-panel hud-corner glow-gold flex flex-col items-center rounded-2xl border-line p-4 text-center transition hover:-translate-y-1 hover:border-gold/50">

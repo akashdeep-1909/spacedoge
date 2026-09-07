@@ -616,7 +616,7 @@ export async function setLobbyRentalBot(
     item.active &&
     (item.expiresAt === null || item.expiresAt > now) &&
     (item.usesRemaining === null || item.usesRemaining > 0);
-  if (!isUsable) return { ok: false, status: 400, error: "That Rental Bot isn't available to use." };
+  if (!isUsable) return { ok: false, status: 400, error: "That Space DOGE BOT isn't available to use." };
 
   await db.lobbyParticipant.update({ where: { id: participant.id }, data: { walletShopItemId } });
   return { ok: true };

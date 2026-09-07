@@ -2329,7 +2329,7 @@ export function usePatchLobbyRentalBot(lobbyId: string) {
         body: JSON.stringify({ walletShopItemId }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Failed to update Rental Bot selection");
+      if (!res.ok) throw new Error(body.error ?? "Failed to update Space DOGE BOT selection");
       return body;
     },
     onSuccess: (data) => queryClient.setQueryData(["lobby", lobbyId], data),

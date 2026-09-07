@@ -89,7 +89,7 @@ export const SHOP_CATEGORY_META: Record<ShopItemCategory, { icon: string; color:
   POWERUP_FIRE: { icon: "🔥", color: "#ff8a3d", label: "Fire Upgrade" },
   POWERUP_SHIELD: { icon: "🛡️", color: "#33f2a4", label: "Shield Upgrade" },
   EXTRA_TIME: { icon: "⏱️", color: "#9aa1ab", label: "Extra Time" },
-  RENTAL_BOT: { icon: "🤖", color: "#8b7cf0", label: "Rental Bot" },
+  RENTAL_BOT: { icon: "🤖", color: "#8b7cf0", label: "Space DOGE BOT" },
 };
 
 // Every effect field a catalog/owned item can carry — subset shape
