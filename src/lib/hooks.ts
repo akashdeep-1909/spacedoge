@@ -2231,6 +2231,12 @@ export interface LobbyState {
   expiresAt: string;
   startedAt: string | null;
   finalMatchId: string | null;
+  // Null for an ordinary host-initiated cancel. "RENTAL_BOT_NOT_ENOUGH_
+  // FRIENDS" when the system cancelled this room itself because its
+  // wait window ran out while a Rental Bot was equipped but the room
+  // never reached enough real friends (see RENTAL_BOT_MIN_HUMANS in
+  // src/lib/game-config.ts) — lets the waiting-room UI explain why.
+  cancelReason: string | null;
   serverTime: string;
 }
 

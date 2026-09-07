@@ -1254,6 +1254,7 @@ const en = {
     waitingBody: "Your run is finished, hang tight while everyone else finishes theirs.",
     waitingCount: "{{submitted}} of {{total}} results in.",
     cancelledNotice: "This lobby was cancelled. Any held entry fee has been returned to your Deposit USDT.",
+    cancelledRentalBotNotEnoughFriends: "Your Rental Bot only works with real friends — this room's timer ran out before enough joined, so it was cancelled and any held entry fee was returned. Your Rental Bot pass is untouched.",
     heading: "👥 Play with Friends",
     summaryLine: "{{mode}} · {{fee}} USDT entry · Room {{code}}",
     hostTag: "(Host)",

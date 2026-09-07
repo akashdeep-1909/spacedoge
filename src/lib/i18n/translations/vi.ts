@@ -1427,6 +1427,7 @@ const vi = {
     waitingBody: "Lượt chơi của bạn đã xong, hãy chờ trong khi những người khác hoàn thành.",
     waitingCount: "{{submitted}}/{{total}} kết quả đã nộp.",
     cancelledNotice: "Phòng chờ này đã bị hủy. Bất kỳ phí tham gia nào đang giữ đã được hoàn lại vào Deposit USDT của bạn.",
+    cancelledRentalBotNotEnoughFriends: "Bot Cho Thuê chỉ hoạt động khi chơi với bạn bè thật — thời gian của phòng này đã hết trước khi đủ người tham gia, nên phòng đã bị hủy và phí tham gia đang giữ đã được hoàn lại. Vé Bot Cho Thuê của bạn không bị ảnh hưởng.",
     heading: "👥 Chơi Cùng Bạn Bè",
     summaryLine: "{{mode}} · Phí vào {{fee}} USDT · Phòng {{code}}",
     hostTag: "(Chủ phòng)",

@@ -357,7 +357,9 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   if (lobby.status === "CANCELLED") {
     return (
       <div className="mx-auto max-w-md text-center">
-        <p className="text-sm text-muted">{t("lobby.cancelledNotice")}</p>
+        <p className="text-sm text-muted">
+          {lobby.cancelReason === "RENTAL_BOT_NOT_ENOUGH_FRIENDS" ? t("lobby.cancelledRentalBotNotEnoughFriends") : t("lobby.cancelledNotice")}
+        </p>
         <button onClick={() => router.push("/dashboard/play")} className="btn-game-outline mt-3 rounded-full px-4 py-2 text-sm">
           {t("lobby.backToGameModes")}
         </button>

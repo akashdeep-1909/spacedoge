@@ -1427,6 +1427,7 @@ const id = {
     waitingBody: "Permainan Anda sudah selesai, tunggu sebentar sampai yang lain menyelesaikannya.",
     waitingCount: "{{submitted}} dari {{total}} hasil sudah masuk.",
     cancelledNotice: "Lobi ini telah dibatalkan. Biaya entri yang tertahan telah dikembalikan ke Deposit USDT Anda.",
+    cancelledRentalBotNotEnoughFriends: "Bot Sewaan hanya berfungsi dengan teman sungguhan — waktu ruangan ini habis sebelum cukup teman bergabung, jadi dibatalkan dan biaya entri yang tertahan telah dikembalikan. Pass Bot Sewaan Anda tidak terpakai.",
     heading: "👥 Main Bersama Teman",
     summaryLine: "{{mode}} · Entri {{fee}} USDT · Room {{code}}",
     hostTag: "(Host)",

@@ -83,6 +83,19 @@ interface ShipEntity {
   // under), or null for "you" and for true local bots.
   externallyDriven: boolean;
   oppSlot: number | null;
+  // True for an actual AI-filled seat, false for a real human (you or
+  // any other real participant) — distinct from externallyDriven,
+  // which is only ever true while spectating. During normal LIVE play
+  // every non-you ship still runs local bot AI regardless of whether
+  // its seat is a real friend or an AI fill (see the update() branch's
+  // own doc-comment), so this is the one thing that still tells
+  // hitShip() apart: a genuine bot's local sim is purely cosmetic and
+  // should never actually go inactive (see hitShip's own doc-comment),
+  // but a real friend's ship shouldn't get that same immortality just
+  // because it happens to be locally simulated too. Always true for
+  // every non-you ship in solo/instant play (no `opponents` prop at
+  // all — every seat there really is a bot).
+  isBot: boolean;
   // Coin Rush Shop (ROCKET_SHAPE category) — null for every bot/
   // opponent ship and for "you" with nothing equipped, which both
   // render as the default ROCKET silhouette. Purely cosmetic — see
@@ -527,7 +540,7 @@ export function CoinRushArena({
         // Boost button's own temporary multiplier applied in update().
         lives: diff.startLives + (loadout?.livesBonus ?? 0), carry: 0, banked: 0, active: !spectate, invuln: 0, knockback: 0,
         speed: 150 * diff.playerSpeedMult * (1 + (loadout?.speedMultBonus ?? 0)) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
-        externallyDriven: false, oppSlot: null,
+        externallyDriven: false, oppSlot: null, isBot: false,
         shapeKey: loadout?.shapeKey ?? null,
       },
       ...botNames.map((name, i) => {
@@ -538,12 +551,15 @@ export function CoinRushArena({
         // AI regardless of whether the seat is a real human or a bot,
         // exactly as before this feature existed.
         const externallyDriven = spectate && !!opp && !opp.isBot && opp.slotNumber != null;
+        // opp is only ever absent in solo/instant play, where every
+        // seat really is a bot — see isBot's own doc-comment above.
+        const isBot = opp ? opp.isBot : true;
         return {
           x: (W / 4) * (i + 1), y: 170 * DPR, r: 13 * DPR, vx: 0, vy: 0, angle: -Math.PI / 2,
           color: BOT_COLORS[i], name: opp?.label ?? `@${name}`, isYou: false,
           lives: diff.startLives, carry: 0, banked: 0, active: true, invuln: 0, knockback: 0,
           speed: (95 + rand() * 20) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
-          externallyDriven, oppSlot: externallyDriven ? opp!.slotNumber : null,
+          externallyDriven, oppSlot: externallyDriven ? opp!.slotNumber : null, isBot,
           shapeKey: null,
         };
       }),
@@ -679,22 +695,30 @@ export function CoinRushArena({
         return false;
       }
       if (s.invuln > 0) return false;
-      // A true local bot (not you, not a spectated real opponent) —
-      // its actual reward score is always recomputed server-side from
-      // the deterministic seed (botScore/botScoreForSlot), completely
-      // decoupled from whatever happens to it in this local visual
-      // sim (see this component's own top doc-comment: "the settle
-      // route recomputes bot scores server-side... rather than
-      // trusting client-reported bot behavior"). A bot going fully
-      // inactive here — frozen mid-map for the rest of the match while
-      // its eventual results-screen score keeps climbing regardless —
-      // reads as broken/inconsistent, not competitive. Confirmed live
-      // as a real ask: bots should race the whole match, never die
-      // before the human does. Lives are clamped to never actually
-      // reach 0 for a bot (still takes the hit, knockback, invuln, and
-      // carry penalty below like anyone else — it just can't be
-      // permanently knocked out of the race).
-      const isLocalBot = !s.isYou && !s.externallyDriven;
+      // A true AI-filled bot (not you, not a real friend's seat, not a
+      // spectated real opponent) — its actual reward score is always
+      // recomputed server-side from the deterministic seed (botScore/
+      // botScoreForSlot), completely decoupled from whatever happens to
+      // it in this local visual sim (see this component's own top
+      // doc-comment: "the settle route recomputes bot scores
+      // server-side... rather than trusting client-reported bot
+      // behavior"). A bot going fully inactive here — frozen mid-map
+      // for the rest of the match while its eventual results-screen
+      // score keeps climbing regardless — reads as broken/inconsistent,
+      // not competitive. Confirmed live as a real ask: bots should race
+      // the whole match, never die before the human does. Lives are
+      // clamped to never actually reach 0 for a bot (still takes the
+      // hit, knockback, invuln, and carry penalty below like anyone
+      // else — it just can't be permanently knocked out of the race).
+      // A REAL friend's ship (s.isBot false, s.isYou false) never gets
+      // this immortality even though it's locally simulated too during
+      // active play (see isBot's own doc-comment) — confirmed live as
+      // a real bug: every friend's seat used to fall into this exact
+      // same clamp as a filler bot (isBot didn't exist yet), so a
+      // friend's ship could visibly take hit after hit and never
+      // actually go inactive — 3 ships still "playing" after the human
+      // and a friend both should have been out, not 2.
+      const isLocalBot = s.isBot && !s.externallyDriven;
       s.lives -= 1;
       if (isLocalBot) s.lives = Math.max(1, s.lives);
       s.invuln = hitInvulnSec;
@@ -763,10 +787,12 @@ export function CoinRushArena({
       // what it's foreshadowing instead of a coin-flip that happens to
       // resolve one-sided — the whole point of this mechanic.
       const display = g.ships.map((s, i) => {
-        // A real opponent's ship (spectate mode) shows its true polled
-        // carry — no reason to run the bot bait-and-switch-foreshadowing
-        // logic below on a live human's honestly-reported number.
-        if (s.isYou || s.externallyDriven || i - 1 === contestBotIndex) return s;
+        // A real opponent's ship (spectate mode, or a real friend's
+        // seat during active play — see isBot's own doc-comment) shows
+        // its true carry — no reason to run the bot bait-and-switch-
+        // foreshadowing logic below on a live human's honestly-reported
+        // number.
+        if (s.isYou || s.externallyDriven || !s.isBot || i - 1 === contestBotIndex) return s;
         if (s.carry > you.carry * 1.15) return s;
         const bumpedCarry = Math.ceil(you.carry * 1.25) + 10;
         // Confirmed live: once the human dies, you.carry never changes

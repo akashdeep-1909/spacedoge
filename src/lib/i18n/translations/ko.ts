@@ -1427,6 +1427,7 @@ const ko = {
     waitingBody: "당신의 플레이는 끝났습니다. 다른 사람들이 끝낼 때까지 잠시 기다려 주세요.",
     waitingCount: "{{total}}명 중 {{submitted}}명의 결과가 들어왔습니다.",
     cancelledNotice: "이 로비는 취소되었습니다. 보류된 참가비는 Deposit USDT로 반환되었습니다.",
+    cancelledRentalBotNotEnoughFriends: "렌탈 봇은 실제 친구와 함께할 때만 작동합니다 — 충분한 인원이 참가하기 전에 이 방의 시간이 초과되어 취소되었고, 보류된 참가비는 반환되었습니다. 렌탈 봇 이용권은 사용되지 않았습니다.",
     heading: "👥 친구와 함께 플레이",
     summaryLine: "{{mode}} · {{fee}} USDT 참가비 · 방 {{code}}",
     hostTag: "(호스트)",

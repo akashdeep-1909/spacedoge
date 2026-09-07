@@ -813,6 +813,14 @@ model GameLobby {
   expiresAt           DateTime // server-authoritative 60s join-window deadline
   startedAt           DateTime?
   cancelledAt         DateTime?
+  // Null for an ordinary host-initiated cancel. Set to
+  // "RENTAL_BOT_NOT_ENOUGH_FRIENDS" when the system itself cancels a
+  // lobby whose wait window ran out while a Rental Bot was equipped
+  // but the room never reached RENTAL_BOT_MIN_HUMANS real humans (see
+  // src/lib/lobby.ts finalizeIfExpired) — lets the waiting-room UI
+  // explain why the room disappeared instead of the generic cancelled
+  // message, since this specific case isn't something the host did.
+  cancelReason        String?
   finalMatchId        String?       @unique
   finalMatch          Match?        @relation(fields: [finalMatchId], references: [id])
   version             Int           @default(0) // optimistic-concurrency guard so only one request can finalize/cancel

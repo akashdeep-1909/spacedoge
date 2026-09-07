@@ -126,15 +126,18 @@ export async function releaseEntryHold(
 // marks the lobby CANCELLED. No-ops (returns false) if another request
 // already claimed the lobby for finalize/cancel — same optimistic
 // version guard finalizeLobby() uses, so a cancel racing a finalize
-// can never both "succeed."
-export async function cancelLobby(lobbyId: string): Promise<boolean> {
+// can never both "succeed." `reason` is null for an ordinary host-
+// initiated cancel (POST /api/lobbies/[id]/cancel never passes one);
+// finalizeIfExpired below passes "RENTAL_BOT_NOT_ENOUGH_FRIENDS" for
+// the one system-initiated case, so the UI can explain why.
+export async function cancelLobby(lobbyId: string, reason: string | null = null): Promise<boolean> {
   return db.$transaction(async (tx) => {
     const lobby = await tx.gameLobby.findUnique({ where: { id: lobbyId }, include: { participants: true } });
     if (!lobby || (lobby.status !== "WAITING" && lobby.status !== "FULL")) return false;
 
     const claimed = await tx.gameLobby.updateMany({
       where: { id: lobbyId, version: lobby.version, status: { in: ["WAITING", "FULL"] } },
-      data: { status: "CANCELLED", cancelledAt: new Date(), version: { increment: 1 } },
+      data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: reason, version: { increment: 1 } },
     });
     if (claimed.count === 0) return false;
 
@@ -208,13 +211,15 @@ export async function finalizeLobby(lobbyId: string): Promise<{ matchId: string 
     });
 
     // Below RENTAL_BOT_MIN_HUMANS real humans, a Rental Bot selection is
-    // never actually consumed — this is the passive-path half of "only
-    // works with real friends" (POST /api/lobbies/[id]/start hard-
-    // blocks the deliberate manual action via
-    // lobbyNeedsMoreHumansForRentalBot below; this covers the lazy-
-    // expiry/auto-fill paths that have no button to disable and
-    // shouldn't be stranded forever waiting for friends who never
-    // join). Silently skipped, not an error — same graceful
+    // never actually consumed. In practice every caller of
+    // finalizeLobby already keeps this from ever being reached under-
+    // crewed — POST /api/lobbies/[id]/start hard-blocks the manual
+    // action, finalizeIfExpired cancels rather than finalizing an
+    // under-crewed expired lobby, and the all-4-humans-joined auto-
+    // start (joinLobbySeat below) is never under-crewed by definition
+    // — but this stays as a last-resort backstop for any future caller
+    // that forgets the rule, rather than trusting every call site to
+    // get it right. Silently skipped, not an error — same graceful
     // degradation an expired/exhausted selection already gets from
     // consumeLoadoutSelections itself.
     const enoughHumansForRentalBot = humanParticipants.length >= RENTAL_BOT_MIN_HUMANS;
@@ -299,14 +304,13 @@ export async function finalizeLobby(lobbyId: string): Promise<{ matchId: string 
 }
 
 // Used by POST /api/lobbies/[id]/start to hard-block the host's
-// deliberate "Start with Random Players" click when a Rental Bot is
-// equipped but the room doesn't yet have enough real friends in it —
-// the actual enforcement of "only works with real friends" for the
-// one action a host can take to bypass that on purpose (see
-// RENTAL_BOT_MIN_HUMANS's own doc-comment). The passive expiry/auto-
-// fill paths are handled separately, inside finalizeLobby itself,
-// since neither has a button to disable and shouldn't strand a room
-// forever waiting on friends who never show up.
+// deliberate "Start with Random Players" click, AND by
+// finalizeIfExpired below to cancel (rather than auto-finalize with AI
+// fill) a lobby whose own wait window ran out while still under-
+// crewed — the two ways a Rental-Bot-equipped room could otherwise end
+// up finalizing with AI filling the gap, one deliberate and one
+// passive, both now closed the same way. See RENTAL_BOT_MIN_HUMANS's
+// own doc-comment for the underlying rule.
 export async function lobbyNeedsMoreHumansForRentalBot(lobbyId: string): Promise<boolean> {
   const lobby = await db.gameLobby.findUnique({
     where: { id: lobbyId },
@@ -329,6 +333,26 @@ export async function finalizeIfExpired(lobbyId: string): Promise<boolean> {
 
   if (lobby.status === "WAITING") {
     if (Date.now() < lobby.expiresAt.getTime()) return false;
+
+    // A Rental Bot equipped but the room never reached
+    // RENTAL_BOT_MIN_HUMANS real friends by the time the wait window
+    // ran out — POST /api/lobbies/[id]/start already hard-blocks the
+    // host from deliberately forcing this with "Start with Random
+    // Players" (see lobbyNeedsMoreHumansForRentalBot's own doc-
+    // comment); letting the clock quietly do the exact same thing —
+    // auto-starting with AI filling every empty seat — was the same
+    // loophole with extra steps. Cancel the room instead (releases
+    // every joined human's entry-fee hold) so the host actually has to
+    // get their friends in, never just wait the timer out. This is the
+    // ONLY thing that can turn a finalize into a cancel — a lobby with
+    // no Rental Bot equipped (or one that already has enough humans)
+    // keeps behaving exactly as before, auto-starting with AI fill on
+    // expiry.
+    if (await lobbyNeedsMoreHumansForRentalBot(lobbyId)) {
+      await cancelLobby(lobbyId, "RENTAL_BOT_NOT_ENOUGH_FRIENDS");
+      return false;
+    }
+
     // Mark the transitional state before finalize so a poller lands on
     // a meaningful status even if it reads between these two calls.
     await db.gameLobby.updateMany({
@@ -546,6 +570,7 @@ export async function serializeLobby(lobbyId: string, viewerWalletProfileId: str
     expiresAt: lobby.expiresAt,
     startedAt: lobby.startedAt,
     finalMatchId: lobby.finalMatchId,
+    cancelReason: lobby.cancelReason,
     serverTime: new Date(),
   };
 }

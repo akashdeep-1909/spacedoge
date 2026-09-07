@@ -1427,6 +1427,7 @@ const zh = {
     waitingBody: "您的对战已结束，请稍候其他人完成。",
     waitingCount: "{{submitted}}/{{total}} 个结果已提交。",
     cancelledNotice: "此房间已取消。任何被保留的入场费已退回至您的 Deposit USDT。",
+    cancelledRentalBotNotEnoughFriends: "租赁机器人仅在与真实好友同玩时生效——此房间的时限在人数到齐前已耗尽，因此已取消，任何被保留的入场费已退回。您的租赁机器人通行证未被使用。",
     heading: "👥 与好友同乐",
     summaryLine: "{{mode}} · {{fee}} USDT 入场费 · 房间 {{code}}",
     hostTag: "（房主）",
