@@ -134,6 +134,20 @@ const BASE_HUNTER_CARRY_PENALTY = 5;
 const BASE_DASHER_CARRY_PENALTY = 8;
 const BASE_MINE_CARRY_PENALTY = 6;
 const BOT_COLORS = ["#3cc4ff", "#4af4af", "#ff7a7a"];
+// A genuine AI-filled seat (isBot true, never a real friend's ghost)
+// gets this many EXTRA lives on top of the mode's own startLives — real
+// mortality (hitShip no longer floors a bot's lives at 1, see its own
+// doc-comment), but a hazard-dense map over a full 60-90s match will
+// still land several hits on 3+ locally-simulated ships over that much
+// time even with solid avoidance, and losing the whole match early via
+// allShipsDown (every ship, bots included, out of lives) reads far
+// worse than the "bots never die" bug this was meant to fix — confirmed
+// live: a real run with unattended "you" input (no dodging at all) hit
+// allShipsDown around 18s into a 60s match without this buffer. This
+// keeps total elimination genuinely possible ("slowly die... also," if
+// hit enough) while keeping it rare during ordinary play, especially
+// while a human/Rental Bot is still actively racing.
+const BOT_LIVES_BONUS = 6;
 // Both the reporting side (an actively-playing human) and the polling
 // side (useLiveMatchState's refetchInterval) use this same cadence —
 // keeping them equal is what makes the spectator's lerp window below
@@ -557,7 +571,7 @@ export function CoinRushArena({
         return {
           x: (W / 4) * (i + 1), y: 170 * DPR, r: 13 * DPR, vx: 0, vy: 0, angle: -Math.PI / 2,
           color: BOT_COLORS[i], name: opp?.label ?? `@${name}`, isYou: false,
-          lives: diff.startLives, carry: 0, banked: 0, active: true, invuln: 0, knockback: 0,
+          lives: diff.startLives + (isBot ? BOT_LIVES_BONUS : 0), carry: 0, banked: 0, active: true, invuln: 0, knockback: 0,
           speed: (95 + rand() * 20) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
           externallyDriven, oppSlot: externallyDriven ? opp!.slotNumber : null, isBot,
           shapeKey: null,
@@ -678,6 +692,15 @@ export function CoinRushArena({
     function dist(a: { x: number; y: number }, b: { x: number; y: number }) {
       return Math.hypot(a.x - b.x, a.y - b.y);
     }
+    // Bot hazard-avoidance "panic" curve — 0 far away, ramping up to 1
+    // right at the hazard, quadratically (not linearly) so the last
+    // stretch before actually touching something bends much harder
+    // than the early, gentle lean-away does. See its call sites in the
+    // bot-AI movement branch below.
+    function panic(d: number, radius: number) {
+      const t = Math.max(0, (radius - d) / radius);
+      return t * t;
+    }
 
     // A hit costs exactly one life plus a small fixed chunk of carried
     // points (never all of it) — carried points build toward something
@@ -695,32 +718,23 @@ export function CoinRushArena({
         return false;
       }
       if (s.invuln > 0) return false;
-      // A true AI-filled bot (not you, not a real friend's seat, not a
-      // spectated real opponent) — its actual reward score is always
-      // recomputed server-side from the deterministic seed (botScore/
-      // botScoreForSlot), completely decoupled from whatever happens to
-      // it in this local visual sim (see this component's own top
-      // doc-comment: "the settle route recomputes bot scores
-      // server-side... rather than trusting client-reported bot
-      // behavior"). A bot going fully inactive here — frozen mid-map
-      // for the rest of the match while its eventual results-screen
-      // score keeps climbing regardless — reads as broken/inconsistent,
-      // not competitive. Confirmed live as a real ask: bots should race
-      // the whole match, never die before the human does. Lives are
-      // clamped to never actually reach 0 for a bot (still takes the
-      // hit, knockback, invuln, and carry penalty below like anyone
-      // else — it just can't be permanently knocked out of the race).
-      // A REAL friend's ship (s.isBot false, s.isYou false) never gets
-      // this immortality even though it's locally simulated too during
-      // active play (see isBot's own doc-comment) — confirmed live as
-      // a real bug: every friend's seat used to fall into this exact
-      // same clamp as a filler bot (isBot didn't exist yet), so a
-      // friend's ship could visibly take hit after hit and never
-      // actually go inactive — 3 ships still "playing" after the human
-      // and a friend both should have been out, not 2.
-      const isLocalBot = s.isBot && !s.externallyDriven;
+      // Every ship — bots included — takes a real hit now. Bots used to
+      // be clamped so their lives could never actually reach 0 (their
+      // real reward score is computed server-side from the map seed,
+      // botScore/botScoreForSlot, completely decoupled from this local
+      // visual sim either way — see this component's own top
+      // doc-comment), but that made a bot visibly shrug off hit after
+      // hit with zero consequence, which read as fake/broken rather
+      // than competitive — confirmed live as a real ask to remove.
+      // allShipsDown below already handles every ship (bots included)
+      // going inactive gracefully (ends the local sim early without
+      // shrinking the reported play duration), so nothing else needed
+      // to change to support bots actually dying. The AI's own hazard
+      // avoidance (the bot-driven branch in the ships loop below) was
+      // tuned up specifically so this stays rare in practice while a
+      // human/Rental Bot is still racing — real mortality, not just
+      // better luck.
       s.lives -= 1;
-      if (isLocalBot) s.lives = Math.max(1, s.lives);
       s.invuln = hitInvulnSec;
       if (s.isYou) {
         playHitSound();
@@ -963,41 +977,59 @@ export function CoinRushArena({
             for (const it of g.items) { const d = dist(s, it); if (d < bestD) { bestD = d; best = it; } }
             if (best) { tx = best.x; ty = best.y; }
           }
-          // Bot hazard avoidance — confirmed live as a real gap: dashers
-          // (the fast-charging triangles) had NO avoidance term at all
-          // here, only hunters/mines, so a bot could get blindsided by a
-          // dash it never reacted to. Dashers get their own, larger-
-          // radius term (charging fast covers ground quickly, so a bot
-          // needs to start reacting well before one is actually close)
-          // plus an explicit lean AWAY from a still-aiming dasher's own
-          // telegraphed dash direction — the same aim-line the player
-          // themselves can see rendered (see the "aim" branch in draw()),
-          // so a bot dodging it "blind" would be less alert than a
-          // player who can just look at the warning line. Weight bumped
-          // from 1.6 to 2.2 overall — bots should treat NOT dying as a
-          // higher priority than beelining for the very next coin.
+          // Bot hazard avoidance — dashers (the fast-charging triangles)
+          // get their own, larger-radius term (charging fast covers
+          // ground quickly, so a bot needs to start reacting well before
+          // one is actually close) plus an explicit lean AWAY from a
+          // still-aiming dasher's own telegraphed dash direction — the
+          // same aim-line the player themselves can see rendered (see
+          // the "aim" branch in draw()), so a bot dodging it "blind"
+          // would be less alert than a player who can just look at the
+          // warning line. Radii and weight bumped further (confirmed
+          // live as a real ask, alongside removing bot immortality in
+          // hitShip() above): a bot that can now actually die needs to
+          // be meaningfully better at not getting hit in the first
+          // place, not just luckier — reacting earlier (bigger radii)
+          // and committing harder once something IS close (the extra
+          // near((radius - d) / radius)^2 panic term below, on top of
+          // the existing linear term, so the last stretch right before
+          // a hazard is genuinely close bends much harder than the
+          // early, gentle lean-away does) rather than only a flat
+          // proportional push the whole time.
           let avoidX = 0, avoidY = 0;
-          for (const h of g.hunters) { const dx = s.x - h.x, dy = s.y - h.y, d = Math.hypot(dx, dy) || 1; if (d < 100 * DPR) { avoidX += (dx / d) * (100 * DPR - d); avoidY += (dy / d) * (100 * DPR - d); } }
-          for (const m of g.mines) { const dx = s.x - m.x, dy = s.y - m.y, d = Math.hypot(dx, dy) || 1; if (d < 75 * DPR) { avoidX += (dx / d) * (75 * DPR - d); avoidY += (dy / d) * (75 * DPR - d); } }
+          for (const h of g.hunters) {
+            const dx = s.x - h.x, dy = s.y - h.y, d = Math.hypot(dx, dy) || 1;
+            const R = 135 * DPR;
+            if (d < R) { const push = (R - d) + panic(d, R) * R * 1.6; avoidX += (dx / d) * push; avoidY += (dy / d) * push; }
+          }
+          for (const m of g.mines) {
+            const dx = s.x - m.x, dy = s.y - m.y, d = Math.hypot(dx, dy) || 1;
+            const R = 100 * DPR;
+            if (d < R) { const push = (R - d) + panic(d, R) * R * 1.6; avoidX += (dx / d) * push; avoidY += (dy / d) * push; }
+          }
           for (const dsh of g.dashers) {
             const ddx = s.x - dsh.x, ddy = s.y - dsh.y, dd = Math.hypot(ddx, ddy) || 1;
-            if (dd < 130 * DPR) { avoidX += (ddx / dd) * (130 * DPR - dd); avoidY += (ddy / dd) * (130 * DPR - dd); }
+            const R = 165 * DPR;
+            if (dd < R) { const push = (R - dd) + panic(dd, R) * R * 1.6; avoidX += (ddx / dd) * push; avoidY += (ddy / dd) * push; }
             // Already aiming at someone and about to charge — lean away
             // from that telegraphed line specifically, not just the
             // dasher's current position, since by the time it actually
             // dashes it'll have covered real ground along that exact
             // direction.
-            if (dsh.state === "aim" && dd < 220 * DPR) {
-              avoidX += -dsh.dirX * (220 * DPR - dd) * 0.5;
-              avoidY += -dsh.dirY * (220 * DPR - dd) * 0.5;
+            if (dsh.state === "aim" && dd < 260 * DPR) {
+              avoidX += -dsh.dirX * (260 * DPR - dd) * 0.7;
+              avoidY += -dsh.dirY * (260 * DPR - dd) * 0.7;
             }
           }
-          const dx = (tx - s.x) + avoidX * 2.2, dy = (ty - s.y) + avoidY * 2.2;
+          const dx = (tx - s.x) + avoidX * 2.8, dy = (ty - s.y) + avoidY * 2.8;
           const d = Math.hypot(dx, dy) || 1;
           ax = dx / d; ay = dy / d;
           const mag = Math.hypot(ax, ay) || 1;
-          s.vx += ((ax / mag) * s.speed - s.vx) * Math.min(1, dt * 7.5);
-          s.vy += ((ay / mag) * s.speed - s.vy) * Math.min(1, dt * 7.5);
+          // Turns faster than before (dt*7.5 → dt*9.5) — reacting
+          // earlier only helps if the ship can actually commit to the
+          // new heading quickly enough to matter.
+          s.vx += ((ax / mag) * s.speed - s.vx) * Math.min(1, dt * 9.5);
+          s.vy += ((ay / mag) * s.speed - s.vy) * Math.min(1, dt * 9.5);
           if (Math.hypot(s.vx, s.vy) > 10 * DPR) s.angle = Math.atan2(s.vy, s.vx);
         }
         s.x = clamp(s.x + s.vx * dt, s.r, g.W - s.r);

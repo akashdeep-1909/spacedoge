@@ -120,10 +120,29 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   // slotNumber for the other 3 seats, ordered to match CoinRushArena's
   // ship slots. slotNumber is what spectate mode needs to key into
   // liveState.slots; showGame's own render never reads it.
-  const opponents = rosterData?.seats
-    .filter((s) => !s.isYou)
-    .sort((a, b) => (a.slotNumber ?? 0) - (b.slotNumber ?? 0))
-    .map((s) => ({ isBot: s.isBot, label: s.label, slotNumber: s.slotNumber }));
+  //
+  // Memoized on rosterData itself (not recomputed into a fresh array/
+  // object literal every render) — CoinRushArena's own setup effect
+  // depends on this value, so a new reference here on every render (the
+  // filter/sort/map chain below always returns new objects, regardless
+  // of whether the underlying data actually changed) re-triggers that
+  // effect, which tears down and rebuilds the entire running match:
+  // ships reset to spawn, hazards/coins reshuffle, the "3, 2, 1, Go"
+  // countdown replays — reading exactly like the game randomly
+  // restarting mid-play. rosterData itself is stable (useMatchRoster
+  // has staleTime: Infinity, fetched once per match and never
+  // refetched), so this now only ever recomputes when the roster
+  // actually changes — i.e. essentially once, on load. Same reasoning
+  // startElapsedSec below already documents for the identical failure
+  // mode.
+  const opponents = useMemo(
+    () =>
+      rosterData?.seats
+        .filter((s) => !s.isYou)
+        .sort((a, b) => (a.slotNumber ?? 0) - (b.slotNumber ?? 0))
+        .map((s) => ({ isBot: s.isBot, label: s.label, slotNumber: s.slotNumber })),
+    [rosterData]
+  );
 
   // Memoized (not recomputed every render) on finalMatchId/startedAt —
   // CoinRushArena's own setup effect depends on this value, so
