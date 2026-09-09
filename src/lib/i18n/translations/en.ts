@@ -1254,7 +1254,7 @@ const en = {
     waitingBody: "Your run is finished, hang tight while everyone else finishes theirs.",
     waitingCount: "{{submitted}} of {{total}} results in.",
     cancelledNotice: "This lobby was cancelled. Any held entry fee has been returned to your Deposit USDT.",
-    cancelledRentalBotNotEnoughFriends: "Your Space DOGE BOT only works with real friends — this room's timer ran out before enough joined, so it was cancelled and any held entry fee was returned. Your Space DOGE BOT pass is untouched.",
+    cancelledRentalBotNotEnoughFriends: "Space DOGE BOT requires real friends to play. This room was cancelled because the invite window closed before enough players joined, and any held entry fee has been refunded. Your Space DOGE BOT pass has not been used.",
     heading: "👥 Play with Friends",
     summaryLine: "{{mode}} · {{fee}} USDT entry · Room {{code}}",
     hostTag: "(Host)",
