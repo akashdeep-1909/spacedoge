@@ -9,6 +9,7 @@ import { getWalletBalances, lockWalletForBalanceChange, getLedgerBalance } from 
 import { sendPushToWallet } from "@/lib/push";
 import { consumeLoadoutSelections } from "@/lib/shop";
 import { ShopItemCategory } from "@/generated/prisma/enums";
+import { SOLO_LOADOUT_CATEGORIES } from "@/lib/shop-shared";
 import type { GameLobby, LobbyParticipant } from "@/generated/prisma/client";
 
 // v3 multiplayer — "Play with Friends". A GameLobby holds 1-4 real
@@ -235,26 +236,29 @@ export async function finalizeLobby(lobbyId: string): Promise<{ matchId: string 
           joinSource: p.joinSource,
         },
       });
-      // Actually consumes this participant's own Rental Bot selection
-      // (if any — set any time before start via setLobbyRentalBot(),
-      // never at join/create time itself). Writes the real
+      // Actually consumes this participant's own loadout — the Rental
+      // Bot selection (set any time before start via
+      // setLobbyRentalBot()) PLUS every other category's own selection
+      // (setLobbyLoadoutSelection(), LobbyParticipantSelection rows),
+      // combined into one call so this participant gets exactly one
+      // MatchLoadout row with every equipped category on it, same
+      // shape a solo match's own loadout produces. Writes the real
       // MatchLoadout/MatchLoadoutSelection audit row and decrements
-      // usesRemaining exactly like a solo match's own loadout
-      // consumption already does — allowRentalBot: true is what makes
-      // this the ONE place a RENTAL_BOT selection is ever actually
-      // resolved (see consumeLoadoutSelections' own doc-comment). A
-      // since-expired/exhausted selection is silently dropped by that
-      // function's own existing logic — this participant just plays
-      // manually instead, same graceful degradation solo already
-      // relies on for a stale client snapshot.
-      if (p.walletShopItemId && enoughHumansForRentalBot) {
-        await consumeLoadoutSelections(
-          tx,
-          p.walletProfileId,
-          match.id,
-          { [ShopItemCategory.RENTAL_BOT]: p.walletShopItemId },
-          { allowRentalBot: true }
-        );
+      // usesRemaining exactly like solo already does —
+      // allowRentalBot: enoughHumansForRentalBot is what makes this
+      // the ONE place a RENTAL_BOT selection is ever actually resolved
+      // (see consumeLoadoutSelections' own doc-comment); every other
+      // category has no such gate. A since-expired/exhausted selection
+      // (of either kind) is silently dropped by that function's own
+      // existing logic — this participant just plays without it
+      // instead, same graceful degradation solo already relies on for
+      // a stale client snapshot.
+      const otherSelections = await tx.lobbyParticipantSelection.findMany({ where: { lobbyParticipantId: p.id } });
+      const selections: Partial<Record<ShopItemCategory, string>> = {};
+      for (const s of otherSelections) selections[s.category] = s.walletShopItemId;
+      if (p.walletShopItemId) selections[ShopItemCategory.RENTAL_BOT] = p.walletShopItemId;
+      if (Object.keys(selections).length > 0) {
+        await consumeLoadoutSelections(tx, p.walletProfileId, match.id, selections, { allowRentalBot: enoughHumansForRentalBot });
       }
       slot++;
     }
@@ -503,6 +507,7 @@ export async function serializeLobby(lobbyId: string, viewerWalletProfileId: str
         include: {
           walletProfile: { select: { address: true, nickname: true } },
           walletShopItem: { include: { shopItemConfig: { select: { label: true } } } },
+          selections: { include: { walletShopItem: { include: { shopItemConfig: { select: { label: true } } } } } },
         },
         orderBy: { slotNumber: "asc" },
       },
@@ -532,6 +537,15 @@ export async function serializeLobby(lobbyId: string, viewerWalletProfileId: str
     viewerParticipant?.walletShopItemId && viewerParticipant.walletShopItem
       ? { walletShopItemId: viewerParticipant.walletShopItemId, label: viewerParticipant.walletShopItem.shopItemConfig.label }
       : null;
+  // Same idea as myRentalBot above, generalized to every OTHER
+  // sellable category (a purchased rocket skin/Speed/Health/Magnet/
+  // Fire/Shield upgrade) — set/cleared any time before start via
+  // setLobbyLoadoutSelection, not yet consumed at this point (see
+  // finalizeLobby's own consumeLoadoutSelections call for that).
+  const myLoadout: Partial<Record<string, { walletShopItemId: string; label: string }>> = {};
+  for (const s of viewerParticipant?.selections ?? []) {
+    myLoadout[s.category] = { walletShopItemId: s.walletShopItemId, label: s.walletShopItem.shopItemConfig.label };
+  }
   const slots = Array.from({ length: LOBBY_MAX_PLAYERS }, (_, i) => i + 1).map((slotNumber) => {
     const occupant = lobby.participants.find((p) => p.slotNumber === slotNumber);
     if (!occupant) return { slotNumber, state: "EMPTY" as const };
@@ -557,6 +571,7 @@ export async function serializeLobby(lobbyId: string, viewerWalletProfileId: str
     host: { address: lobby.host.address },
     isHost: viewerWalletProfileId === lobby.hostWalletProfileId,
     myRentalBot,
+    myLoadout,
     slots,
     humanCount: lobby.participants.length,
     maxPlayers: LOBBY_MAX_PLAYERS,
@@ -619,6 +634,57 @@ export async function setLobbyRentalBot(
   if (!isUsable) return { ok: false, status: 400, error: "That Space DOGE BOT isn't available to use." };
 
   await db.lobbyParticipant.update({ where: { id: participant.id }, data: { walletShopItemId } });
+  return { ok: true };
+}
+
+// The general-purpose sibling of setLobbyRentalBot above, for every
+// OTHER sellable category (ROCKET_SHAPE/STAT_SPEED/STAT_HEALTH/
+// POWERUP_MAGNET/POWERUP_FIRE/POWERUP_SHIELD — never RENTAL_BOT, which
+// stays on setLobbyRentalBot/walletShopItemId). Added because Play-
+// with-Friends had never actually wired these categories in at all: a
+// purchased rocket skin or Speed/Health/Magnet/Fire/Shield upgrade
+// silently never applied in a lobby match — confirmed live as a real
+// gap, since the ONLY category finalizeLobby ever consumed was Rental
+// Bot. Same validate-now/consume-at-finalize split, same ownership/
+// usability check, same WAITING/FULL-only window to change your mind.
+export async function setLobbyLoadoutSelection(
+  lobbyId: string,
+  walletProfileId: string,
+  category: (typeof SOLO_LOADOUT_CATEGORIES)[number],
+  walletShopItemId: string | null
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const lobby = await db.gameLobby.findUnique({
+    where: { id: lobbyId },
+    include: { participants: { where: { walletProfileId, status: "JOINED" } } },
+  });
+  if (!lobby) return { ok: false, status: 404, error: "Lobby not found" };
+  if (lobby.status !== "WAITING" && lobby.status !== "FULL") {
+    return { ok: false, status: 409, error: "This lobby has already started — loadout can no longer be changed." };
+  }
+  const participant = lobby.participants[0];
+  if (!participant) return { ok: false, status: 403, error: "You're not in this lobby" };
+
+  if (walletShopItemId === null) {
+    await db.lobbyParticipantSelection.deleteMany({ where: { lobbyParticipantId: participant.id, category } });
+    return { ok: true };
+  }
+
+  const item = await db.walletShopItem.findUnique({ where: { id: walletShopItemId } });
+  const now = new Date();
+  const isUsable =
+    !!item &&
+    item.walletProfileId === walletProfileId &&
+    item.category === category &&
+    item.active &&
+    (item.expiresAt === null || item.expiresAt > now) &&
+    (item.usesRemaining === null || item.usesRemaining > 0);
+  if (!isUsable) return { ok: false, status: 400, error: "That item isn't available to use." };
+
+  await db.lobbyParticipantSelection.upsert({
+    where: { lobbyParticipantId_category: { lobbyParticipantId: participant.id, category } },
+    update: { walletShopItemId },
+    create: { lobbyParticipantId: participant.id, category, walletShopItemId },
+  });
   return { ok: true };
 }
 

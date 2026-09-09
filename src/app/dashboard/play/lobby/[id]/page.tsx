@@ -28,6 +28,7 @@ import {
   useLiveMatchState,
 } from "@/lib/hooks";
 import { RentalBotPanel } from "@/components/game/RentalBotPanel";
+import { LobbyLoadoutPanel } from "@/components/game/LobbyLoadoutPanel";
 
 function displayName(address: string, nickname?: string | null) {
   return nickname || `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -453,11 +454,17 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
 
       {/* Every one of the 3 ways to end up in this lobby (host, direct
           invite accept, invite link, room code) lands right here before
-          the match starts — so this one panel is the only place a
-          Rental Bot ever needs to be equipped, for anyone in the room,
-          not just the host. */}
+          the match starts — so these two panels are the only place a
+          loadout ever needs to be equipped for anyone in the room, not
+          just the host. LobbyLoadoutPanel covers everything except
+          RENTAL_BOT (its own separate panel, kept below) — previously
+          Play-with-Friends never actually consumed a rocket skin or
+          Speed/Health/Magnet/Fire/Shield upgrade at all. */}
       {(lobby.status === "WAITING" || lobby.status === "FULL") && (
-        <RentalBotPanel lobbyId={lobby.id} myRentalBot={lobby.myRentalBot} />
+        <>
+          <LobbyLoadoutPanel lobbyId={lobby.id} myLoadout={lobby.myLoadout} />
+          <RentalBotPanel lobbyId={lobby.id} myRentalBot={lobby.myRentalBot} />
+        </>
       )}
 
       {lobby.isHost && (lobby.status === "WAITING" || lobby.status === "FULL") && (

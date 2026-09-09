@@ -1734,6 +1734,7 @@ const vi = {
     loadoutEmptyInventory: "Bạn chưa sở hữu vật phẩm cửa hàng nào.",
     loadoutShopClosed: "Cửa hàng hiện đang đóng — bạn sẽ chơi với tên lửa cơ bản cho đến khi cửa hàng mở lại.",
     loadoutVisitShopLink: "Ghé Cửa Hàng",
+    loadoutFailedToSave: "Cập nhật lựa chọn của bạn thất bại",
     categoryRocket: "Giao Diện Tên Lửa",
     categorySpeed: "Tăng Tốc Độ",
     categoryHealth: "Thêm Máu",

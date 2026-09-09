@@ -743,6 +743,7 @@ model WalletShopItem {
 
   selections         MatchLoadoutSelection[]
   lobbyParticipations LobbyParticipant[]
+  lobbyParticipantSelections LobbyParticipantSelection[]
 
   @@index([walletProfileId, category, active])
 }
@@ -872,9 +873,40 @@ model LobbyParticipant {
   // every other shop category already goes through for solo matches.
   walletShopItemId  String?
   walletShopItem    WalletShopItem? @relation(fields: [walletShopItemId], references: [id])
+  // This participant's own current selection for every OTHER sellable
+  // category (ROCKET_SHAPE/STAT_SPEED/STAT_HEALTH/POWERUP_MAGNET/
+  // POWERUP_FIRE/POWERUP_SHIELD — RENTAL_BOT stays on walletShopItemId
+  // above, a separately-evolved mechanism kept as-is). Same validate-
+  // now/consume-at-finalize split: set/cleared any time before the
+  // lobby starts via setLobbyLoadoutSelection() (src/lib/lobby.ts),
+  // real consumption happens exactly once inside finalizeLobby() via
+  // consumeLoadoutSelections — the same one every solo match already
+  // goes through. Added because Play-with-Friends had never actually
+  // consumed anything except a Rental Bot selection: a purchased
+  // rocket skin/Speed/Health/Magnet/Fire/Shield upgrade silently never
+  // applied in a lobby match, confirmed live as a real gap.
+  selections        LobbyParticipantSelection[]
 
   @@unique([lobbyId, walletProfileId])
   @@unique([lobbyId, slotNumber])
+}
+
+// One row per non-RENTAL_BOT category this lobby participant currently
+// has selected — mirrors MatchLoadoutSelection's own shape (denormalized
+// category, unique per parent+category) but for the PRE-match lobby
+// waiting room rather than a finalized match. Not itself consumed —
+// finalizeLobby() reads these (alongside LobbyParticipant.
+// walletShopItemId for RENTAL_BOT) and resolves everything through the
+// real consumeLoadoutSelections exactly once, same as a solo match.
+model LobbyParticipantSelection {
+  id                 String           @id @default(cuid())
+  lobbyParticipantId String
+  lobbyParticipant   LobbyParticipant @relation(fields: [lobbyParticipantId], references: [id])
+  walletShopItemId   String
+  walletShopItem     WalletShopItem   @relation(fields: [walletShopItemId], references: [id])
+  category           ShopItemCategory
+
+  @@unique([lobbyParticipantId, category])
 }
 
 model LobbyInvitation {

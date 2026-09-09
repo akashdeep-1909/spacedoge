@@ -98,10 +98,10 @@ export function LoadoutSelectModal({
             <div className="mt-4 flex flex-col gap-4">
               {sections.map(({ category, items }) => (
                 <div key={category}>
-                  <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gold">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gold">
                     <ShopItemIcon category={category} size={16} />
                     {CATEGORY_LABEL[category]}
-                  </p>
+                  </div>
                   <div className="flex flex-col gap-1.5">
                     <button
                       onClick={() => select(category, null)}

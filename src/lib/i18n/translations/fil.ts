@@ -1734,6 +1734,7 @@ const fil = {
     loadoutEmptyInventory: "Wala ka pang shop item.",
     loadoutShopClosed: "Sarado ang shop ngayon — gagamitin mo ang iyong basic na rocket hanggang sa mabuksan ulit ito.",
     loadoutVisitShopLink: "Bisitahin ang Shop",
+    loadoutFailedToSave: "Hindi na-update ang iyong pinili",
     categoryRocket: "Mga Rocket Skin",
     categorySpeed: "Speed Boost",
     categoryHealth: "Extra Health",

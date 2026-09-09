@@ -1734,6 +1734,7 @@ const ru = {
     loadoutEmptyInventory: "У вас пока нет предметов из магазина.",
     loadoutShopClosed: "Магазин сейчас закрыт — вы будете играть на базовой ракете, пока он снова не откроется.",
     loadoutVisitShopLink: "Перейти в Магазин",
+    loadoutFailedToSave: "Не удалось обновить ваш выбор",
     categoryRocket: "Скины Ракет",
     categorySpeed: "Ускорение",
     categoryHealth: "Доп. Здоровье",

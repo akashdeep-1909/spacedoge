@@ -1734,6 +1734,7 @@ const km = {
     loadoutEmptyInventory: "អ្នកមិនទាន់មានវត្ថុហាងណាមួយទេ។",
     loadoutShopClosed: "ហាងកំពុងបិទ — អ្នកនឹងលេងជាមួយយានអវកាសមូលដ្ឋានរបស់អ្នក រហូតដល់ហាងបើកឡើងវិញ។",
     loadoutVisitShopLink: "ចូលមើលហាង",
+    loadoutFailedToSave: "បរាជ័យក្នុងការធ្វើបច្ចុប្បន្នភាពជម្រើសរបស់អ្នក",
     categoryRocket: "រូបរាងចរួច",
     categorySpeed: "Speed Boost",
     categoryHealth: "Extra Health",

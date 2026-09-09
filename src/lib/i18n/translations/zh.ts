@@ -1734,6 +1734,7 @@ const zh = {
     loadoutEmptyInventory: "您尚未拥有任何商店物品。",
     loadoutShopClosed: "商店目前已关闭——在重新开放前，您将使用基础火箭进行游戏。",
     loadoutVisitShopLink: "前往商店",
+    loadoutFailedToSave: "更新您的选择失败",
     categoryRocket: "火箭造型",
     categorySpeed: "速度提升",
     categoryHealth: "额外生命",

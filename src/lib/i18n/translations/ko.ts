@@ -1734,6 +1734,7 @@ const ko = {
     loadoutEmptyInventory: "아직 보유한 상점 아이템이 없습니다.",
     loadoutShopClosed: "현재 상점이 닫혀 있습니다 — 상점이 다시 열릴 때까지 기본 로켓으로 플레이합니다.",
     loadoutVisitShopLink: "상점 방문",
+    loadoutFailedToSave: "선택 업데이트에 실패했습니다",
     categoryRocket: "로켓 스킨",
     categorySpeed: "스피드 부스트",
     categoryHealth: "추가 체력",

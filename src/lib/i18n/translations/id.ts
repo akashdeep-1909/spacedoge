@@ -1734,6 +1734,7 @@ const id = {
     loadoutEmptyInventory: "Anda belum memiliki item toko apa pun.",
     loadoutShopClosed: "Toko sedang tutup — Anda akan bermain dengan roket dasar sampai toko dibuka kembali.",
     loadoutVisitShopLink: "Kunjungi Toko",
+    loadoutFailedToSave: "Gagal memperbarui pilihan Anda",
     categoryRocket: "Skin Roket",
     categorySpeed: "Speed Boost",
     categoryHealth: "Extra Health",

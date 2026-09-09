@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { WalletBalances } from "@/lib/balances";
 import type { LiveShipSample } from "@/lib/liveMatchStateTypes";
-import type { ResolvedLoadout, RocketShapeKey } from "@/lib/shop-shared";
+import type { ResolvedLoadout, RocketShapeKey, ShopItemCategory } from "@/lib/shop-shared";
 
 export function useBalances() {
   return useQuery({
@@ -2223,6 +2223,14 @@ export interface LobbyState {
   // in src/lib/lobby.ts) — real consumption happens once the match
   // actually starts.
   myRentalBot: { walletShopItemId: string; label: string } | null;
+  // Same idea as myRentalBot above, generalized to every OTHER
+  // sellable category (a purchased rocket skin/Speed/Health/Magnet/
+  // Fire/Shield upgrade) — set any time before start via
+  // usePatchLobbyLoadout, keyed by ShopItemCategory. Not yet consumed
+  // (see setLobbyLoadoutSelection's own doc-comment in
+  // src/lib/lobby.ts) — real consumption happens once the match
+  // actually starts.
+  myLoadout: Partial<Record<ShopItemCategory, { walletShopItemId: string; label: string }>>;
   slots: LobbySlot[];
   humanCount: number;
   maxPlayers: number;
@@ -2330,6 +2338,32 @@ export function usePatchLobbyRentalBot(lobbyId: string) {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Failed to update Space DOGE BOT selection");
+      return body;
+    },
+    onSuccess: (data) => queryClient.setQueryData(["lobby", lobbyId], data),
+  });
+}
+
+// General-purpose sibling of usePatchLobbyRentalBot above, for every
+// OTHER sellable category (never RENTAL_BOT, which stays on that
+// separate hook/route).
+export function usePatchLobbyLoadout(lobbyId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      category,
+      walletShopItemId,
+    }: {
+      category: ShopItemCategory;
+      walletShopItemId: string | null;
+    }): Promise<LobbyState> => {
+      const res = await fetch(`/api/lobbies/${lobbyId}/loadout`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category, walletShopItemId }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to update your selection");
       return body;
     },
     onSuccess: (data) => queryClient.setQueryData(["lobby", lobbyId], data),

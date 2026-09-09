@@ -1734,6 +1734,7 @@ const th = {
     loadoutEmptyInventory: "คุณยังไม่มีไอเทมจากร้านค้า",
     loadoutShopClosed: "ร้านค้าปิดอยู่ในขณะนี้ — คุณจะเล่นด้วยจรวดพื้นฐานจนกว่าร้านค้าจะเปิดอีกครั้ง",
     loadoutVisitShopLink: "ไปที่ร้านค้า",
+    loadoutFailedToSave: "อัปเดตตัวเลือกของคุณไม่สำเร็จ",
     categoryRocket: "สกินจรวด",
     categorySpeed: "เพิ่มความเร็ว",
     categoryHealth: "เพิ่มพลังชีวิต",

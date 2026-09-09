@@ -1207,6 +1207,7 @@ const en = {
     loadoutEmptyInventory: "You don't own any shop items yet.",
     loadoutShopClosed: "The shop is currently closed — you'll play with your base rocket until it reopens.",
     loadoutVisitShopLink: "Visit Shop",
+    loadoutFailedToSave: "Failed to update your selection",
     // Category display names — shown on both the catalog/inventory
     // grids and the pre-match loadout picker's per-category sections.
     categoryRocket: "Rocket Skins",
