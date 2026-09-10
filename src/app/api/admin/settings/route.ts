@@ -33,6 +33,7 @@ export async function GET() {
     docsMenuEnabled: settings.docsMenuEnabled,
     shopEnabled: settings.shopEnabled,
     kolVipEnabled: settings.kolVipEnabled,
+    leaderboardEnabled: settings.leaderboardEnabled,
     updatedAt: settings.updatedAt,
     updatedByAddress: settings.updatedByAddress,
     defaults: {
@@ -69,6 +70,7 @@ const bodySchema = z.object({
   docsMenuEnabled: z.boolean().optional(),
   shopEnabled: z.boolean().optional(),
   kolVipEnabled: z.boolean().optional(),
+  leaderboardEnabled: z.boolean().optional(),
 });
 
 function normalize(value: string | null | undefined): string | null | undefined {
@@ -105,6 +107,7 @@ export async function PATCH(request: NextRequest) {
       docsMenuEnabled: body.docsMenuEnabled,
       shopEnabled: body.shopEnabled,
       kolVipEnabled: body.kolVipEnabled,
+      leaderboardEnabled: body.leaderboardEnabled,
     },
     session.address.toLowerCase()
   );

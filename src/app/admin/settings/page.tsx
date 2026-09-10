@@ -47,6 +47,7 @@ export default function AdminSettingsPage() {
       <DepositChainsSection />
       <WithdrawChainsSection />
       <WithdrawalPolicySection />
+      <LeaderboardMasterSwitch />
       <WeeklyLeaderboardSection />
       <WalletConnectSection />
       <AndroidApkSection />
@@ -847,6 +848,61 @@ function WithdrawalPolicySection() {
         {saved && !update.isPending && <span className="text-xs text-mint">✓ Saved</span>}
         {error && <span className="text-xs text-risk">{error}</span>}
       </div>
+    </section>
+  );
+}
+
+// The "hide the whole Leaderboard page and nav link" switch
+// (PlatformSettings.leaderboardEnabled) — separate from the Weekly
+// Leaderboard reward section below, which only gates whether a reward
+// actually pays out, never visibility. Turning this off hides the
+// Leaderboard entry point everywhere (bottom tab bar, mobile nav,
+// desktop "More" menu) and the page itself shows a closed message
+// instead of rankings — real standings keep computing underneath
+// either way, same "close the storefront, don't touch what's already
+// there" shape the Shop master switch uses.
+function LeaderboardMasterSwitch() {
+  const { data: settings, isLoading } = useAdminSettings();
+  const update = useUpdateAdminSettings();
+  const [error, setError] = useState<string | null>(null);
+
+  async function toggle() {
+    if (!settings) return;
+    setError(null);
+    try {
+      await update.mutateAsync({ leaderboardEnabled: !settings.leaderboardEnabled });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    }
+  }
+
+  const on = settings?.leaderboardEnabled ?? true;
+
+  return (
+    <section className={`game-panel hud-corner rounded-2xl border-2 p-5 ${on ? "border-mint/30" : "border-risk/40"}`}>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gold">Leaderboard Status</p>
+          <p className="mt-1 text-sm">
+            The Leaderboard page is currently{" "}
+            <span className={`font-bold ${on ? "text-mint" : "text-risk"}`}>{on ? "ON" : "OFF"}</span>.
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            OFF hides the Leaderboard nav link everywhere and shows a closed message on the page
+            itself. Rankings keep computing from real settled matches underneath either way.
+          </p>
+        </div>
+        <button
+          onClick={toggle}
+          disabled={isLoading || update.isPending}
+          className={`shrink-0 rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wide disabled:opacity-50 ${
+            on ? "border border-risk/40 text-risk hover:bg-risk-soft" : "btn-game hud-corner"
+          }`}
+        >
+          {update.isPending ? "Saving…" : on ? "Turn Off" : "Turn On"}
+        </button>
+      </div>
+      {error && <p className="mt-2 text-xs text-risk">{error}</p>}
     </section>
   );
 }

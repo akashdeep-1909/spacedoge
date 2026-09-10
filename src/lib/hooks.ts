@@ -1499,6 +1499,7 @@ export interface LeaderboardStanding {
   rewardUsdt: number;
 }
 export interface LeaderboardInfo {
+  leaderboardEnabled: boolean;
   poolUsdt: number;
   rewardsEnabled: boolean;
   currentWeek: { weekStart: string; weekEnd: string; standings: LeaderboardStanding[] };
@@ -1546,6 +1547,7 @@ export interface PublicSettings {
   withdrawChains: PublicWithdrawChain[];
   androidApk: { versionLabel: string | null; fileSizeBytes: number } | null;
   shopEnabled: boolean;
+  leaderboardEnabled: boolean;
 }
 
 export function usePublicSettings() {
@@ -1579,6 +1581,7 @@ export interface AdminPlatformSettings {
   docsMenuEnabled: boolean;
   shopEnabled: boolean;
   kolVipEnabled: boolean;
+  leaderboardEnabled: boolean;
   updatedAt: string;
   updatedByAddress: string | null;
   defaults: { minUsdtWithdrawal: number; minDogeWithdrawal: number };

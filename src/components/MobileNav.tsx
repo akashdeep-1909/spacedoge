@@ -65,7 +65,11 @@ export function MobileNav() {
   // see DesktopMoreNav's own copy of this note for why that's the
   // right default rather than hiding-then-flashing-in.
   const { data: publicSettings } = usePublicSettings();
-  const links = LINKS.filter((l) => l.href !== "/dashboard/shop" || publicSettings?.shopEnabled !== false);
+  const links = LINKS.filter(
+    (l) =>
+      (l.href !== "/dashboard/shop" || publicSettings?.shopEnabled !== false) &&
+      (l.href !== "/dashboard/leaderboard" || publicSettings?.leaderboardEnabled !== false)
+  );
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<{ top: number; right: number; maxHeight: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);

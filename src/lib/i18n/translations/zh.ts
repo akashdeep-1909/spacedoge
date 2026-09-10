@@ -1316,6 +1316,8 @@ const zh = {
     lastWeekPaidOutLabel: "上周（已派奖）",
     noRankedMatchesYet: "尚无已排名的付费对局。",
     youSuffix: "（你）",
+    closedTitle: "排行榜暂不可用",
+    closedBody: "排行榜暂时不可用，请稍后再查看。",
   },
   pool: {
     headerTagline: "矿池浏览器",

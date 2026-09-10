@@ -6,6 +6,7 @@ import {
   getWithdrawChainConfigs,
   getAndroidApkInfo,
   getShopEnabled,
+  getLeaderboardEnabled,
 } from "@/lib/settings";
 
 // GET /api/settings/public — the subset of PlatformSettings/chain
@@ -14,13 +15,14 @@ import {
 // which withdrawal chains/coins are offered) and public social links.
 // Never includes treasury addresses/RPC URLs/admin fields.
 export async function GET() {
-  const [minUsdtWithdrawal, minDogeWithdrawal, social, withdrawChainRows, androidApk, shopEnabled] = await Promise.all([
+  const [minUsdtWithdrawal, minDogeWithdrawal, social, withdrawChainRows, androidApk, shopEnabled, leaderboardEnabled] = await Promise.all([
     getMinUsdtWithdrawal(),
     getMinDogeWithdrawal(),
     getSocialLinks(),
     getWithdrawChainConfigs({ enabledOnly: true }),
     getAndroidApkInfo(),
     getShopEnabled(),
+    getLeaderboardEnabled(),
   ]);
 
   return NextResponse.json({
@@ -37,5 +39,6 @@ export async function GET() {
     // render at all and what to show next to it — never the file path.
     androidApk: androidApk ? { versionLabel: androidApk.versionLabel, fileSizeBytes: androidApk.fileSizeBytes } : null,
     shopEnabled,
+    leaderboardEnabled,
   });
 }

@@ -1705,6 +1705,8 @@ const en = {
     lastWeekPaidOutLabel: "Last Week (Paid Out)",
     noRankedMatchesYet: "No ranked paid matches yet.",
     youSuffix: "(you)",
+    closedTitle: "Leaderboard Unavailable",
+    closedBody: "The leaderboard is temporarily unavailable. Please check back later.",
   },
   pool: {
     headerTagline: "Mining Pool Explorer",

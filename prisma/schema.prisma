@@ -1352,6 +1352,16 @@ model PlatformSettings {
   // it just never pays a reward.
   weeklyLeaderboardEnabled  Boolean   @default(false)
   weeklyLeaderboardPoolUsdt Decimal?  @db.Decimal(24, 8)
+  // Separate from weeklyLeaderboardEnabled above — that one only gates
+  // whether a reward actually pays out; this is the "hide the whole
+  // Leaderboard page and nav link" master switch, ON by default since
+  // the feature is already live, same shape as shopEnabled/
+  // docsMenuEnabled. OFF hides every Leaderboard entry point (bottom
+  // tab bar, mobile nav, desktop "More" menu) and the page itself shows
+  // a closed state instead of rankings — GET /api/leaderboard still
+  // computes real standings underneath either way, this just controls
+  // whether anyone can see them right now.
+  leaderboardEnabled        Boolean   @default(true)
   // Android app distribution — a direct-download APK (no Play Store
   // listing) since this is sideloaded, not published through Google
   // Play. The file itself lives on disk (storage/uploads/apk/current.apk,

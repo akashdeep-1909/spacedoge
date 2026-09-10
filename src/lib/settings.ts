@@ -51,6 +51,7 @@ export async function updatePlatformSettings(
     docsMenuEnabled?: boolean;
     shopEnabled?: boolean;
     kolVipEnabled?: boolean;
+    leaderboardEnabled?: boolean;
   },
   updatedByAddress: string
 ) {
@@ -96,6 +97,18 @@ export async function getMinDogeWithdrawal(): Promise<number> {
 export async function getShopEnabled(): Promise<boolean> {
   const settings = await getPlatformSettings();
   return settings.shopEnabled;
+}
+
+// The "hide the whole Leaderboard page and nav link" master switch —
+// see the schema doc-comment on PlatformSettings.leaderboardEnabled
+// for how this differs from weeklyLeaderboardEnabled (which only gates
+// the reward payout, never visibility). Called from GET
+// /api/settings/public (tells nav components whether to show the link
+// at all) and GET /api/leaderboard (tells the page itself whether to
+// render a closed state instead of rankings).
+export async function getLeaderboardEnabled(): Promise<boolean> {
+  const settings = await getPlatformSettings();
+  return settings.leaderboardEnabled;
 }
 
 // Master switch for the KOL VIP Tiers monthly bonus — see the schema

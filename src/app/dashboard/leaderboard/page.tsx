@@ -1,5 +1,6 @@
 "use client";
 
+import { Lock } from "lucide-react";
 import { OnboardingGate } from "@/components/OnboardingGate";
 import { PaginationControls } from "@/components/PaginationControls";
 import { usePagination } from "@/lib/usePagination";
@@ -36,6 +37,19 @@ function LeaderboardContent() {
 
       {isLoading ? (
         <p className="text-sm text-muted">{t("mining.loadingLabel")}</p>
+      ) : data?.leaderboardEnabled === false ? (
+        // Admin master switch (PlatformSettings.leaderboardEnabled) —
+        // distinct from rewardsEnabled above, which only gates whether
+        // a reward pays out; this hides the page's rankings entirely.
+        // Same closed-state shape the Shop page's own master switch
+        // uses.
+        <div className="game-panel hud-corner flex flex-col items-center gap-2 rounded-2xl border-line p-6 text-center">
+          <div className="grid h-11 w-11 place-items-center rounded-full bg-panel-2 text-muted">
+            <Lock size={20} />
+          </div>
+          <p className="font-bold">{t("leaderboard.closedTitle")}</p>
+          <p className="text-xs text-muted">{t("leaderboard.closedBody")}</p>
+        </div>
       ) : (
         <>
           <section>

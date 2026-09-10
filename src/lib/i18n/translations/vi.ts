@@ -1316,6 +1316,8 @@ const vi = {
     lastWeekPaidOutLabel: "Tuần Trước (Đã Trả Thưởng)",
     noRankedMatchesYet: "Chưa có trận đấu trả phí nào được xếp hạng.",
     youSuffix: "(bạn)",
+    closedTitle: "Bảng Xếp Hạng Không Khả Dụng",
+    closedBody: "Bảng xếp hạng tạm thời không khả dụng. Vui lòng quay lại sau.",
   },
   pool: {
     headerTagline: "Trình Khám Phá Pool Khai Thác",

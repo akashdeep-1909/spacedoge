@@ -1316,6 +1316,8 @@ const id = {
     lastWeekPaidOutLabel: "Minggu Lalu (Dibayarkan)",
     noRankedMatchesYet: "Belum ada pertandingan berbayar yang diperingkat.",
     youSuffix: "(Anda)",
+    closedTitle: "Papan Peringkat Tidak Tersedia",
+    closedBody: "Papan peringkat sementara tidak tersedia. Silakan periksa kembali nanti.",
   },
   pool: {
     headerTagline: "Penjelajah Mining Pool",

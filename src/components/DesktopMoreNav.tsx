@@ -41,7 +41,11 @@ export function DesktopMoreNav() {
   // defaulting to hidden would flash the item away then back in for
   // every normal page load rather than only when actually disabled.
   const { data: publicSettings } = usePublicSettings();
-  const moreLinks = MORE_LINKS.filter((l) => l.href !== "/dashboard/shop" || publicSettings?.shopEnabled !== false);
+  const moreLinks = MORE_LINKS.filter(
+    (l) =>
+      (l.href !== "/dashboard/shop" || publicSettings?.shopEnabled !== false) &&
+      (l.href !== "/dashboard/leaderboard" || publicSettings?.leaderboardEnabled !== false)
+  );
 
   const [lastPathname, setLastPathname] = useState(pathname);
   if (pathname !== lastPathname) {

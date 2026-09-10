@@ -1316,6 +1316,8 @@ const fil = {
     lastWeekPaidOutLabel: "Nakaraang Linggo (Nabayaran)",
     noRankedMatchesYet: "Wala pang naka-rank na bayad na matches.",
     youSuffix: "(ikaw)",
+    closedTitle: "Hindi Available ang Leaderboard",
+    closedBody: "Pansamantalang hindi available ang leaderboard. Pakisuri muli sa ibang pagkakataon.",
   },
   pool: {
     headerTagline: "Mining Pool Explorer",

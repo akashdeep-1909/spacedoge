@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Gamepad2, Pickaxe, Wallet, Trophy, UserPlus } from "lucide-react";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
+import { usePublicSettings } from "@/lib/hooks";
 
 // H5-app-style bottom tab bar — the primary nav for the 6 most used
 // destinations on phones AND tablets (anything under the `lg` desktop
@@ -19,17 +20,27 @@ const TABS = [
   { href: "/dashboard/refer", key: "nav.refer" as const, Icon: UserPlus },
 ];
 
+// Tailwind's JIT compiler needs literal class strings, not a runtime-
+// interpolated one — this covers the only two possible tab counts
+// (leaderboard shown or hidden, see the filter below).
+const GRID_COLS_CLASS: Record<number, string> = { 5: "grid-cols-5", 6: "grid-cols-6" };
+
 export function BottomTabBar() {
   const { t } = useLocale();
   const pathname = usePathname();
+  // Undefined-while-loading defaults to "shown" — see MobileNav's own
+  // copy of this note for why that's the right default rather than
+  // hiding-then-flashing-in.
+  const { data: publicSettings } = usePublicSettings();
+  const tabs = TABS.filter((tab) => tab.href !== "/dashboard/leaderboard" || publicSettings?.leaderboardEnabled !== false);
 
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-gold/15 bg-background/95 backdrop-blur lg:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="grid grid-cols-6">
-        {TABS.map((tab) => {
+      <div className={`grid ${GRID_COLS_CLASS[tabs.length]}`}>
+        {tabs.map((tab) => {
           const active = pathname === tab.href;
           return (
             <Link

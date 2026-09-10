@@ -1316,6 +1316,8 @@ const ko = {
     lastWeekPaidOutLabel: "지난주 (지급 완료)",
     noRankedMatchesYet: "아직 순위가 매겨진 유료 매치가 없습니다.",
     youSuffix: "(나)",
+    closedTitle: "리더보드를 이용할 수 없습니다",
+    closedBody: "리더보드를 일시적으로 이용할 수 없습니다. 나중에 다시 확인해 주세요.",
   },
   pool: {
     headerTagline: "마이닝 풀 탐색기",

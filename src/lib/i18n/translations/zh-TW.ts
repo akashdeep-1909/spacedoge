@@ -1316,6 +1316,8 @@ const zhTW = {
     lastWeekPaidOutLabel: "上週（已派獎）",
     noRankedMatchesYet: "尚無已排名的付費對局。",
     youSuffix: "（你）",
+    closedTitle: "排行榜暫不可用",
+    closedBody: "排行榜暫時無法使用，請稍後再查看。",
   },
   pool: {
     headerTagline: "礦池瀏覽器",
