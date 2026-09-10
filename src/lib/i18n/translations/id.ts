@@ -1427,7 +1427,7 @@ const id = {
     waitingBody: "Permainan Anda sudah selesai, tunggu sebentar sampai yang lain menyelesaikannya.",
     waitingCount: "{{submitted}} dari {{total}} hasil sudah masuk.",
     cancelledNotice: "Lobi ini telah dibatalkan. Biaya entri yang tertahan telah dikembalikan ke Deposit USDT Anda.",
-    cancelledRentalBotNotEnoughFriends: "Space DOGE BOT mengharuskan teman sungguhan untuk bermain. Ruangan ini dibatalkan karena waktu undangan berakhir sebelum jumlah pemain mencukupi, dan biaya entri yang tertahan telah dikembalikan. Pass Space DOGE BOT Anda belum digunakan.",
+    cancelledRentalBotNotEnoughFriends: "Pertandingan Space DOGE BOT mengharuskan bermain bersama teman. Ruangan ini dibatalkan karena waktu undangan berakhir sebelum teman Anda bergabung. Semua biaya entri yang tertahan telah dikembalikan, dan kredit Space DOGE BOT Anda belum digunakan.",
     heading: "👥 Main Bersama Teman",
     summaryLine: "{{mode}} · Entri {{fee}} USDT · Room {{code}}",
     hostTag: "(Host)",

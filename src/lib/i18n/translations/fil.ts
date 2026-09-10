@@ -1427,7 +1427,7 @@ const fil = {
     waitingBody: "Tapos na ang laban mo, maghintay habang tinatapos ng iba ang kanila.",
     waitingCount: "{{submitted}} sa {{total}} na resulta ang naipasa na.",
     cancelledNotice: "Na-cancel ang lobby na ito. Anumang naka-hold na entry fee ay ibinalik na sa iyong Deposit USDT.",
-    cancelledRentalBotNotEnoughFriends: "Nangangailangan ang Space DOGE BOT ng totoong kaibigan upang maglaro. Nakansela ang room na ito dahil natapos ang oras ng imbitasyon bago sumapat ang bilang ng sumali, at ang anumang naka-hold na entry fee ay naibalik na. Hindi pa nagagamit ang iyong Space DOGE BOT pass.",
+    cancelledRentalBotNotEnoughFriends: "Nangangailangan ang mga laban ng Space DOGE BOT ng paglalaro kasama ang mga kaibigan. Nakansela ang room na ito dahil natapos ang oras ng imbitasyon bago sumali ang iyong mga kaibigan. Naibalik na ang anumang naka-hold na entry fee, at hindi pa nagagamit ang iyong Space DOGE BOT credit.",
     heading: "👥 Maglaro Kasama ang mga Kaibigan",
     summaryLine: "{{mode}} · {{fee}} USDT na entry · Room {{code}}",
     hostTag: "(Host)",

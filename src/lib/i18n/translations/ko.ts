@@ -1427,7 +1427,7 @@ const ko = {
     waitingBody: "당신의 플레이는 끝났습니다. 다른 사람들이 끝낼 때까지 잠시 기다려 주세요.",
     waitingCount: "{{total}}명 중 {{submitted}}명의 결과가 들어왔습니다.",
     cancelledNotice: "이 로비는 취소되었습니다. 보류된 참가비는 Deposit USDT로 반환되었습니다.",
-    cancelledRentalBotNotEnoughFriends: "Space DOGE BOT는 실제 친구와 함께 플레이해야 합니다. 충분한 인원이 참가하기 전에 초대 시간이 만료되어 이 방은 취소되었으며, 보류된 참가비는 환불되었습니다. Space DOGE BOT 이용권은 사용되지 않았습니다.",
+    cancelledRentalBotNotEnoughFriends: "Space DOGE BOT 매치는 친구와 함께 플레이해야 합니다. 친구가 참가하기 전에 초대 시간이 만료되어 이 방은 취소되었습니다. 보류된 참가비는 모두 환불되었으며, Space DOGE BOT 크레딧은 사용되지 않았습니다.",
     heading: "👥 친구와 함께 플레이",
     summaryLine: "{{mode}} · {{fee}} USDT 참가비 · 방 {{code}}",
     hostTag: "(호스트)",
