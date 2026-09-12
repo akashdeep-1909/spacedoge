@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   useAdminShopItems,
   useUpdateAdminShopItem,
+  useDeleteAdminShopItem,
   useCreateAdminShopItem,
   useAdminSettings,
   useUpdateAdminSettings,
@@ -27,16 +28,18 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 const plainInputClass = "w-full rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm";
 
 // Coin Rush Shop catalog — ShopItemConfig, plus the platform-wide
-// on/off switch (PlatformSettings.shopEnabled). No delete here (same
-// scope boundary as the Game Modes editor: a real WalletShopItem
-// purchase has a required FK to a catalog row, so deleting one that's
-// already been sold would either fail outright or orphan someone's
-// purchase — Disable already fully removes an item from the player-
-// facing catalog with none of that risk). Category, entitlement type,
-// and every effect column are immutable once created — a
-// WalletShopItem purchase snapshots those verbatim at purchase time,
-// so changing them here would silently redefine what was already sold
-// without touching what was sold.
+// on/off switch (PlatformSettings.shopEnabled). Delete is only ever
+// offered for a row nobody has ever purchased (purchaseCount === 0,
+// see GET /api/admin/shop's own doc-comment) — same scope boundary as
+// the Game Modes editor otherwise: a real WalletShopItem purchase has
+// a required FK to its catalog row, so deleting one that's already
+// been sold would either fail outright or orphan someone's purchase,
+// which is why Disable (removing it from the player-facing catalog
+// with none of that risk) is the only option once a row has real
+// history. Category, entitlement type, and every effect column are
+// immutable once created — a WalletShopItem purchase snapshots those
+// verbatim at purchase time, so changing them here would silently
+// redefine what was already sold without touching what was sold.
 export default function AdminShopPage() {
   const { data, isLoading } = useAdminShopItems();
   const [showAdd, setShowAdd] = useState(false);
@@ -428,7 +431,12 @@ function AddShopItemForm({ onDone }: { onDone: () => void }) {
 
 function ShopItemRow({ row }: { row: AdminShopItemRow }) {
   const update = useUpdateAdminShopItem();
+  const del = useDeleteAdminShopItem();
   const [editing, setEditing] = useState(false);
+  // Two-click confirm (no browser confirm() dialog, consistent with
+  // the rest of this admin app's own controls) — a delete here is
+  // permanent, unlike every other button on this row.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [label, setLabel] = useState(row.label);
   const [description, setDescription] = useState(row.description);
   const [priceUsdt, setPriceUsdt] = useState(String(row.priceUsdt));
@@ -477,6 +485,16 @@ function ShopItemRow({ row }: { row: AdminShopItemRow }) {
     }
   }
 
+  async function confirmDelete() {
+    setError(null);
+    try {
+      await del.mutateAsync(row.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete");
+      setConfirmingDelete(false);
+    }
+  }
+
   return (
     <div className="flex gap-3 rounded-xl border border-line bg-panel-2 p-3">
       <div className="shrink-0">
@@ -502,6 +520,9 @@ function ShopItemRow({ row }: { row: AdminShopItemRow }) {
             <p className="mt-1 text-xs text-muted">
               ${row.priceUsdt.toFixed(2)} · {pricingSummary}
               {row.shapeKey && <> · shape: {row.shapeKey}</>}
+              {row.purchaseCount > 0 && (
+                <> · {row.purchaseCount} purchase{row.purchaseCount === 1 ? "" : "s"} on record (Disable only)</>
+              )}
             </p>
             {effectSummary && <p className="mt-1 text-xs font-semibold text-gold">{effectSummary}</p>}
           </div>
@@ -516,6 +537,37 @@ function ShopItemRow({ row }: { row: AdminShopItemRow }) {
             >
               {row.enabled ? "Disable" : "Enable"}
             </button>
+            {/* Only ever shown for a row nobody has bought yet — see
+                this file's own top doc-comment and DELETE /api/admin/
+                shop/[id]'s. A row with real purchase history has no
+                Delete button at all (not just disabled), since Disable
+                is the only safe action there. */}
+            {row.purchaseCount === 0 &&
+              (confirmingDelete ? (
+                <>
+                  <button
+                    onClick={confirmDelete}
+                    disabled={del.isPending}
+                    className="rounded-full border border-risk bg-risk-soft px-3 py-1 text-[11px] font-bold text-risk disabled:opacity-50"
+                  >
+                    {del.isPending ? "Deleting…" : "Confirm Delete"}
+                  </button>
+                  <button
+                    onClick={() => setConfirmingDelete(false)}
+                    disabled={del.isPending}
+                    className="rounded-full border border-line px-3 py-1 text-[11px] text-muted hover:text-foreground disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setConfirmingDelete(true)}
+                  className="rounded-full border border-line px-3 py-1 text-[11px] text-muted hover:border-risk/40 hover:text-risk"
+                >
+                  Delete
+                </button>
+              ))}
           </div>
         </div>
 

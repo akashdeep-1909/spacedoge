@@ -90,7 +90,9 @@ async function main() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        shapeKey: "INTERCEPTOR",
+        category: "ROCKET_SHAPE",
+        shapeKey: "WEDGE",
+        colorHex: "#f4c15d",
         label: "Smoke Test Comet",
         description: "A throwaway item created by the admin smoke test.",
         priceUsdt: 0.42,
@@ -100,7 +102,7 @@ async function main() {
     });
     log("Admin can create a new catalog item", createRes.ok, JSON.stringify(created));
     log("New item has a real distinct key", typeof created.row?.key === "string" && created.row.key.length > 0, created.row?.key);
-    log("New item snapshots the chosen shape", created.row?.shapeKey === "INTERCEPTOR");
+    log("New item snapshots the chosen shape", created.row?.shapeKey === "WEDGE");
     log("New item defaults to enabled", created.row?.enabled === true);
 
     const { body: catalogAfterCreate } = await player.req("/api/shop/catalog");

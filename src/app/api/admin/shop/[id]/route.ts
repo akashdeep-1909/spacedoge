@@ -34,6 +34,41 @@ const patchSchema = z
   })
   .strict();
 
+// DELETE /api/admin/shop/:id — only ever a real, permanent removal for
+// a catalog row NOBODY has ever purchased (a mistake, a draft, an item
+// retired before its first sale). WalletShopItem.shopItemConfigId is a
+// required FK with no cascade, so hard-deleting a row that DOES have
+// purchases would either throw outright or (if the DB ever allowed it)
+// orphan real owned-item/purchase-history rows and every
+// MatchLoadoutSelection/LobbyParticipantSelection hanging off them —
+// exactly the risk the admin page's own long-standing "no delete, only
+// Disable" doc-comment was protecting against. Disable already fully
+// hides an item from the player-facing catalog (GET /api/shop/catalog
+// only returns enabled rows) without any of that risk, so it remains
+// the only option once a row has real purchase history; this endpoint
+// is purely for a never-sold row's clutter.
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await requireAdminSession();
+  if (!session) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+
+  const { id } = await params;
+  const existing = await db.shopItemConfig.findUnique({ where: { id } });
+  if (!existing) return NextResponse.json({ error: "Shop item not found" }, { status: 404 });
+
+  const purchaseCount = await db.walletShopItem.count({ where: { shopItemConfigId: id } });
+  if (purchaseCount > 0) {
+    return NextResponse.json(
+      {
+        error: `This item has ${purchaseCount} purchase${purchaseCount === 1 ? "" : "s"} on record — delete is only available for items nobody has ever bought. Disable it instead to hide it from players without breaking existing owners' inventory.`,
+      },
+      { status: 409 }
+    );
+  }
+
+  await db.shopItemConfig.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireAdminSession();
   if (!session) return NextResponse.json({ error: "Not authorized" }, { status: 403 });

@@ -301,20 +301,30 @@ export function botScore(mapSeed: string, botIndex: number, durationSec: number)
 //
 // Two rules, per product spec:
 //
-// 1. Bot anti-farming rule — generalized across every human/bot mix a
-//    room can have (1-4 real humans, bots filling whatever seats are
-//    left, see rankBotMatch()'s own doc-comment for the exact per-mix
-//    breakdown). Exactly one bot — the single weakest one — ever
-//    competes against humans on real score; every OTHER bot is
-//    guaranteed above all humans regardless of its score, so a human
-//    (or humans) can never farm a top rank purely by being better than
-//    a bot that was never actually in contention. The one bot that
-//    DOES compete is decided by actual score, never a coin flip — an
-//    earlier version randomized who got 3rd vs 4th in the 1-human case
-//    regardless of score, which produced results like a 0-point human
-//    ranking above a 73-point bot — confusing and clearly wrong once
-//    seen in practice. A full room of 4 real humans has no bots at all
-//    and ranks purely by score, exactly as before this rule existed.
+// 1. Bot anti-farming rule — ONLY ever applies to true solo-vs-bots play
+//    (exactly 1 real human sharing the room with bots — the actual
+//    farming risk: a human trivially beating predictable AI to collect
+//    a guaranteed top-tier reward every time). See rankBotMatch()'s own
+//    doc-comment for the exact solo-mix breakdown. Exactly one bot — the
+//    single weakest one — ever competes against that lone human on real
+//    score; every OTHER bot is guaranteed above them regardless of its
+//    score. The one bot that DOES compete is decided by actual score,
+//    never a coin flip — an earlier version randomized who got 3rd vs
+//    4th in the 1-human case regardless of score, which produced
+//    results like a 0-point human ranking above a 73-point bot —
+//    confusing and clearly wrong once seen in practice.
+//
+//    Confirmed live as a real bug: this guarantee used to also apply
+//    whenever 2 or 3 real humans shared a room with 1-2 filler bots
+//    (e.g. 2 friends + 2 auto-filled bots), which meant a bot held an
+//    UNCONDITIONAL top rank there too — a real player could never place
+//    better than 2nd in that room shape no matter how well they
+//    actually played ("still coming on 2nd position" every time). Once
+//    2+ real humans are actually competing, there's no farming risk
+//    left to guard against — a filler bot is just another opponent, not
+//    a rigged one — so any room with 2+ real humans (bots or not) now
+//    ranks purely by score, exactly like the always-worked "4 real
+//    humans, no bots at all" case.
 //
 // 2. Rank-tiered randomized reward — the previous formula paid roughly
 //    "your score, converted to PTS, capped by the pool" (still true for
@@ -438,10 +448,13 @@ export function rankByScore<T extends { score: number }>(participants: T[]): (T 
 // actually matters is entirely among them regardless of where the
 // filler bot lands.
 //
-//   3 bots + 1 human — top 2 bots guaranteed; human vs weakest bot for 3rd/4th.
-//   2 bots + 2 humans — top 1 bot guaranteed; 2 humans + weakest bot for 2nd-4th.
-//   1 bot  + 3 humans — that bot guaranteed rank 1; 3 humans rank 2nd-4th by score alone.
-//   0 bots + 4 humans — everyone ranks by score, no bot mechanic at all.
+//   Solo-vs-bots only (exactly 1 real human in the room):
+//     3 bots + 1 human — top 2 bots guaranteed; human vs weakest bot for 3rd/4th.
+//     0 bots + 1 human — degenerate/edge case; ranks by score (nothing to guard).
+//
+//   Genuine multiplayer (2+ real humans, any number of filler bots,
+//   including 0) — ranks purely by score, no guarantee, no bump:
+//     2-4 humans + 0-2 bots.
 //
 // Only needs isBot/score from each participant; returns the same
 // objects with a `rank` field attached (unsorted — callers that need
@@ -463,7 +476,13 @@ export function rankBotMatch<T extends { isBot: boolean; score: number; noShow?:
   function noShowRank(p: T) { return p.noShow ? 1 : 0; }
   const humans = participants.filter((p) => !p.isBot);
   const bots = [...participants.filter((p) => p.isBot)].sort((a, b) => b.score - a.score);
-  if (bots.length === 0) {
+
+  // Genuine multiplayer — 2+ real humans actually competing, so there's
+  // no farming risk left for the solo guarantee below to protect
+  // against; a filler bot here is just another opponent. Subsumes the
+  // old "bots.length === 0" branch (a full room of real humans always
+  // lands here too) — see this function's own doc-comment above.
+  if (humans.length >= 2 || bots.length === 0) {
     return [...participants]
       .sort((a, b) => noShowRank(a) - noShowRank(b) || b.score - a.score)
       .map((p, i) => ({ ...p, rank: i + 1 }));

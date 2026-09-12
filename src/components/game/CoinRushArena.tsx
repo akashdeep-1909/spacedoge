@@ -424,7 +424,12 @@ export function CoinRushArena({
     time: Math.max(0, durationSec - startElapsedSec),
     vaultOpen: true,
     rank: 4,
-    lives: diff.startLives + (loadout?.livesBonus ?? 0),
+    // Matches the "you" ship's own initial lives right below (spectate
+    // mode never shows full health for a parked ship, see that
+    // doc-comment) — this is only what's on screen for the brief window
+    // before the first real update() tick, but a spectate mount
+    // shouldn't flash full health even for that instant.
+    lives: spectate ? 0 : diff.startLives + (loadout?.livesBonus ?? 0),
     youBanked: 0,
     youCarry: 0,
     board: [] as { name: string; color: string; isYou: boolean; carry: number; banked: number }[],
@@ -562,7 +567,19 @@ export function CoinRushArena({
         // the only two REAL gameplay-affecting shop purchases applied
         // here — both permanent for the whole match, distinct from the
         // Boost button's own temporary multiplier applied in update().
-        lives: diff.startLives + (loadout?.livesBonus ?? 0), carry: 0, banked: 0, active: !spectate, invuln: 0, knockback: 0,
+        //
+        // lives is 0 in spectate mode, never the full startLives —
+        // confirmed live as a real bug ("full health, doesn't decrease
+        // after the bot is dead"): a parked ship is inactive from the
+        // moment it's built and never takes another hit for the rest of
+        // spectating (hitShip() no-ops on !active), so whatever this
+        // starts at is what "YOUR ROCKET" shows for the entire spectate
+        // screen. It used to start full regardless of how your actual
+        // run ended, which reads as "health never went down" even after
+        // you'd genuinely died — 0 correctly reflects "your run is
+        // over," matching the already-correct `active: false` right
+        // next to it.
+        lives: spectate ? 0 : diff.startLives + (loadout?.livesBonus ?? 0), carry: 0, banked: 0, active: !spectate, invuln: 0, knockback: 0,
         speed: 150 * diff.playerSpeedMult * (1 + (loadout?.speedMultBonus ?? 0)) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
         externallyDriven: false, oppSlot: null, isBot: false,
         shapeKey: loadout?.shapeKey ?? null,
@@ -596,6 +613,18 @@ export function CoinRushArena({
       }),
     ];
 
+    // How many REAL humans (not filler bots) are actually in this
+    // match — "you" plus any opponent seat whose own isBot is false. In
+    // solo/instant play `opponents` is entirely absent, so this is
+    // always 1. Server settlement (rankBotMatch, src/lib/game-config.ts)
+    // now only ever guarantees a bot a rank at all when this is <= 1 —
+    // real multiplayer (2+ humans) ranks purely by score, bots included
+    // — so every bit of the "guaranteed bot" foreshadowing logic below
+    // must be gated the same way, or the live leaderboard keeps
+    // bait-and-switching a rank that the server no longer actually
+    // guarantees.
+    const realHumanCount = 1 + (opponents?.filter((o) => !o.isBot).length ?? 0);
+
     // Server settlement (rankBotMatch, src/lib/game-config.ts) always
     // guarantees the 2 HIGHEST-scoring bots a final rank above the
     // human, and lets only the single WEAKEST bot (by real score)
@@ -617,7 +646,9 @@ export function CoinRushArena({
     // on the rare exact-score tie between two bots those two rules pick
     // different array positions, which is otherwise invisible (the tied
     // bots are indistinguishable by score) but worth matching precisely
-    // rather than leaving a coin-flip mismatch on the table.
+    // rather than leaving a coin-flip mismatch on the table. Only
+    // actually consulted (see displayRankedBoard) when realHumanCount
+    // <= 1 — harmless to always compute.
     const contestBotIndex = (() => {
       const bySlot = [1, 2, 3].map((slot) => ({ slot, score: botScore(mapSeed, slot, durationSec) }));
       const sorted = [...bySlot].sort((a, b) => b.score - a.score);
@@ -823,8 +854,12 @@ export function CoinRushArena({
         // seat during active play — see isBot's own doc-comment) shows
         // its true carry — no reason to run the bot bait-and-switch-
         // foreshadowing logic below on a live human's honestly-reported
-        // number.
-        if (s.isYou || s.externallyDriven || !s.isBot || i - 1 === contestBotIndex) return s;
+        // number. realHumanCount >= 2 means genuine multiplayer, where
+        // the server no longer guarantees any bot a rank at all (see
+        // rankBotMatch) — every bot's own true carry shows there too,
+        // or the live leaderboard would keep foreshadowing an outcome
+        // the actual settlement can no longer produce.
+        if (s.isYou || s.externallyDriven || !s.isBot || realHumanCount >= 2 || i - 1 === contestBotIndex) return s;
         if (s.carry > you.carry * 1.15) return s;
         const bumpedCarry = Math.ceil(you.carry * 1.25) + 10;
         // Confirmed live: once the human dies, you.carry never changes

@@ -2783,6 +2783,11 @@ export interface AdminShopItemRow extends ShopItemEffects {
   termDays: number | null;
   enabled: boolean;
   sortOrder: number;
+  // How many WalletShopItem purchases exist against this row, ever —
+  // 0 is what makes DELETE /api/admin/shop/[id] actually safe (see that
+  // route's own doc-comment). Lets the admin page show/hide Delete
+  // instead of only failing after a click.
+  purchaseCount: number;
 }
 
 export function useAdminShopItems() {
@@ -2811,6 +2816,22 @@ export function useUpdateAdminShopItem() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Failed to update shop item");
+      return body;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "shop"] }),
+  });
+}
+
+// Only ever succeeds for a row with purchaseCount === 0 — see
+// DELETE /api/admin/shop/[id]'s own doc-comment for why every other
+// row is permanently limited to Disable instead.
+export function useDeleteAdminShopItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/shop/${id}`, { method: "DELETE" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Failed to delete shop item");
       return body;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "shop"] }),

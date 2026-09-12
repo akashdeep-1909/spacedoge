@@ -12,11 +12,23 @@ import { ShopItemCategory, ShopEntitlementType } from "@/generated/prisma/enums"
 // category (null for whichever ones don't apply) so the admin list can
 // render a live preview + plain-English effect summary per row without
 // a second round trip.
+//
+// purchaseCount (one groupBy, not N per-row queries) is what lets the
+// admin page decide whether DELETE /api/admin/shop/[id] is even worth
+// offering for a given row — that route itself is the real
+// enforcement, this is purely so the UI can show/hide the button
+// instead of only failing after a click.
 export async function GET() {
   const session = await requireAdminSession();
   if (!session) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
   const rows = await getShopItemConfigs();
+  const purchaseCounts = await db.walletShopItem.groupBy({
+    by: ["shopItemConfigId"],
+    _count: { _all: true },
+  });
+  const purchaseCountById = new Map(purchaseCounts.map((c) => [c.shopItemConfigId, c._count._all]));
+
   return NextResponse.json({
     rows: rows.map((r) => ({
       id: r.id,
@@ -40,6 +52,7 @@ export async function GET() {
       shieldCooldownDeltaSec: r.shieldCooldownDeltaSec !== null ? Number(r.shieldCooldownDeltaSec) : null,
       enabled: r.enabled,
       sortOrder: r.sortOrder,
+      purchaseCount: purchaseCountById.get(r.id) ?? 0,
     })),
   });
 }
@@ -49,13 +62,15 @@ export async function GET() {
 // own doc-comment for the full validation shape and why it isn't
 // defined inline here).
 //
-// No delete endpoint exists — same "disable, never delete" rule as
-// GameModeConfig, since a real WalletShopItem purchase has a required
-// FK to this row; Disable in the admin UI already fully removes it
-// from the player-facing catalog (GET /api/shop/catalog only returns
-// enabled rows) without breaking anyone who already owns one. Every
-// effect column is immutable once created (see PATCH /api/admin/shop/
-// [id]'s own doc-comment) for the same reason.
+// DELETE /api/admin/shop/[id] exists for a never-purchased row only —
+// see that route's own doc-comment. Every other row keeps "disable,
+// never delete" (same rule GameModeConfig follows), since a real
+// WalletShopItem purchase has a required FK to this row; Disable in
+// the admin UI already fully removes it from the player-facing catalog
+// (GET /api/shop/catalog only returns enabled rows) without breaking
+// anyone who already owns one. Every effect column is immutable once
+// created (see PATCH /api/admin/shop/[id]'s own doc-comment) for the
+// same reason.
 function slugifyKey(prefix: string, label: string): string {
   const slug = label
     .trim()
