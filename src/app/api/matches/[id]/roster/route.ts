@@ -34,12 +34,44 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const botNames = pickBotNames(match.mapSeed, match.participants.filter((p) => p.isBot).length);
   let botIdx = 0;
+
+  // Every participant's own ROCKET_SHAPE selection (if any) — one query
+  // for the whole match rather than N calls to getResolvedLoadoutForMatch
+  // below, which is deliberately scoped to a single wallet (the
+  // caller's own). CoinRushArena has no other way to learn what a
+  // FRIEND actually equipped: the local bot-AI branch that drives every
+  // non-you ship (including a real friend's own seat, during active
+  // play — see that branch's own doc-comment) had no cosmetic data to
+  // draw with at all, so every opponent always rendered the default
+  // ship regardless of what they'd actually bought — confirmed live as
+  // a real gap ("only the rocket owner sees their own rocket").
+  // Speed/Health/Magnet/Fire/Shield are deliberately NOT included here
+  // — those are invisible bonuses with no on-screen appearance, only
+  // the rocket's own look needs to be shared with everyone else in the
+  // match.
+  const rocketSelections = await db.matchLoadoutSelection.findMany({
+    where: { matchLoadout: { matchId: id }, category: "ROCKET_SHAPE" },
+    include: {
+      matchLoadout: { select: { walletProfileId: true } },
+      walletShopItem: { select: { shapeKey: true, colorHex: true } },
+    },
+  });
+  const rocketByWallet = new Map(rocketSelections.map((s) => [s.matchLoadout.walletProfileId, s.walletShopItem]));
+
   const seats = match.participants.map((p) => {
     const isYou = p.walletProfileId === session.walletProfileId;
     const label = p.isBot
       ? `@${botNames[botIdx++]}`
       : p.walletProfile.nickname || shortenWalletAddress(p.walletProfile.address);
-    return { slotNumber: p.slotNumber, isBot: p.isBot, isYou, label };
+    const rocket = rocketByWallet.get(p.walletProfileId);
+    return {
+      slotNumber: p.slotNumber,
+      isBot: p.isBot,
+      isYou,
+      label,
+      shapeKey: rocket?.shapeKey ?? null,
+      colorHex: rocket?.colorHex ?? null,
+    };
   });
 
   // Lobby (Play-with-Friends) matches never pass a `loadout` prop into

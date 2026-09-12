@@ -336,8 +336,13 @@ export function CoinRushArena({
   // solo/instant-play (always vs bots), which falls back to the
   // seeded bot-pool name for every seat as before. slotNumber is each
   // seat's real MatchParticipant.slotNumber — needed in spectate mode
-  // to key into liveOpponents; unused otherwise.
-  opponents?: { isBot: boolean; label: string; slotNumber: number | null }[];
+  // to key into liveOpponents; unused otherwise. shapeKey/colorHex are
+  // that seat's own equipped ROCKET_SHAPE cosmetic (null if nothing
+  // equipped, or for a bot) — confirmed live as a real gap: without
+  // these, every non-you ship always rendered the default look
+  // regardless of what its real owner actually bought, so only the
+  // viewer's own rocket ever reflected their purchase.
+  opponents?: { isBot: boolean; label: string; slotNumber: number | null; shapeKey: string | null; colorHex: string | null }[];
   // The real Match id — present whenever this is a lobby multiplayer
   // match (never for solo/instant-play, which has no one to report to
   // or spectate). While actively playing (spectate false) a real human
@@ -470,6 +475,11 @@ export function CoinRushArena({
     // smooth motion between ~350ms polls instead of snapping every tick.
     liveReportCd: number;
     liveBuffers: Map<number, { from: LiveShipSample; to: LiveShipSample; toReceivedAt: number }>;
+    // True once a final alive:false report has actually gone out for
+    // this ship — see the reporting block below's own doc-comment for
+    // why this exists (without it, a real death is never reported at
+    // all, only ever inferred by silence).
+    deathReported: boolean;
   } | null>(null);
 
   const spawnItem = useCallback((rand: () => number, W: number, H: number, dpr: number, topMargin: number, bottomMargin: number): ItemEntity => {
@@ -570,11 +580,18 @@ export function CoinRushArena({
         const isBot = opp ? opp.isBot : true;
         return {
           x: (W / 4) * (i + 1), y: 170 * DPR, r: 13 * DPR, vx: 0, vy: 0, angle: -Math.PI / 2,
-          color: BOT_COLORS[i], name: opp?.label ?? `@${name}`, isYou: false,
+          // A real friend's own purchased rocket color/shape, when they
+          // have one equipped — same fallback chain "you" uses (theme
+          // color / null shape) when nothing's equipped or the seat is
+          // a bot. Confirmed live as a real gap: this used to always be
+          // the flat BOT_COLORS palette with no shape at all for every
+          // non-you ship, so a real opponent's own bought cosmetics
+          // never showed up on anyone else's screen.
+          color: opp?.colorHex ?? BOT_COLORS[i], name: opp?.label ?? `@${name}`, isYou: false,
           lives: diff.startLives + (isBot ? BOT_LIVES_BONUS : 0), carry: 0, banked: 0, active: true, invuln: 0, knockback: 0,
           speed: (95 + rand() * 20) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
           externallyDriven, oppSlot: externallyDriven ? opp!.slotNumber : null, isBot,
-          shapeKey: null,
+          shapeKey: opp?.shapeKey ?? null,
         };
       }),
     ];
@@ -670,6 +687,7 @@ export function CoinRushArena({
       raf: 0,
       liveReportCd: 0,
       liveBuffers: new Map(),
+      deathReported: false,
     };
     gRef.current = g;
 
@@ -853,14 +871,29 @@ export function CoinRushArena({
       // human fire-and-forget reports its own ship's position/carry/
       // lives every ~350ms so anyone who's already finished can watch
       // this run live (see the externallyDriven branch below and
-      // src/lib/liveMatchState.ts). Gated on you.active: once this ship
-      // is out of lives there's nothing new worth reporting. Never
-      // fires in spectate mode itself (you.active is already false
-      // there) or for solo/instant-play (matchId is never passed).
-      if (matchId && you.active) {
+      // src/lib/liveMatchState.ts). Never fires in spectate mode itself
+      // (you.active is already false there) or for solo/instant-play
+      // (matchId is never passed).
+      //
+      // Confirmed live as a real bug: this used to be flatly gated on
+      // you.active, which means the exact FRAME a ship dies, reporting
+      // stopped completely — the very last sample anyone ever received
+      // still said alive:true, since dying and reporting happen in the
+      // same tick and the death always wins the race. Every spectator
+      // was left watching a ship that had actually finished sit frozen
+      // in place, forever "alive," with no way to ever learn otherwise
+      // (a real participant's death is an EVENT, never inferable from
+      // silence — unlike a bot, which has no live-state at all and is
+      // driven by the purely local, always-continues AI instead). Now
+      // the moment you.active flips false, one final report goes out
+      // immediately (bypassing the normal throttle) with alive:false,
+      // and deathReported latches so it's sent exactly once, not every
+      // frame for the rest of the match.
+      if (matchId && (you.active || !g.deathReported)) {
         g.liveReportCd -= dt;
-        if (g.liveReportCd <= 0) {
+        if (!you.active || g.liveReportCd <= 0) {
           g.liveReportCd = LIVE_REPORT_INTERVAL_SEC;
+          if (!you.active) g.deathReported = true;
           reportLiveMatchState(matchId, {
             xFrac: clamp(you.x / g.W, 0, 1),
             yFrac: clamp((you.y - TOP_MARGIN) / (g.H - TOP_MARGIN - BOTTOM_MARGIN), 0, 1),

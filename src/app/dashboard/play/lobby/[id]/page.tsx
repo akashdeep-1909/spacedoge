@@ -141,7 +141,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
       rosterData?.seats
         .filter((s) => !s.isYou)
         .sort((a, b) => (a.slotNumber ?? 0) - (b.slotNumber ?? 0))
-        .map((s) => ({ isBot: s.isBot, label: s.label, slotNumber: s.slotNumber })),
+        .map((s) => ({ isBot: s.isBot, label: s.label, slotNumber: s.slotNumber, shapeKey: s.shapeKey, colorHex: s.colorHex })),
     [rosterData]
   );
 
@@ -153,9 +153,34 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   // backgrounded tab, a refresh) starts the mission clock fresh at the
   // full duration instead of wherever the server-authoritative match
   // actually is.
+  //
+  // !!waitingForOthers is deliberately also a dependency — confirmed
+  // live as the actual cause of "game stuck in the center, need
+  // refresh": CoinRushArena's setup effect ALSO depends on `spectate`
+  // (it has to — "you" starts inactive and real opponents switch to
+  // externally-driven only in spectate mode), so finishing your own run
+  // and dropping into the waitingForOthers/spectate view re-runs that
+  // whole setup effect on the very same mounted instance, which
+  // recomputes `time` as `durationSec - startElapsedSec`. Without this
+  // dependency, that recompute reused the value snapshotted once way
+  // back near this page's initial load — by the time you actually
+  // finish a run, real elapsed time has moved on far past that stale
+  // snapshot, so the spectate view's mission clock visibly JUMPS
+  // BACKWARD to near-full duration instead of picking up near where the
+  // match actually is, and everyone's ships/hazards/coins reset to
+  // spawn along with it — reading exactly like the game randomly
+  // freezing/restarting. Adding it forces one fresh, correct resnapshot
+  // exactly at that transition (and only then — waitingForOthers only
+  // flips once per run, so this doesn't reintroduce the mid-play
+  // thrashing this memo exists to prevent).
+  const isWaitingForOthers = !!waitingForOthers;
   const startElapsedSec = useMemo(
     () => (lobby?.finalMatchId && lobby.startedAt ? elapsedSecondsSince(lobby.startedAt) : 0),
-    [lobby]
+    // isWaitingForOthers isn't read by the body above — it's here purely
+    // to force exactly one resnapshot at the play→spectate transition,
+    // per the doc-comment above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lobby, isWaitingForOthers]
   );
 
   // Once results settle for everyone (or we're still waiting), poll the

@@ -2455,6 +2455,13 @@ export interface MatchRosterSeat {
   isBot: boolean;
   isYou: boolean;
   label: string;
+  // This seat's own equipped ROCKET_SHAPE cosmetic (null if nothing
+  // equipped, or for a bot seat, which never has one) — lets
+  // CoinRushArena draw a real friend's own purchased rocket look
+  // instead of the default ship for every OTHER participant, not just
+  // the viewer's own. See the roster route's own doc-comment.
+  shapeKey: string | null;
+  colorHex: string | null;
 }
 
 export function useMatchRoster(matchId: string | null | undefined) {
