@@ -16,7 +16,7 @@ import {
   type OwnedShopItem,
   type FundingSource,
 } from "@/lib/hooks";
-import { SHOP_CATEGORY_META, shopItemEffectSummaryKey, type ShopItemCategory } from "@/lib/shop-shared";
+import { SELLABLE_SHOP_CATEGORIES, SHOP_CATEGORY_META, shopItemEffectSummaryKey, type ShopItemCategory } from "@/lib/shop-shared";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 // A distinct, consistent ship color for a ROCKET_SHAPE item that has no
@@ -41,6 +41,28 @@ function ShopContent() {
     REFERRAL_USDT: t("dashboardHome.referralUsdt"),
     PLAY_USDT: t("dashboardHome.playUsdt"),
     RECYCLED_USDT: t("wallet.recycledUsdtLabel"),
+  };
+  // Same translated names + category order LoadoutSelectModal.tsx and
+  // LobbyLoadoutPanel.tsx already use for their own per-category
+  // sections — these i18n keys were written with "shown on both the
+  // catalog/inventory grids and the pre-match loadout picker" as the
+  // explicit intent (see their own comment in en.ts), but the
+  // catalog/inventory grids themselves never actually grouped by
+  // category until now — everything just rendered as one flat, mixed
+  // list regardless of category, both in "My Items" and the catalog
+  // below.
+  // Covers exactly SELLABLE_SHOP_CATEGORIES — unlike the solo loadout
+  // picker's own copy of this map, RENTAL_BOT is included here, since
+  // the shop itself does sell it (a player just can't equip it into a
+  // solo match).
+  const CATEGORY_LABEL: Record<(typeof SELLABLE_SHOP_CATEGORIES)[number], string> = {
+    ROCKET_SHAPE: t("shop.categoryRocket"),
+    STAT_SPEED: t("shop.categorySpeed"),
+    STAT_HEALTH: t("shop.categoryHealth"),
+    POWERUP_MAGNET: t("shop.categoryMagnet"),
+    POWERUP_FIRE: t("shop.categoryFire"),
+    POWERUP_SHIELD: t("shop.categoryShield"),
+    RENTAL_BOT: t("shop.categoryRentalBot"),
   };
   const { data: balances } = useBalances();
   const { data: catalog, isLoading: catalogLoading } = useShopCatalog();
@@ -81,6 +103,19 @@ function ShopContent() {
   }
 
   const ownedConfigIds = new Set((inventory?.items ?? []).filter((i) => i.isUsable).map((i) => i.configKey));
+
+  // One section per sellable category, in the same fixed order the
+  // pre-match loadout pickers already use — a category with nothing in
+  // it (no owned items, or the catalog simply has none enabled right
+  // now) is skipped entirely rather than showing an empty header.
+  const inventoryByCategory = SELLABLE_SHOP_CATEGORIES.map((category) => ({
+    category,
+    items: (inventory?.items ?? []).filter((i) => i.category === category),
+  })).filter((s) => s.items.length > 0);
+  const catalogByCategory = SELLABLE_SHOP_CATEGORIES.map((category) => ({
+    category,
+    items: (catalog?.items ?? []).filter((i) => i.category === category),
+  })).filter((s) => s.items.length > 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -139,19 +174,24 @@ function ShopContent() {
 
       <section>
         <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted">{t("shop.myItemsTitle")}</h2>
-        <div className="mt-2">
+        <div className="mt-2 flex flex-col gap-4">
           {inventoryLoading ? (
             <p className="text-sm text-muted">…</p>
-          ) : (inventory?.items ?? []).length === 0 ? (
+          ) : inventoryByCategory.length === 0 ? (
             <p className="game-panel hud-corner rounded-2xl border-line p-4 text-sm text-muted">
               {t("shop.noItemsOwned")}
             </p>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {(inventory?.items ?? []).map((item) => (
-                <OwnedItemCard key={item.id} item={item} />
-              ))}
-            </div>
+            inventoryByCategory.map(({ category, items }) => (
+              <div key={category}>
+                <CategoryHeading category={category} label={CATEGORY_LABEL[category]} />
+                <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {items.map((item) => (
+                    <OwnedItemCard key={item.id} item={item} />
+                  ))}
+                </div>
+              </div>
+            ))
           )}
         </div>
       </section>
@@ -177,16 +217,23 @@ function ShopContent() {
               <p className="text-xs text-muted">{t("shop.closedBody")}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {(catalog?.items ?? []).map((item) => (
-                <CatalogItemCard
-                  key={item.id}
-                  item={item}
-                  owned={ownedConfigIds.has(item.key)}
-                  buying={buyingId === item.id}
-                  disabled={buyingId !== null || balanceForSource(source) < item.priceUsdt}
-                  onBuy={() => doPurchase(item)}
-                />
+            <div className="flex flex-col gap-5">
+              {catalogByCategory.map(({ category, items }) => (
+                <div key={category}>
+                  <CategoryHeading category={category} label={CATEGORY_LABEL[category]} />
+                  <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {items.map((item) => (
+                      <CatalogItemCard
+                        key={item.id}
+                        item={item}
+                        owned={ownedConfigIds.has(item.key)}
+                        buying={buyingId === item.id}
+                        disabled={buyingId !== null || balanceForSource(source) < item.priceUsdt}
+                        onBuy={() => doPurchase(item)}
+                      />
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -200,6 +247,23 @@ function ShopContent() {
       {successModal && (
         <SuccessModal title={successModal.title} rows={successModal.rows} onClose={() => setSuccessModal(null)} />
       )}
+    </div>
+  );
+}
+
+// A small per-category sub-header (icon + translated name), used
+// above both the "My Items" and catalog grids now that each is split
+// into one section per category instead of one mixed flat list —
+// admin's own catalog editor already groups this same way; this is
+// the player-facing side of the same category structure.
+function CategoryHeading({ category, label }: { category: ShopItemCategory; label: string }) {
+  const meta = SHOP_CATEGORY_META[category];
+  return (
+    <div className="flex items-center gap-1.5">
+      <span aria-hidden style={{ color: meta.color }}>
+        {meta.icon}
+      </span>
+      <h3 className="text-xs font-bold uppercase tracking-wide text-foreground">{label}</h3>
     </div>
   );
 }
