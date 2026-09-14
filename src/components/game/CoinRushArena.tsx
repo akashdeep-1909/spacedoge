@@ -147,6 +147,16 @@ const BOT_COLORS = ["#3cc4ff", "#4af4af", "#ff7a7a"];
 // keeps total elimination genuinely possible ("slowly die... also," if
 // hit enough) while keeping it rare during ordinary play, especially
 // while a human/Rental Bot is still actively racing.
+//
+// A Rental-Bot-driven "you" ship ALSO gets this bonus (see the "you"
+// ship's own lives field below) — confirmed live as a real bug ("the
+// bot looks fake, it's killed many times"): a Rental Bot steers
+// through this exact same generic bot-AI branch as a genuine filler
+// bot, identical hazard avoidance and all, but used to run on only the
+// bare mode startLives with none of this buffer — so it died roughly
+// 2.5x more easily than a free filler bot doing the literal same
+// thing. There's nothing that makes "you" a worse AI driver than an
+// opponent seat once a Rental Bot is actually steering it.
 const BOT_LIVES_BONUS = 6;
 // Both the reporting side (an actively-playing human) and the polling
 // side (useLiveMatchState's refetchInterval) use this same cadence —
@@ -426,16 +436,27 @@ export function CoinRushArena({
     rank: 4,
     // Matches the "you" ship's own initial lives right below (spectate
     // mode never shows full health for a parked ship, see that
-    // doc-comment) — this is only what's on screen for the brief window
-    // before the first real update() tick, but a spectate mount
-    // shouldn't flash full health even for that instant.
-    lives: spectate ? 0 : diff.startLives + (loadout?.livesBonus ?? 0),
+    // doc-comment, and a Rental Bot's own BOT_LIVES_BONUS, see that
+    // constant's doc-comment) — this is only what's on screen for the
+    // brief window before the first real update() tick, but it should
+    // still match rather than visibly jump right after mount.
+    lives: spectate ? 0 : diff.startLives + (loadout?.livesBonus ?? 0) + (loadout?.rentalBot ? BOT_LIVES_BONUS : 0),
     youBanked: 0,
     youCarry: 0,
     board: [] as { name: string; color: string; isYou: boolean; carry: number; banked: number }[],
   });
   const [ended, setEnded] = useState(false);
-  const [countdown, setCountdown] = useState<number | "GO" | null>(3);
+  // Spectate mode skips the countdown entirely — confirmed live as a
+  // real bug ("the game ends and suddenly restarts"): the lobby page's
+  // showGame -> waitingForOthers transition genuinely mounts a fresh
+  // CoinRushArena instance (a different JSX branch, not a same-instance
+  // prop change), so the plain `3` default below replayed a full
+  // "3, 2, 1, Go" pre-match countdown for a race that's already well
+  // underway — jarring and easy to misread as the whole match having
+  // restarted from scratch. There's no "start" to count down to here;
+  // the match is already running elsewhere, this view is only ever
+  // watching it.
+  const [countdown, setCountdown] = useState<number | "GO" | null>(spectate ? null : 3);
 
   const gRef = useRef<{
     W: number; H: number; DPR: number;
@@ -579,7 +600,10 @@ export function CoinRushArena({
         // you'd genuinely died — 0 correctly reflects "your run is
         // over," matching the already-correct `active: false` right
         // next to it.
-        lives: spectate ? 0 : diff.startLives + (loadout?.livesBonus ?? 0), carry: 0, banked: 0, active: !spectate, invuln: 0, knockback: 0,
+        //
+        // A Rental Bot also gets BOT_LIVES_BONUS, same as any other
+        // AI-driven seat — see that constant's own doc-comment for why.
+        lives: spectate ? 0 : diff.startLives + (loadout?.livesBonus ?? 0) + (loadout?.rentalBot ? BOT_LIVES_BONUS : 0), carry: 0, banked: 0, active: !spectate, invuln: 0, knockback: 0,
         speed: 150 * diff.playerSpeedMult * (1 + (loadout?.speedMultBonus ?? 0)) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
         externallyDriven: false, oppSlot: null, isBot: false,
         shapeKey: loadout?.shapeKey ?? null,
@@ -1834,13 +1858,24 @@ export function CoinRushArena({
   // freezing g.running here for ~3s just means the countdown itself
   // eats a few seconds of the player's own effective run, exactly like
   // a countdown in any other real-time competitive game. This effect
-  // only ever runs once: every new match is a genuinely fresh mount of
-  // this component (mapSeed never changes on an already-mounted
-  // instance — see the callers), so the initial `useState(3)` above is
-  // the only "reset" this ever needs; the timers below just advance it
-  // from there, all inside setTimeout callbacks rather than the effect
-  // body itself.
+  // only ever runs once per actual match: every new match is a
+  // genuinely fresh mount of this component (mapSeed never changes on
+  // an already-mounted instance — see the callers), so the initial
+  // `useState(3)` above is the only "reset" this ever needs; the
+  // timers below just advance it from there, all inside setTimeout
+  // callbacks rather than the effect body itself.
+  //
+  // spectate is the one exception, and the one dependency this effect
+  // actually needs: there's no "start" to count down to when you're
+  // only watching a race that's already underway — skip straight to
+  // running (countdown's own initial state above is already null in
+  // that case, matching this immediately).
   useEffect(() => {
+    if (spectate) {
+      const gNow = gRef.current;
+      if (gNow) gNow.running = true;
+      return;
+    }
     const timers = [
       setTimeout(() => setCountdown(2), 800),
       setTimeout(() => setCountdown(1), 1600),
@@ -1852,7 +1887,7 @@ export function CoinRushArena({
       }, 3000),
     ];
     return () => timers.forEach(clearTimeout);
-  }, []);
+  }, [spectate]);
 
   // Base 5s duration / 14s cooldown — a POWERUP_MAGNET shop purchase
   // (loadout.magnetDurationBonusSec/magnetCooldownDeltaSec) extends the
@@ -1969,7 +2004,14 @@ export function CoinRushArena({
             accent="#ff6767"
             label={t("gameArena.yourRocketLabel")}
             value={youName}
-            sub={<LifeBar lives={hud.lives} total={diff.startLives + (loadout?.livesBonus ?? 0)} />}
+            // total must track the same bonus lives added to "you"'s
+            // own starting value above, or a Rental Bot's extra
+            // BOT_LIVES_BONUS lives render as invisible padding — every
+            // segment already shows lit (i < lives is true for the
+            // whole bar) until the real count drops back down to this
+            // total, so a hit taken during that buffer shows NO visual
+            // feedback at all, reading as even more "fake" than before.
+            sub={<LifeBar lives={hud.lives} total={diff.startLives + (loadout?.livesBonus ?? 0) + (loadout?.rentalBot ? BOT_LIVES_BONUS : 0)} />}
           />
         </div>
       </div>

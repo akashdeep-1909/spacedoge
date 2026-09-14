@@ -214,19 +214,34 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
     if (!lobby?.finalMatchId) return;
     lastScore.current = payload;
     setSubmitted(true);
-    const res = await submitResults.mutateAsync({ matchId: lobby.finalMatchId, ...payload });
-    if (res.status === "settled") {
-      setResult({
-        rank: res.rank,
-        score: res.score,
-        rewardUsdt: res.rewardUsdt,
-        blockedReason: res.blockedReason,
-        participants: res.participants,
-        pool: res.pool,
-      });
-      queryClient.invalidateQueries({ queryKey: ["balances"] });
-    } else {
-      setWaitingForOthers({ submitted: res.submitted, total: res.total });
+    try {
+      const res = await submitResults.mutateAsync({ matchId: lobby.finalMatchId, ...payload });
+      if (res.status === "settled") {
+        setResult({
+          rank: res.rank,
+          score: res.score,
+          rewardUsdt: res.rewardUsdt,
+          blockedReason: res.blockedReason,
+          participants: res.participants,
+          pool: res.pool,
+        });
+        queryClient.invalidateQueries({ queryKey: ["balances"] });
+      } else {
+        setWaitingForOthers({ submitted: res.submitted, total: res.total });
+      }
+    } catch {
+      // A dropped/failed request here used to leave `submitted` true
+      // forever with neither waitingForOthers nor result ever set —
+      // confirmed live as a real "stuck" case (see the render guard
+      // right above this component's showGame branch). lastScore.current
+      // already holds this exact payload, and the waitingForOthers poll
+      // effect below resubmits it (idempotent past a participant's own
+      // first successful submission — see results/route.ts) every 3s
+      // regardless of what triggered it, so handing off to that same
+      // retry loop here — rather than inventing a second one — is
+      // enough to self-heal once the network recovers, instead of
+      // needing a manual refresh.
+      setWaitingForOthers({ submitted: 0, total: 0 });
     }
   }
 
@@ -330,6 +345,30 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
             loadout={rosterData?.loadout}
           />
         </div>
+      </div>
+    );
+  }
+
+  // handleComplete (below) sets `submitted` synchronously and only
+  // learns whether we're waiting on others or already settled once its
+  // own await actually resolves — a real network round trip, not
+  // instant. Confirmed live as a real bug ("the game ends and suddenly
+  // restarts"): every branch below requires waitingForOthers or result
+  // to already be set, and the very first `if` above this one
+  // explicitly requires `!submitted` — so for however long that one
+  // request takes, NOTHING matches and rendering fell all the way
+  // through to this component's own default return far below: the
+  // pre-match lobby roster/"Starting match…" screen, which looks
+  // exactly like the whole match restarting from scratch. This closes
+  // that gap with the same spinner the waitingForOthers screen already
+  // uses, rather than an unrelated screen from a different phase
+  // entirely.
+  if (submitted && !waitingForOthers && !result) {
+    return (
+      <div className="game-panel hud-corner mx-auto max-w-sm rounded-2xl p-6 text-center">
+        <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-line border-t-gold" />
+        <h2 className="text-glow-gold text-2xl font-black">{t("lobby.waitingHeading")}</h2>
+        <p className="mt-2 text-sm text-muted">{t("lobby.waitingBody")}</p>
       </div>
     );
   }
