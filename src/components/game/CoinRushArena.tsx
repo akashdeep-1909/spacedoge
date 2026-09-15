@@ -146,17 +146,20 @@ const BOT_COLORS = ["#3cc4ff", "#4af4af", "#ff7a7a"];
 // allShipsDown around 18s into a 60s match without this buffer. This
 // keeps total elimination genuinely possible ("slowly die... also," if
 // hit enough) while keeping it rare during ordinary play, especially
-// while a human/Rental Bot is still actively racing.
+// while a human is still actively racing.
 //
-// A Rental-Bot-driven "you" ship ALSO gets this bonus (see the "you"
-// ship's own lives field below) — confirmed live as a real bug ("the
-// bot looks fake, it's killed many times"): a Rental Bot steers
-// through this exact same generic bot-AI branch as a genuine filler
-// bot, identical hazard avoidance and all, but used to run on only the
-// bare mode startLives with none of this buffer — so it died roughly
-// 2.5x more easily than a free filler bot doing the literal same
-// thing. There's nothing that makes "you" a worse AI driver than an
-// opponent seat once a Rental Bot is actually steering it.
+// Deliberately NEVER applied to a Rental-Bot-driven "you" ship (see the
+// "you" ship's own lives field below) — confirmed live as a real bug
+// the OTHER direction from what an earlier pass here assumed: a player
+// who never bought STAT_HEALTH was still getting +6 lives "for free"
+// the moment they equipped a Rental Bot, which is exactly the kind of
+// unpurchased stat boost this shop is built to never hand out. "You"
+// only ever gets more lives than the mode's own startLives through an
+// actually-purchased STAT_HEALTH item (loadout.livesBonus), Rental Bot
+// or not — same rule a manually-played human follows. The Rental Bot's
+// own survivability improvement instead comes from genuinely smarter
+// play (see the rentalBotActive-specific targeting/banking/hazard-
+// alert tuning inside the bot-AI branch below), not a free stat.
 const BOT_LIVES_BONUS = 6;
 // Both the reporting side (an actively-playing human) and the polling
 // side (useLiveMatchState's refetchInterval) use this same cadence —
@@ -436,11 +439,13 @@ export function CoinRushArena({
     rank: 4,
     // Matches the "you" ship's own initial lives right below (spectate
     // mode never shows full health for a parked ship, see that
-    // doc-comment, and a Rental Bot's own BOT_LIVES_BONUS, see that
-    // constant's doc-comment) — this is only what's on screen for the
-    // brief window before the first real update() tick, but it should
-    // still match rather than visibly jump right after mount.
-    lives: spectate ? 0 : diff.startLives + (loadout?.livesBonus ?? 0) + (loadout?.rentalBot ? BOT_LIVES_BONUS : 0),
+    // doc-comment) — this is only what's on screen for the brief
+    // window before the first real update() tick, but it should still
+    // match rather than visibly jump right after mount. Deliberately
+    // NOT bumped for a Rental Bot — see BOT_LIVES_BONUS's own
+    // doc-comment for why "you" only ever gets more lives than the
+    // mode's base through an actually-purchased STAT_HEALTH item.
+    lives: spectate ? 0 : diff.startLives + (loadout?.livesBonus ?? 0),
     youBanked: 0,
     youCarry: 0,
     board: [] as { name: string; color: string; isYou: boolean; carry: number; banked: number }[],
@@ -601,9 +606,12 @@ export function CoinRushArena({
         // over," matching the already-correct `active: false` right
         // next to it.
         //
-        // A Rental Bot also gets BOT_LIVES_BONUS, same as any other
-        // AI-driven seat — see that constant's own doc-comment for why.
-        lives: spectate ? 0 : diff.startLives + (loadout?.livesBonus ?? 0) + (loadout?.rentalBot ? BOT_LIVES_BONUS : 0), carry: 0, banked: 0, active: !spectate, invuln: 0, knockback: 0,
+        // Deliberately NOT bumped by BOT_LIVES_BONUS for a Rental Bot —
+        // see that constant's own doc-comment. "You" only ever gets
+        // more lives than the mode's base through an actually-purchased
+        // STAT_HEALTH item, exactly like a manually-played human;
+        // equipping a Rental Bot alone grants nothing extra here.
+        lives: spectate ? 0 : diff.startLives + (loadout?.livesBonus ?? 0), carry: 0, banked: 0, active: !spectate, invuln: 0, knockback: 0,
         speed: 150 * diff.playerSpeedMult * (1 + (loadout?.speedMultBonus ?? 0)) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
         externallyDriven: false, oppSlot: null, isBot: false,
         shapeKey: loadout?.shapeKey ?? null,
@@ -1061,10 +1069,47 @@ export function CoinRushArena({
           // truth for this ship.
           continue;
         } else {
-          const wantBank = s.carry >= 55 || (g.bankZone.open && s.carry >= 20 && dist(s, g.bankZone) < 220 * DPR);
+          // s.isYou is only reachable in this branch at all when
+          // rentalBotActive is true (the other branch above handles a
+          // manually-played "you"), so it uniquely picks out the
+          // Rental-Bot-driven ship here — never a filler bot or a real
+          // friend. Deliberately more disciplined than the flat filler-
+          // bot thresholds below: banks sooner (locks in points instead
+          // of risking a big carry to one hit) — real skill, not a
+          // stat, is the actual fix for "the bot looks fake, killed
+          // many times" now that BOT_LIVES_BONUS no longer applies here
+          // (see that constant's own doc-comment) — filler bots'
+          // thresholds are untouched.
+          const wantBank = s.isYou
+            ? s.carry >= 35 || (g.bankZone.open && s.carry >= 12 && dist(s, g.bankZone) < 240 * DPR)
+            : s.carry >= 55 || (g.bankZone.open && s.carry >= 20 && dist(s, g.bankZone) < 220 * DPR);
           let tx = s.x, ty = s.y;
           if (wantBank) { tx = g.bankZone.x; ty = g.bankZone.y; }
-          else {
+          else if (s.isYou) {
+            // Value-aware, not just nearest — the same edge an
+            // attentive player has over grabbing whatever's physically
+            // closest (a gold coin two steps further beats a bronze one
+            // step away). Hazard avoidance below still bends the actual
+            // path around anything dangerous regardless of which item
+            // this picks.
+            //
+            // dogecore carries it.value === 0 (it's a pickup that grants
+            // "you" a 6s 2x multiplier on whatever's collected next, see
+            // the pickup loop's own g.dogeCoreT/mult logic — never a
+            // coin amount itself), so scoring it by raw value would make
+            // a "smarter" bot ignore the single most valuable pickup on
+            // the field entirely. scoreValue substitutes a deliberately
+            // high heuristic stand-in (above even "cash") only for
+            // ranking which item to head toward — never touches the
+            // real value actually credited on pickup.
+            let best: ItemEntity | null = null, bestScore = -Infinity;
+            for (const it of g.items) {
+              const scoreValue = it.kind === "dogecore" ? 18 : it.value;
+              const score = scoreValue / (dist(s, it) + 30 * DPR);
+              if (score > bestScore) { bestScore = score; best = it; }
+            }
+            if (best) { tx = best.x; ty = best.y; }
+          } else {
             let best: ItemEntity | null = null, bestD = Infinity;
             for (const it of g.items) { const d = dist(s, it); if (d < bestD) { bestD = d; best = it; } }
             if (best) { tx = best.x; ty = best.y; }
@@ -1088,29 +1133,38 @@ export function CoinRushArena({
           // a hazard is genuinely close bends much harder than the
           // early, gentle lean-away does) rather than only a flat
           // proportional push the whole time.
+          //
+          // hazardAlertMult only widens s.isYou's own radii (a Rental
+          // Bot notices a hazard a little sooner than a filler bot or
+          // an average player would, same "genuinely smarter, not
+          // stat-boosted" reasoning as the targeting/banking above) —
+          // 1 everywhere else, so a filler bot's own avoidance is
+          // completely unchanged.
+          const hazardAlertMult = s.isYou ? 1.2 : 1;
           let avoidX = 0, avoidY = 0;
           for (const h of g.hunters) {
             const dx = s.x - h.x, dy = s.y - h.y, d = Math.hypot(dx, dy) || 1;
-            const R = 135 * DPR;
+            const R = 135 * DPR * hazardAlertMult;
             if (d < R) { const push = (R - d) + panic(d, R) * R * 1.6; avoidX += (dx / d) * push; avoidY += (dy / d) * push; }
           }
           for (const m of g.mines) {
             const dx = s.x - m.x, dy = s.y - m.y, d = Math.hypot(dx, dy) || 1;
-            const R = 100 * DPR;
+            const R = 100 * DPR * hazardAlertMult;
             if (d < R) { const push = (R - d) + panic(d, R) * R * 1.6; avoidX += (dx / d) * push; avoidY += (dy / d) * push; }
           }
           for (const dsh of g.dashers) {
             const ddx = s.x - dsh.x, ddy = s.y - dsh.y, dd = Math.hypot(ddx, ddy) || 1;
-            const R = 165 * DPR;
+            const R = 165 * DPR * hazardAlertMult;
             if (dd < R) { const push = (R - dd) + panic(dd, R) * R * 1.6; avoidX += (ddx / dd) * push; avoidY += (ddy / dd) * push; }
             // Already aiming at someone and about to charge — lean away
             // from that telegraphed line specifically, not just the
             // dasher's current position, since by the time it actually
             // dashes it'll have covered real ground along that exact
             // direction.
-            if (dsh.state === "aim" && dd < 260 * DPR) {
-              avoidX += -dsh.dirX * (260 * DPR - dd) * 0.7;
-              avoidY += -dsh.dirY * (260 * DPR - dd) * 0.7;
+            const aimR = 260 * DPR * hazardAlertMult;
+            if (dsh.state === "aim" && dd < aimR) {
+              avoidX += -dsh.dirX * (aimR - dd) * 0.7;
+              avoidY += -dsh.dirY * (aimR - dd) * 0.7;
             }
           }
           const dx = (tx - s.x) + avoidX * 2.8, dy = (ty - s.y) + avoidY * 2.8;
@@ -2004,14 +2058,11 @@ export function CoinRushArena({
             accent="#ff6767"
             label={t("gameArena.yourRocketLabel")}
             value={youName}
-            // total must track the same bonus lives added to "you"'s
-            // own starting value above, or a Rental Bot's extra
-            // BOT_LIVES_BONUS lives render as invisible padding — every
-            // segment already shows lit (i < lives is true for the
-            // whole bar) until the real count drops back down to this
-            // total, so a hit taken during that buffer shows NO visual
-            // feedback at all, reading as even more "fake" than before.
-            sub={<LifeBar lives={hud.lives} total={diff.startLives + (loadout?.livesBonus ?? 0) + (loadout?.rentalBot ? BOT_LIVES_BONUS : 0)} />}
+            // total must track the same value added to "you"'s own
+            // starting lives above — a purchased STAT_HEALTH bonus,
+            // nothing from Rental Bot itself (see BOT_LIVES_BONUS's own
+            // doc-comment).
+            sub={<LifeBar lives={hud.lives} total={diff.startLives + (loadout?.livesBonus ?? 0)} />}
           />
         </div>
       </div>
