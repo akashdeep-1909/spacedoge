@@ -461,7 +461,17 @@ export function CoinRushArena({
   // restarted from scratch. There's no "start" to count down to here;
   // the match is already running elsewhere, this view is only ever
   // watching it.
-  const [countdown, setCountdown] = useState<number | "GO" | null>(spectate ? null : 3);
+  //
+  // Also skipped whenever startElapsedSec already covers the whole
+  // match (a resumed/refreshed solo match well past its own duration —
+  // e.g. a settle request that failed silently and left the page stuck
+  // on "TIME'S UP", then got refreshed) — same reasoning as spectate:
+  // replaying a fresh countdown (ships back at spawn, a brand-new "3,
+  // 2, 1, Go") for a match that's already over reads exactly like the
+  // whole thing restarting, right before it immediately re-hits
+  // g.time <= 0 anyway.
+  const skipCountdown = spectate || startElapsedSec >= durationSec;
+  const [countdown, setCountdown] = useState<number | "GO" | null>(skipCountdown ? null : 3);
 
   const gRef = useRef<{
     W: number; H: number; DPR: number;
@@ -1942,13 +1952,14 @@ export function CoinRushArena({
   // timers below just advance it from there, all inside setTimeout
   // callbacks rather than the effect body itself.
   //
-  // spectate is the one exception, and the one dependency this effect
-  // actually needs: there's no "start" to count down to when you're
-  // only watching a race that's already underway — skip straight to
-  // running (countdown's own initial state above is already null in
-  // that case, matching this immediately).
+  // skipCountdown (see its own doc-comment above) is the one exception,
+  // and the one dependency this effect actually needs: there's no
+  // "start" to count down to when you're only watching a race that's
+  // already underway, or resuming/refreshing one that's already fully
+  // elapsed — skip straight to running (countdown's own initial state
+  // above is already null in that case, matching this immediately).
   useEffect(() => {
-    if (spectate) {
+    if (skipCountdown) {
       const gNow = gRef.current;
       if (gNow) gNow.running = true;
       return;
@@ -1964,7 +1975,7 @@ export function CoinRushArena({
       }, 3000),
     ];
     return () => timers.forEach(clearTimeout);
-  }, [spectate]);
+  }, [skipCountdown]);
 
   // Base 5s duration / 14s cooldown — a POWERUP_MAGNET shop purchase
   // (loadout.magnetDurationBonusSec/magnetCooldownDeltaSec) extends the

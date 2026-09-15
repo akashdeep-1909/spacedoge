@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -126,6 +126,17 @@ function PlayFlow() {
   const { data: modesData, isLoading: modesLoading } = useGameModes();
   const { data: activeMatch } = useActiveMatch();
 
+  // Guards handleComplete's own retry loop (below) against updating
+  // state after this component has already unmounted (the player
+  // navigated away while a settle retry was still in flight).
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   function resumeMatch() {
     if (activeMatch?.type !== "match") return;
     const startedAtMs = new Date(activeMatch.startedAt).getTime();
@@ -199,16 +210,43 @@ function PlayFlow() {
 
   async function handleComplete(payload: { score: number; durationPlayedSec: number }) {
     if (!match) return;
-    const res = await fetch(`/api/matches/${match.matchId}/settle`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const body = await res.json();
-    setResult({ ...body, modeLabel: match.modeLabel });
-    setMatch(null);
-    queryClient.invalidateQueries({ queryKey: ["balances"] });
-    queryClient.invalidateQueries({ queryKey: ["active-match"] });
+    const matchId = match.matchId;
+    const modeLabel = match.modeLabel;
+    // Retries (with a growing backoff, capped at 30s) instead of a
+    // single unguarded attempt — confirmed live as a real bug ("stuck
+    // on the TIME'S UP screen forever, refreshing restarts the whole
+    // match"): CoinRushArena's own finish() has already set ended=true
+    // and shown "TIME'S UP — Finalizing the match…" by the time this
+    // even runs, so a single dropped/failed request here — no try/catch
+    // at all before this fix — left that screen up permanently with no
+    // recovery; nothing else was ever going to move it forward. This is
+    // the one-shot solo-play equivalent of the lobby page's own
+    // waitingForOthers retry-every-3s poll (same self-healing idea,
+    // just for a route that only ever needs ONE successful call, not a
+    // whole room's worth). isMountedRef guards against updating state
+    // after the player has already navigated away mid-retry.
+    let delayMs = 2000;
+    for (;;) {
+      try {
+        const res = await fetch(`/api/matches/${matchId}/settle`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body?.error ?? "Failed to settle match");
+        if (!isMountedRef.current) return;
+        setResult({ ...body, modeLabel });
+        setMatch(null);
+        queryClient.invalidateQueries({ queryKey: ["balances"] });
+        queryClient.invalidateQueries({ queryKey: ["active-match"] });
+        return;
+      } catch {
+        await new Promise((r) => setTimeout(r, delayMs));
+        if (!isMountedRef.current) return;
+        delayMs = Math.min(delayMs * 1.5, 30000);
+      }
+    }
   }
 
   // Quitting reports a 0 score immediately, settling the match as a
