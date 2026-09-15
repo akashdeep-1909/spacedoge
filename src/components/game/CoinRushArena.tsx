@@ -1371,6 +1371,18 @@ export function CoinRushArena({
         const wobbleX = Math.cos(h.phase) * 12 * DPR, wobbleY = Math.sin(h.phase) * 12 * DPR;
         h.x += ((dx / d) * h.speed * speedFactor + wobbleX) * dt;
         h.y += ((dy / d) * h.speed * speedFactor + wobbleY) * dt;
+        // Checks every ship against this hazard's CURRENT position
+        // before relocating it — confirmed live as a real bug: the old
+        // `break` on the first hit relocated the hazard immediately, so
+        // two ships genuinely overlapping the same point (a common,
+        // reported case — everyone spawns/banks at the same spots) only
+        // ever had the FIRST one in ship order actually take the hit;
+        // the second, equally exposed ship took nothing, purely because
+        // of array position, not anything about either ship. Relocating
+        // once after checking everyone (not per-ship) keeps a single
+        // hazard's own "it moves away once it lands a hit" behavior
+        // exactly as before for the ordinary one-ship case.
+        let anyContact = false;
         for (const s of g.ships) {
           // A spectated real opponent's lives/carry already come
           // verbatim from their own polled report — this local hazard
@@ -1379,10 +1391,10 @@ export function CoinRushArena({
           if (!s.active || s.externallyDriven) continue;
           if (dist(s, h) < s.r + h.r + 2 * DPR) {
             hitShip(s, hunterCarryPenalty, (s.x - h.x) * 1.1, (s.y - h.y) * 1.1, "#ff6767");
-            const p = randPointInPlay(); h.x = p.x; h.y = p.y;
-            break;
+            anyContact = true;
           }
         }
+        if (anyContact) { const p = randPointInPlay(); h.x = p.x; h.y = p.y; }
       }
 
       for (const dsh of g.dashers) {
@@ -1411,14 +1423,21 @@ export function CoinRushArena({
           if (dsh.y < TOP_MARGIN || dsh.y > g.H - BOTTOM_MARGIN) dsh.vy *= -1;
           dsh.x = clamp(dsh.x, 18 * DPR, g.W - 18 * DPR);
           dsh.y = clamp(dsh.y, TOP_MARGIN, g.H - BOTTOM_MARGIN);
+          // See the hunters loop's identical fix above — checks every
+          // ship before relocating/resetting to "aim", instead of
+          // `break`-ing after the first one and leaving a second ship
+          // standing in the exact same spot untouched.
+          let anyContact = false;
           for (const s of g.ships) {
             if (!s.active || s.externallyDriven) continue; // see the hunters loop's identical guard above
             if (dist(s, dsh) < s.r + dsh.r + 2 * DPR) {
               hitShip(s, dasherCarryPenalty, dsh.vx * 0.12, dsh.vy * 0.12, "#d8ecff");
-              const p = randPointInPlay(); dsh.x = p.x; dsh.y = p.y;
-              dsh.state = "aim"; dsh.timer = 1.1 + g.rand() * 1.3;
-              break;
+              anyContact = true;
             }
+          }
+          if (anyContact) {
+            const p = randPointInPlay(); dsh.x = p.x; dsh.y = p.y;
+            dsh.state = "aim"; dsh.timer = 1.1 + g.rand() * 1.3;
           }
           if (dsh.timer <= 0) { dsh.state = "aim"; dsh.timer = 1.1 + g.rand() * 1.3; }
         }
@@ -1432,15 +1451,19 @@ export function CoinRushArena({
         if (m.y < TOP_MARGIN || m.y > g.H - BOTTOM_MARGIN) m.vy *= -1;
         m.x = clamp(m.x, 24 * DPR, g.W - 24 * DPR);
         m.y = clamp(m.y, TOP_MARGIN, g.H - BOTTOM_MARGIN);
+        // See the hunters loop's identical fix above.
+        let anyContact = false;
         for (const s of g.ships) {
           if (!s.active || s.externallyDriven) continue; // see the hunters loop's identical guard above
           if (dist(s, m) < s.r + m.r + 1 * DPR) {
             hitShip(s, mineCarryPenalty, (s.x - m.x) * 1.6, (s.y - m.y) * 1.6, "#f4c15d");
-            addParticles(m.x, m.y, "#f4c15d", 20);
-            const p = randPointInPlay(); m.x = p.x; m.y = p.y;
-            m.vx = (g.rand() - 0.5) * 56 * DPR; m.vy = (g.rand() - 0.5) * 56 * DPR;
-            break;
+            anyContact = true;
           }
+        }
+        if (anyContact) {
+          addParticles(m.x, m.y, "#f4c15d", 20);
+          const p = randPointInPlay(); m.x = p.x; m.y = p.y;
+          m.vx = (g.rand() - 0.5) * 56 * DPR; m.vy = (g.rand() - 0.5) * 56 * DPR;
         }
       }
 
