@@ -11,6 +11,9 @@ const reportSchema = z.object({
   banked: z.number().min(0),
   lives: z.number().int().min(0),
   alive: z.boolean(),
+  shield: z.boolean(),
+  magnet: z.boolean(),
+  fire: z.boolean(),
 });
 
 // POST /api/matches/[id]/live-state — an actively-racing human's own

@@ -75,24 +75,26 @@ interface ShipEntity {
   active: boolean; invuln: number; knockback: number;
   speed: number;
   magnet: number; shield: number; boost: number; fire: number;
-  // Spectate mode only (see the `spectate` prop): true for a ship that
-  // mirrors a real opponent's own client via polled live-state instead
-  // of running local bot AI — see the update() branch below and
-  // src/lib/liveMatchState.ts. oppSlot is that opponent's real
+  // True for a ship that mirrors a real opponent's own client via
+  // polled live-state instead of running local bot AI — see the
+  // update() branch below and src/lib/liveMatchState.ts. True for
+  // every real (non-bot) opponent seat during active play AND
+  // spectate now, not spectate-only (see the `liveOpponents` prop's
+  // own doc-comment for why). oppSlot is that opponent's real
   // MatchParticipant.slotNumber (the key live-state is reported/polled
   // under), or null for "you" and for true local bots.
   externallyDriven: boolean;
   oppSlot: number | null;
   // True for an actual AI-filled seat, false for a real human (you or
   // any other real participant) — distinct from externallyDriven,
-  // which is only ever true while spectating. During normal LIVE play
-  // every non-you ship still runs local bot AI regardless of whether
-  // its seat is a real friend or an AI fill (see the update() branch's
-  // own doc-comment), so this is the one thing that still tells
-  // hitShip() apart: a genuine bot's local sim is purely cosmetic and
-  // should never actually go inactive (see hitShip's own doc-comment),
-  // but a real friend's ship shouldn't get that same immortality just
-  // because it happens to be locally simulated too. Always true for
+  // which now tracks isBot's own negation almost exactly (every real
+  // opponent seat is externally driven, active play or spectate); the
+  // two only ever diverge for "you", which is never externallyDriven
+  // even when isBot is false. Kept as its own field because it's what
+  // hitShip() actually needs: a genuine bot's local sim is purely
+  // cosmetic and should never actually go inactive (see hitShip's own
+  // doc-comment), but a real friend's ship shouldn't get that same
+  // immortality just because it's also locally rendered here. Always true for
   // every non-you ship in solo/instant play (no `opponents` prop at
   // all — every seat there really is a bot).
   isBot: boolean;
@@ -336,7 +338,15 @@ export function CoinRushArena({
   // instead of at 0, so the remaining time on screen matches what the
   // server already considers elapsed.
   startElapsedSec?: number;
-  onComplete: (result: { score: number; durationPlayedSec: number }) => void;
+  // died: true whenever the human's own ship ran out of lives before
+  // this run ended (whether the match kept going for others after
+  // that, or ended at the same moment via allShipsDown) — see finish()
+  // for how it's derived and why it skips straight to reporting the
+  // result with no overlay/pause in that case. Lets a lobby-match
+  // caller skip its own post-finish "spectate the others live" view
+  // for a player who already died instead of only ever watching their
+  // own empty ship sit parked at 0 lives.
+  onComplete: (result: { score: number; durationPlayedSec: number; died: boolean }) => void;
   fullscreen?: boolean;
   missionTitle: string;
   prizePoolUsdt: number;
@@ -348,8 +358,9 @@ export function CoinRushArena({
   // ordered to match the ship slots below. Omitted entirely for
   // solo/instant-play (always vs bots), which falls back to the
   // seeded bot-pool name for every seat as before. slotNumber is each
-  // seat's real MatchParticipant.slotNumber — needed in spectate mode
-  // to key into liveOpponents; unused otherwise. shapeKey/colorHex are
+  // seat's real MatchParticipant.slotNumber — needed to key into
+  // liveOpponents (both during active play and spectate now — see
+  // that prop's own doc-comment); unused otherwise. shapeKey/colorHex are
   // that seat's own equipped ROCKET_SHAPE cosmetic (null if nothing
   // equipped, or for a bot) — confirmed live as a real gap: without
   // these, every non-you ship always rendered the default look
@@ -364,13 +375,29 @@ export function CoinRushArena({
   matchId?: string;
   // True only for the post-finish "watch the others live" view (see
   // the lobby page's waitingForOthers render). Ship 0 ("you") never
-  // takes input and stays parked; any of ships 1-3 that correspond to
-  // a real (non-bot) opponent are driven by liveOpponents instead of
-  // local bot AI. Bots need no live data — they're already deterministic
-  // from the shared mapSeed, so every spectator reproduces them locally.
+  // takes input and stays parked in that view. Any of ships 1-3 that
+  // correspond to a real (non-bot) opponent are driven by
+  // liveOpponents instead of local bot AI regardless of spectate —
+  // see that prop's own doc-comment. Bots need no live data — they're
+  // already deterministic from the shared mapSeed, so every viewer
+  // reproduces them locally and identically with no sync needed.
   spectate?: boolean;
-  // Polled snapshot (see useLiveMatchState), keyed by the real
-  // opponent's slotNumber — only read while spectate is true.
+  // Polled snapshot (see useLiveMatchState) of every OTHER real
+  // player's own latest reported position/carry/lives/shield/magnet/
+  // fire, keyed by their MatchParticipant.slotNumber. Confirmed wanted
+  // live: previously only read while spectate was true, so two real
+  // friends actively racing each other each saw the OTHER'S ship
+  // driven by a local bot-AI guess, not the other player's actual
+  // moves — could never see a friend's real shield/fire in real time
+  // during active play, only after someone finished and switched to
+  // spectating. The lobby page now polls this during active play too
+  // (see its own doc-comment on the hook call), so every real
+  // opponent's ship — active play or spectate — reflects their actual
+  // reported state. A ship whose slot has no sample yet (the sub-
+  // second gap right after the match starts, before its owner's first
+  // report lands) just holds still at spawn until one arrives, rather
+  // than falling back to a local guess that would only ever diverge
+  // from the truth once real data exists.
   liveOpponents?: Record<number, LiveShipSample>;
   // Coin Rush Shop — resolved SERVER-SIDE by POST /api/matches (echoed
   // straight back in its own response, see src/lib/shop.ts
@@ -450,7 +477,25 @@ export function CoinRushArena({
     youCarry: 0,
     board: [] as { name: string; color: string; isYou: boolean; carry: number; banked: number }[],
   });
-  const [ended, setEnded] = useState(false);
+  // Confirmed live as a real bug: the lobby page's showGame ->
+  // waitingForOthers transition (see skipCountdown's own doc-comment
+  // right below) genuinely unmounts this whole component while your
+  // own finish() -> onComplete -> submitResults round trip is in
+  // flight (the parent renders an unrelated CoinRushArena-less spinner
+  // screen for that beat — see LobbyPage's "submitted &&
+  // !waitingForOthers && !result" branch), so a hardcoded `false` here
+  // meant the freshly-remounted spectate instance always forgot the
+  // match had already hit TIME'S UP moments earlier: it flashed back
+  // into full live gameplay plus the "spectating, waiting for other
+  // racers" banner, then re-discovered g.time <= 0 a beat later and
+  // showed TIME'S UP a second time — reading exactly like the match
+  // paused and restarted right after it had already ended. Same fix
+  // as skipCountdown, and for the same reason: if the real,
+  // server-authoritative match clock (startElapsedSec vs durationSec)
+  // already says time's up by the moment THIS instance mounts, there's
+  // nothing left to play — start already-ended instead of replaying a
+  // beat of gameplay that's just going to immediately re-end anyway.
+  const [ended, setEnded] = useState(startElapsedSec >= durationSec);
   // Spectate mode skips the countdown entirely — confirmed live as a
   // real bug ("the game ends and suddenly restarts"): the lobby page's
   // showGame -> waitingForOthers transition genuinely mounts a fresh
@@ -472,6 +517,34 @@ export function CoinRushArena({
   // g.time <= 0 anyway.
   const skipCountdown = spectate || startElapsedSec >= durationSec;
   const [countdown, setCountdown] = useState<number | "GO" | null>(skipCountdown ? null : 3);
+  // Read by the setup effect below (which can't safely list `countdown`
+  // itself as a dependency — that would re-run the whole effect, tearing
+  // down and rebuilding the match, every time the countdown ticks) to
+  // decide a freshly-built `g`'s own initial `running` value. Defense in
+  // depth: only the countdown effect (a SEPARATE effect, dependent only
+  // on skipCountdown) is normally responsible for ever setting
+  // g.running = true, once per mount. Confirmed live as a real, severe
+  // bug: if the setup effect ever re-runs on an ALREADY-mounted instance
+  // for any reason OTHER than the one legitimate case that also changes
+  // skipCountdown (the play->spectate transition) — e.g., an unrelated
+  // prop like `startElapsedSec` recomputing from an unexpected lobby
+  // refetch mid-match — the countdown effect has no reason to re-run
+  // (its own dependency, skipCountdown, is unchanged), so nothing EVER
+  // sets the freshly-rebuilt g.running back to true: the match freezes
+  // completely and permanently, ships motionless, mission clock frozen,
+  // not even reaching "TIME'S UP" — confirmed live by directly
+  // inspecting gRef.current.running (stuck false) and the mission clock
+  // (provably not advancing over several real seconds) after forcing
+  // exactly this kind of mid-match re-run. Seeding a fresh g as already
+  // running whenever the countdown has already completed once before
+  // (never true on a GENUINE first mount, always true after the first
+  // completed countdown) closes that regardless of what triggers the
+  // re-run, on top of removing the specific trigger this was chasing
+  // (see useLobby's own refetchOnWindowFocus doc-comment).
+  const countdownAlreadyDoneRef = useRef(skipCountdown);
+  useEffect(() => {
+    if (countdown === null) countdownAlreadyDoneRef.current = true;
+  }, [countdown]);
 
   const gRef = useRef<{
     W: number; H: number; DPR: number;
@@ -628,12 +701,22 @@ export function CoinRushArena({
       },
       ...botNames.map((name, i) => {
         const opp = opponents?.[i];
-        // Only while actually spectating does a real opponent's ship
-        // hand its movement over to polled live data — during normal
-        // play (spectate false) every non-you ship still runs local bot
-        // AI regardless of whether the seat is a real human or a bot,
-        // exactly as before this feature existed.
-        const externallyDriven = spectate && !!opp && !opp.isBot && opp.slotNumber != null;
+        // A real friend's ship hands its movement over to polled live
+        // data (see liveOpponents' own doc-comment — the lobby page now
+        // polls this during active play too, not just post-finish
+        // spectate, so every player sees every other real player's
+        // actual actions instead of a local guess). Computed purely
+        // from the roster, not from whether a live sample has actually
+        // arrived yet: the update loop below already leaves an
+        // externally-driven ship parked at spawn for the sub-second gap
+        // before its first sample lands (see s.externallyDriven's own
+        // handling), which is far less disruptive than baking in
+        // whatever liveOpponents happened to be on this one render. A
+        // genuine filler bot (isBot true) is never externally driven —
+        // it's already deterministic from the shared mapSeed, so local
+        // AI reproduces it identically on every viewer with no sync
+        // needed at all.
+        const externallyDriven = !!opp && !opp.isBot && opp.slotNumber != null;
         // opp is only ever absent in solo/instant play, where every
         // seat really is a bot — see isBot's own doc-comment above.
         const isBot = opp ? opp.isBot : true;
@@ -729,14 +812,23 @@ export function CoinRushArena({
     const g: NonNullable<typeof gRef.current> = {
       W, H, DPR,
       time: Math.max(0, durationSec - startElapsedSec),
-      // Starts frozen — the pre-match "3, 2, 1, Go" countdown effect
-      // below flips this to true once it finishes. update() bails out
-      // immediately while this is false (see its own doc-comment), so
-      // the loop keeps rendering the static starting scene (ships,
-      // hazards, HUD) every frame without anything actually moving or
-      // the mission clock ticking down — a real pause, not a cosmetic
-      // overlay on top of a game that's already secretly running.
-      running: false,
+      // Starts frozen UNLESS the countdown has already genuinely
+      // completed once before (countdownAlreadyDoneRef, see its own
+      // doc-comment above) — the normal case is still "false," flipped
+      // to true once the pre-match "3, 2, 1, Go" countdown effect below
+      // finishes for the first time. update() bails out immediately
+      // while this is false (see its own doc-comment), so the loop
+      // keeps rendering the static starting scene (ships, hazards, HUD)
+      // every frame without anything actually moving or the mission
+      // clock ticking down — a real pause, not a cosmetic overlay on
+      // top of a game that's already secretly running. But if THIS
+      // effect re-runs on an already-past-its-countdown instance (see
+      // countdownAlreadyDoneRef's own doc-comment for the real bug this
+      // closes), the countdown effect has no reason to fire again, so
+      // nothing else would ever flip a freshly-built g back to running
+      // — starting it already-running here instead is what stops that
+      // from being a permanent freeze.
+      running: countdownAlreadyDoneRef.current,
       elapsed: startElapsedSec,
       rand,
       pointer: { x: SPAWN_X, y: SPAWN_Y, active: false },
@@ -944,12 +1036,13 @@ export function CoinRushArena({
       you.boost = Math.max(0, you.boost - dt);
       you.fire = Math.max(0, you.fire - dt);
 
-      // Live-position reporting (spectate feature) — an actively-racing
-      // human fire-and-forget reports its own ship's position/carry/
-      // lives every ~350ms so anyone who's already finished can watch
-      // this run live (see the externallyDriven branch below and
-      // src/lib/liveMatchState.ts). Never fires in spectate mode itself
-      // (you.active is already false there) or for solo/instant-play
+      // Live-position reporting — an actively-racing human fire-and-
+      // forget reports its own ship's position/carry/lives every ~350ms
+      // so every other real participant can see this run live, whether
+      // they're still actively racing themselves or have already
+      // finished and are watching (see the externallyDriven branch
+      // below and src/lib/liveMatchState.ts). Never fires in spectate
+      // mode itself (you.active is already false there) or for solo/instant-play
       // (matchId is never passed).
       //
       // Confirmed live as a real bug: this used to be flatly gated on
@@ -978,6 +1071,9 @@ export function CoinRushArena({
             banked: Math.floor(you.banked),
             lives: Math.max(0, you.lives),
             alive: you.active,
+            shield: you.shield > 0,
+            magnet: you.magnet > 0,
+            fire: you.fire > 0,
           });
         }
       }
@@ -1008,6 +1104,29 @@ export function CoinRushArena({
         s.invuln = Math.max(0, s.invuln - dt);
         s.knockback = Math.max(0, s.knockback - dt);
         if (!s.active) continue; // out of lives — done for the match, no respawn
+        // A real opponent's live channel takes a few real seconds to
+        // produce its first sample — their OWN client's pre-match
+        // countdown has to finish before they report anything at all
+        // (see the reporting block's own g.running gate above), plus
+        // one report/poll round trip after that. Confirmed live as a
+        // real regression once externallyDriven stopped being
+        // spectate-only: that ship sat frozen at spawn for those first
+        // few seconds instead of moving at all, which reads as broken
+        // — worse than the old always-local-bot-AI behavior it
+        // replaced. Buffering the sample here (rather than inside the
+        // branch below) lets `hasLiveSample` gate on whether one has
+        // actually arrived yet: falls through to the exact same local
+        // bot AI that used to drive this ship as a bridge for that gap,
+        // then switches over the instant real data exists — same
+        // pattern as a bot's local sim, just temporary.
+        const hasLiveSample = s.externallyDriven && (() => {
+          const sample = s.oppSlot != null ? liveOpponentsRef.current?.[s.oppSlot] : undefined;
+          const buf = g.liveBuffers.get(s.oppSlot!);
+          if (sample && (!buf || sample.updatedAt > buf.to.updatedAt)) {
+            g.liveBuffers.set(s.oppSlot!, { from: buf?.to ?? sample, to: sample, toReceivedAt: performance.now() });
+          }
+          return g.liveBuffers.has(s.oppSlot!);
+        })();
         let ax = 0, ay = 0;
         if (s.isYou && !rentalBotActive) {
           // Default is drag-anywhere-to-steer (aim at the drag point) —
@@ -1047,38 +1166,46 @@ export function CoinRushArena({
           } else {
             s.vx *= 0.85; s.vy *= 0.85;
           }
-        } else if (s.externallyDriven) {
-          // Real opponent, spectate mode — driven by polled live-state
-          // instead of local AI. Buffer the last 2 samples and lerp
-          // between them over the poll interval so motion doesn't snap
-          // every ~350ms; carry/banked/lives/alive are just numbers on a
-          // HUD card, so those snap straight to the latest known sample
-          // rather than being interpolated too.
-          const sample = s.oppSlot != null ? liveOpponentsRef.current?.[s.oppSlot] : undefined;
-          const buf = g.liveBuffers.get(s.oppSlot!);
-          if (sample && (!buf || sample.updatedAt > buf.to.updatedAt)) {
-            g.liveBuffers.set(s.oppSlot!, { from: buf?.to ?? sample, to: sample, toReceivedAt: performance.now() });
-          }
-          const b = g.liveBuffers.get(s.oppSlot!);
-          if (b) {
-            const t = Math.min(1, (performance.now() - b.toReceivedAt) / (LIVE_REPORT_INTERVAL_SEC * 1000));
-            const xFrac = b.from.xFrac + (b.to.xFrac - b.from.xFrac) * t;
-            const yFrac = b.from.yFrac + (b.to.yFrac - b.from.yFrac) * t;
-            const nx = clamp(xFrac * g.W, s.r, g.W - s.r);
-            const ny = clamp(TOP_MARGIN + yFrac * (g.H - TOP_MARGIN - BOTTOM_MARGIN), TOP_MARGIN + s.r, g.H - BOTTOM_MARGIN - s.r);
-            if (Math.hypot(nx - s.x, ny - s.y) > 1 * DPR) s.angle = Math.atan2(ny - s.y, nx - s.x);
-            s.x = nx; s.y = ny;
-            s.carry = b.to.carry;
-            s.banked = b.to.banked;
-            s.lives = b.to.lives;
-            s.active = b.to.alive;
-          }
+        } else if (hasLiveSample) {
+          // Real opponent — active play or spectate — driven by polled
+          // live-state instead of local AI, now that a first sample has
+          // actually arrived (see hasLiveSample's own doc-comment for
+          // the bridge case above this). Lerp between the last 2
+          // buffered samples over the poll interval so motion doesn't
+          // snap every ~350ms; carry/banked/lives/alive are just
+          // numbers on a HUD card, so those snap straight to the latest
+          // known sample rather than being interpolated too.
+          const b = g.liveBuffers.get(s.oppSlot!)!;
+          const t = Math.min(1, (performance.now() - b.toReceivedAt) / (LIVE_REPORT_INTERVAL_SEC * 1000));
+          const xFrac = b.from.xFrac + (b.to.xFrac - b.from.xFrac) * t;
+          const yFrac = b.from.yFrac + (b.to.yFrac - b.from.yFrac) * t;
+          const nx = clamp(xFrac * g.W, s.r, g.W - s.r);
+          const ny = clamp(TOP_MARGIN + yFrac * (g.H - TOP_MARGIN - BOTTOM_MARGIN), TOP_MARGIN + s.r, g.H - BOTTOM_MARGIN - s.r);
+          if (Math.hypot(nx - s.x, ny - s.y) > 1 * DPR) s.angle = Math.atan2(ny - s.y, nx - s.x);
+          s.x = nx; s.y = ny;
+          s.carry = b.to.carry;
+          s.banked = b.to.banked;
+          s.lives = b.to.lives;
+          s.active = b.to.alive;
+          // Just on/off, snapped straight to the latest sample like
+          // carry/banked/lives above — confirmed live as a real gap
+          // ("can't see the other user's bot firing and using
+          // shield"): draw()'s own glow-ring below now reads these
+          // for every ship, not just "you", so a real opponent's
+          // actual Shield/Magnet/Fire state (reported by their own
+          // client) is finally visible here too, not just to them.
+          s.shield = b.to.shield ? 1 : 0;
+          s.magnet = b.to.magnet ? 1 : 0;
+          s.fire = b.to.fire ? 1 : 0;
           // Position/stats are set directly above (not integrated from
           // vx/vy) — skip the generic velocity-based clamp and the local
           // bank-zone check below, both of which would fight the polled
           // truth for this ship.
           continue;
         } else {
+          // Reached by a genuine filler bot, OR a real friend whose
+          // live channel hasn't produced a sample yet (see
+          // hasLiveSample's own doc-comment — this is that bridge).
           // s.isYou is only reachable in this branch at all when
           // rentalBotActive is true (the other branch above handles a
           // manually-played "you"), so it uniquely picks out the
@@ -1540,6 +1667,22 @@ export function CoinRushArena({
       // let an ordinary unlucky death — dying fast, with the last bot
       // also finishing fast — wipe out an entirely legitimate score.
       const durationPlayedSec = endedEarly ? durationSec : Math.round(g.elapsed);
+      // A human who ran out of lives already has the "You Died,
+      // waiting for the match to end" pill up (see hud.lives <= 0's
+      // own banner below) for however long the rest of the match takes
+      // — showing that exact same message a second time, as a
+      // full-screen overlay, right before handing off to the lobby
+      // page's own waiting/spectate UI added nothing but an extra beat
+      // that read as the match doing something (restarting, ending,
+      // restarting again). Skip the overlay/pause entirely for that
+      // case and report the result immediately; a player who actually
+      // survived to a real "Time's Up" still gets the pause + overlay,
+      // since that one IS new information worth a beat on screen.
+      const died = you.lives <= 0;
+      if (died) {
+        onCompleteRef.current({ score: finalScore, durationPlayedSec, died });
+        return;
+      }
       // finish() now only ever fires once the mission clock actually
       // hits 0 (see the g.time <= 0 branch below) — a human dying no
       // longer ends the match early, so every ship (bots included) gets
@@ -1552,7 +1695,7 @@ export function CoinRushArena({
       // submitted — finalScore/durationPlayedSec are already fixed above.
       setEnded(true);
       setTimeout(() => {
-        onCompleteRef.current({ score: finalScore, durationPlayedSec });
+        onCompleteRef.current({ score: finalScore, durationPlayedSec, died });
       }, 1600);
     }
 
@@ -1783,9 +1926,18 @@ export function CoinRushArena({
         // non-English player saw the leaderboard sidebar correctly
         // translated but their own in-flight ship still labeled "YOU".
         ctx!.fillText(s.isYou ? tRef.current("gameArena.youLeaderboardLabel") : s.name, s.x, s.y - 18 * DPR);
-        if (s.isYou && (s.shield > 0 || s.magnet > 0)) {
+        // No longer isYou-only — confirmed live as a real gap ("can't
+        // see the other user's bot firing and using shield"): a real
+        // opponent's own Shield/Magnet/Fire state now arrives here too
+        // (externally-driven ships get it from polled live-state, see
+        // that block's own doc-comment above), so every ship draws the
+        // same glow it already would for "you". Filler bots are
+        // unaffected — their own shield/magnet/fire never leave 0,
+        // since only a real human (rental-bot-driven or manual) ever
+        // sets them in the first place.
+        if (s.shield > 0 || s.magnet > 0 || s.fire > 0) {
           ctx!.save();
-          ctx!.strokeStyle = s.shield > 0 ? "#33f2a4" : "#ff4fd8";
+          ctx!.strokeStyle = s.shield > 0 ? "#33f2a4" : s.magnet > 0 ? "#ff4fd8" : "#ff8a3d";
           ctx!.lineWidth = 2.5 * DPR;
           ctx!.shadowBlur = 10 * DPR; ctx!.shadowColor = ctx!.strokeStyle;
           ctx!.beginPath(); ctx!.arc(s.x, s.y, s.r + 8 * DPR, 0, Math.PI * 2); ctx!.stroke();
@@ -2182,6 +2334,11 @@ export function CoinRushArena({
           style={{ background: "rgba(2,5,9,.55)", backdropFilter: "blur(2px)" }}
         >
           <div className="text-center">
+            {/* Only ever reached by a run that's genuinely still alive
+                when the real mission clock hits 0 — finish() now
+                reports a dead run's result immediately, with no pause
+                or overlay (see its own doc-comment), so "TIME'S UP" is
+                never shown to a player who already saw "You Died". */}
             <p className="text-4xl font-black uppercase tracking-wide" style={{ color: "#89c7ff" }}>{t("gameArena.timesUp")}</p>
             <p className="mt-2 animate-pulse text-xs uppercase tracking-widest text-muted">
               {spectate ? t("gameArena.finalizingMatch") : t("gameArena.finalizingRun")}

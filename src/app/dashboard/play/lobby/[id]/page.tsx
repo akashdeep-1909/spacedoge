@@ -78,6 +78,19 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
     pool: MatchPoolSummary;
   } | null>(null);
   const [waitingForOthers, setWaitingForOthers] = useState<{ submitted: number; total: number } | null>(null);
+  // Set once (never back to false — a dead ship stays dead for the
+  // rest of this match) whenever this wallet's own run ended because
+  // it ran out of lives, whether the real mission clock had already
+  // hit 0 too (allShipsDown) or the match kept going for other real
+  // racers after that. Confirmed live as a real UX bug: watching the
+  // others finish live (the waitingForOthers render below, normally)
+  // only ever shows a dead player their own ship sitting parked at 0
+  // lives while everyone else moves around it — not actually useful,
+  // and reading as the match having restarted right after it claimed
+  // to be over. A player who died gets a plain "waiting" screen
+  // instead (see the waitingForOthers render below); a player who
+  // survived to a genuine full-duration finish still gets to watch.
+  const [ranOutOfLives, setRanOutOfLives] = useState(false);
 
   const invite = useInviteToLobby(lobbyId);
   const start = useStartLobby(lobbyId);
@@ -86,13 +99,6 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   const disableLink = useDisableInviteLink(lobbyId);
   const { data: recentPlayersData } = useRecentPlayers();
   const { data: rosterData, error: rosterError } = useMatchRoster(lobby?.finalMatchId ?? null);
-  // Fast-polled only while actually on the spectate screen (see the
-  // waitingForOthers render below) — this app has no push infra, so
-  // "watch the others' ships move live" comes from a dedicated,
-  // deliberately faster polling tier scoped away from the rest of the
-  // app's normal-cadence traffic. See useLiveMatchState's own doc-comment.
-  const { data: liveState } = useLiveMatchState(lobby?.finalMatchId ?? null, { enabled: !!waitingForOthers });
-
   // CoinRushArena's setup effect depends on loadout.rentalBot (and the
   // other loadout fields) treating them as fixed-at-mount — mounting
   // the arena before this roster fetch resolves let `loadout` flip from
@@ -114,6 +120,24 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   // the match is live, this client hasn't submitted its own result yet,
   // and no result (or wait state) has landed.
   const showGame = lobby?.status === "STARTED" && !!lobby.finalMatchId && rosterSettled && !submitted && !result && !waitingForOthers;
+  // Polled during BOTH active play (showGame) and the post-finish
+  // spectate screen (waitingForOthers), not just the latter — this app
+  // has no push infra, so "see every other real player's actual
+  // position/shield/fire in real time" comes from a dedicated,
+  // deliberately faster polling tier scoped away from the rest of the
+  // app's normal-cadence traffic. See useLiveMatchState's own
+  // doc-comment. Confirmed wanted live: two real friends actively
+  // racing each other could only ever see a local bot-AI guess of what
+  // the other was doing — never their actual moves or shield/fire —
+  // until whoever finished first switched to spectating; this closes
+  // that gap for the entire match, not just the tail end of it. Off
+  // for a player who already died (ranOutOfLives) once they're off the
+  // showGame/waitingForOthers path entirely (see that state's own
+  // doc-comment) — the plain waiting card they land on has nothing to
+  // do with this data.
+  const { data: liveState } = useLiveMatchState(lobby?.finalMatchId ?? null, {
+    enabled: (showGame || !!waitingForOthers) && !ranOutOfLives,
+  });
   const lastScore = useRef({ score: 0, durationPlayedSec: 0 });
 
   // Shared by both the live-play render (showGame) and the post-finish
@@ -210,9 +234,30 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [waitingForOthers, lobby?.finalMatchId]);
 
-  async function handleComplete(payload: { score: number; durationPlayedSec: number }) {
+  // A player who died early gets the plain waiting card (see
+  // ranOutOfLives above), which has no mission clock of its own to
+  // notice the real match ending — without this, they'd sit on
+  // "waiting for other racers" right through the actual end and
+  // straight into Match Results with no "Time's Up" beat at all,
+  // which a player who survived to the real end still gets (via
+  // CoinRushArena's own overlay). Confirmed wanted live: watching two
+  // real players finish the same match, the one who died early is
+  // still expected to see "Time's Up" once, same as everyone else,
+  // just without the live spectate gameplay in between. One-shot timer
+  // to the real remaining time (startElapsedSec is a stable snapshot —
+  // see its own doc-comment — so this fires once and never re-arms).
+  const [realTimeUp, setRealTimeUp] = useState(false);
+  useEffect(() => {
+    if (!ranOutOfLives || !lobby?.finalMatchId) return;
+    const remainingMs = Math.max(0, (lobby.durationSec - startElapsedSec) * 1000);
+    const timer = setTimeout(() => setRealTimeUp(true), remainingMs);
+    return () => clearTimeout(timer);
+  }, [ranOutOfLives, lobby?.finalMatchId, lobby?.durationSec, startElapsedSec]);
+
+  async function handleComplete(payload: { score: number; durationPlayedSec: number; died: boolean }) {
     if (!lobby?.finalMatchId) return;
     lastScore.current = payload;
+    if (payload.died) setRanOutOfLives(true);
     setSubmitted(true);
     try {
       const res = await submitResults.mutateAsync({ matchId: lobby.finalMatchId, ...payload });
@@ -253,7 +298,10 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   // right away instead of waiting out the grace period.
   async function quitMatch() {
     if (!lobby?.finalMatchId) return;
-    await handleComplete({ score: 0, durationPlayedSec: 0 });
+    // Quitting is functionally the same as dying for the UI below —
+    // there's no live run left to watch, so treat it identically (see
+    // ranOutOfLives's own doc-comment).
+    await handleComplete({ score: 0, durationPlayedSec: 0, died: true });
   }
 
   async function sendInvite() {
@@ -343,6 +391,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
             opponents={opponents}
             matchId={lobby.finalMatchId}
             loadout={rosterData?.loadout}
+            liveOpponents={liveState?.slots}
           />
         </div>
       </div>
@@ -373,13 +422,14 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
     );
   }
 
-  // Your own run is finished — instead of a static "waiting" screen,
-  // watch the other real racers' ships live until the match ends (bots
-  // keep running their usual local AI; only real opponents are driven
-  // by polled live-state — see CoinRushArena's `spectate` mode). Falls
-  // back to the plain status card only in the edge case finalMatchId
-  // somehow isn't available yet.
-  if (waitingForOthers && lobby.finalMatchId) {
+  // Your own run is finished (and you didn't die getting there) —
+  // instead of a static "waiting" screen, watch the other real racers'
+  // ships live until the match ends (bots keep running their usual
+  // local AI; only real opponents are driven by polled live-state —
+  // see CoinRushArena's `spectate` mode). A player who ran out of
+  // lives (or quit) falls through to the plain waiting card below
+  // instead — see ranOutOfLives's own doc-comment for why.
+  if (waitingForOthers && lobby.finalMatchId && !ranOutOfLives) {
     const lobbyMode = lobby.mode as GameMode;
     const lobbyTheme = THEME_BY_MODE[lobbyMode] ?? THEME_BY_MODE.EXPLORER_RUSH;
     return (
@@ -417,9 +467,18 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   if (waitingForOthers) {
     return (
       <div className="game-panel hud-corner mx-auto max-w-sm rounded-2xl p-6 text-center">
-        <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-line border-t-gold" />
-        <h2 className="text-glow-gold text-2xl font-black">{t("lobby.waitingHeading")}</h2>
-        <p className="mt-2 text-sm text-muted">{t("lobby.waitingBody")}</p>
+        {realTimeUp ? (
+          <>
+            <p className="text-2xl font-black uppercase tracking-wide text-glow-gold">{t("gameArena.timesUp")}</p>
+            <p className="mt-2 animate-pulse text-xs uppercase tracking-widest text-muted">{t("gameArena.finalizingMatch")}</p>
+          </>
+        ) : (
+          <>
+            <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-line border-t-gold" />
+            <h2 className="text-glow-gold text-2xl font-black">{t("lobby.waitingHeading")}</h2>
+            <p className="mt-2 text-sm text-muted">{t("lobby.waitingBody")}</p>
+          </>
+        )}
         <p className="mt-1 text-sm font-bold text-foreground">
           {t("lobby.waitingCount", { submitted: waitingForOthers.submitted, total: waitingForOthers.total })}
         </p>

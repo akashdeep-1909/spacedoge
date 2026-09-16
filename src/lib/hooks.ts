@@ -2265,6 +2265,31 @@ export function useLobby(lobbyId: string | null) {
       const status = query.state.data?.status;
       return status === "STARTED" || status === "CANCELLED" || status === "EXPIRED" ? false : 2_500;
     },
+    // Confirmed live as the actual cause of "the game looks like it
+    // randomly restarts" during Play with Friends: this query never set
+    // its own staleTime, so it defaults to 0 — ALWAYS stale, the moment
+    // React Query's global refetchOnWindowFocus default (true, see
+    // providers.tsx's plain `new QueryClient()`) fires. Every time a
+    // player switches back to this tab — alt-tabbing, a phone
+    // notification, screen-recording a bug report, anything — this
+    // refetched immediately, even with refetchInterval already disabled
+    // once STARTED. The response's own `serverTime` field is real
+    // server time and differs on literally every fetch, so React
+    // Query's structural-sharing optimization can never treat two
+    // responses as "the same data" — this `lobby` object got a brand
+    // new reference on every single focus event. The lobby page's own
+    // startElapsedSec memo depends on this exact object (see its own
+    // doc-comment on why — a legitimate one-time resnapshot at the
+    // play->spectate transition), so a focus-triggered refetch mid-match
+    // fed it a fresh reference too, re-running CoinRushArena's setup
+    // effect on a live, already-running match: ships reset to spawn,
+    // hazards reshuffle, the mission clock jumps — reading exactly like
+    // the whole match restarting. This query already has its own
+    // explicit refetchInterval covering every phase that actually needs
+    // fresh data (the pre-match waiting room); once STARTED, nothing
+    // here should ever refetch on its own again regardless of tab
+    // focus.
+    refetchOnWindowFocus: false,
   });
 }
 
