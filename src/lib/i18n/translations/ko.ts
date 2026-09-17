@@ -1461,6 +1461,9 @@ const ko = {
     rentalBotShopClosed: "현재 상점이 닫혀 있습니다 — 상점이 다시 열릴 때까지 Space DOGE BOT을 사용할 수 없습니다.",
     rentalBotFailedToSave: "Space DOGE BOT 선택 업데이트에 실패했습니다",
     rentalBotNeedsFriends: "Space DOGE BOT는 실제 친구와 함께할 때만 작동합니다 — 시작하기 전에 {{count}}명을 더 초대하거나, 위에서 선택을 취소하고 무작위 플레이어로 시작하세요.",
+    loadoutIntroTitle: "로드아웃을 선택하세요",
+    loadoutIntroSubtitle: "호스트는 모두 입장하는 즉시 게임을 시작할 수 있으니, 로켓 스킨과 Space DOGE BOT을 여기서 먼저 장착하세요 — 경기가 시작되기 전까지는 아래에서 언제든지 변경할 수 있습니다.",
+    loadoutIntroContinue: "준비 완료",
   },
   gameArena: {
     title: "Coin Rush Arena",

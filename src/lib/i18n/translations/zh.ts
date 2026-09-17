@@ -1461,6 +1461,9 @@ const zh = {
     rentalBotShopClosed: "商店目前已关闭——在重新开放前无法使用 Space DOGE BOT。",
     rentalBotFailedToSave: "更新 Space DOGE BOT 选择失败",
     rentalBotNeedsFriends: "Space DOGE BOT 仅在与真实好友同玩时生效——请再邀请 {{count}} 位好友后再开始，或在上方清除该选择以随机玩家开始。",
+    loadoutIntroTitle: "选择你的装备",
+    loadoutIntroSubtitle: "房主一旦人齐就可以开始游戏，所以请先在这里装备你的火箭皮肤和 Space DOGE BOT——在比赛开始前，你随时可以在下方更改这些选择。",
+    loadoutIntroContinue: "我已准备好",
   },
   gameArena: {
     title: "Coin Rush Arena",

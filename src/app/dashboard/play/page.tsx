@@ -12,7 +12,6 @@ import { CoinRushArena } from "@/components/game/CoinRushArena";
 import {
   useCreateLobby,
   useMyInvitations,
-  useAcceptInvitation,
   useDeclineInvitation,
   useGameModes,
   useActiveMatch,
@@ -442,7 +441,9 @@ function PlayFlow() {
 
       <NotificationsPrompt />
 
-      <IncomingInvitations onJoined={(lobbyId) => router.push(`/dashboard/play/lobby/${lobbyId}`)} />
+      <IncomingInvitations
+        onAccept={(lobbyId, invitationId) => router.push(`/dashboard/play/lobby/${lobbyId}?invitationId=${invitationId}`)}
+      />
 
       {modesLoading ? (
         <p className="mt-6 text-sm text-muted">{t("play.loadingModes")}</p>
@@ -675,12 +676,10 @@ function ModeCard({
 // above the mode list rather than a separate page, since a fresh
 // invitation is exactly the kind of thing you want to act on before
 // picking a different mode by accident.
-function IncomingInvitations({ onJoined }: { onJoined: (lobbyId: string) => void }) {
+function IncomingInvitations({ onAccept }: { onAccept: (lobbyId: string, invitationId: string) => void }) {
   const { t } = useLocale();
   const { data } = useMyInvitations();
-  const accept = useAcceptInvitation();
   const decline = useDeclineInvitation();
-  const [error, setError] = useState<string | null>(null);
 
   const pending = data?.incoming.filter((inv) => inv.status === "PENDING") ?? [];
   if (pending.length === 0) return null;
@@ -696,16 +695,16 @@ function IncomingInvitations({ onJoined }: { onJoined: (lobbyId: string) => void
             {t("play.invitationText", { fee: inv.entryFeeUsdt, mode: gameModeLabel(t, inv.mode, inv.modeLabel) })}
           </p>
           <div className="mt-2 flex gap-2">
+            {/* Doesn't actually join the lobby seat here anymore — see
+                the lobby page's own handleAcceptAndReady, which does
+                the real accept-invitation call (this button used to
+                make immediately) only once "I'm Ready" is pressed
+                there, after a loadout's been picked. Confirmed wanted
+                live: the seat used to fill (visible to the host, who
+                could already start) before this wallet had chosen
+                anything at all. */}
             <button
-              onClick={async () => {
-                setError(null);
-                try {
-                  const lobby = await accept.mutateAsync(inv.id);
-                  onJoined(lobby.id);
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : t("play.failedToAcceptInvitation"));
-                }
-              }}
+              onClick={() => onAccept(inv.lobbyId, inv.id)}
               className="btn-game hud-corner flex-1 rounded-full px-3 py-1.5 text-xs"
             >
               {t("play.acceptAndJoinButton")}
@@ -720,7 +719,6 @@ function IncomingInvitations({ onJoined }: { onJoined: (lobbyId: string) => void
         </div>
         );
       })}
-      {error && <ErrorNotice message={error} onClose={() => setError(null)} />}
     </div>
   );
 }

@@ -108,6 +108,32 @@ interface ShipEntity {
   // doc-comment for why this moved from a single g.fireShotCd (which
   // only ever let "you" actually shoot) to one of these per ship.
   fireShotCd: number;
+  // Filler-bot-only power-up cooldowns — see the "Filler bot power-up
+  // instincts" heuristic below for why these exist as their own
+  // per-ship fields rather than reusing g.shieldCd/magnetCd/boostCd
+  // (those are "you"'s own purchased-loadout-tied budget, never
+  // meaningful for an NPC seat). Unused (stay 0) for "you" and for a
+  // real friend's own ship.
+  shieldCd: number;
+  magnetCd: number;
+  boostCd: number;
+  fireCd: number;
+  // Total-uses budgets for the same trio, filler-bot only — confirmed
+  // live as a real ask ("make it show more real, on/off 2-3 times the
+  // whole game" instead of what read as almost continuously glowing):
+  // with only a cooldown gating each one, a bot sitting in a
+  // hazard-dense area re-triggered Shield/Magnet/Fire again the moment
+  // each came off cooldown, near-back-to-back for the whole match. A
+  // small fixed budget (see the heuristic's own doc-comment for the
+  // exact numbers) makes each activation read as a distinct, occasional
+  // event — same "genuinely smarter, not a free unlimited resource"
+  // reasoning as everywhere else bots get tuned in this file — and
+  // leaves them exposed most of the match, which is also most of what
+  // brought hit frequency back up to something that doesn't look
+  // invincible.
+  shieldUsesLeft: number;
+  magnetUsesLeft: number;
+  fireUsesLeft: number;
 }
 
 const ITEM_STYLES: Record<ItemEntity["kind"], { r: number; value: number; rare: boolean; glyph: string }> = {
@@ -167,11 +193,21 @@ const BOT_COLORS = ["#3cc4ff", "#4af4af", "#ff7a7a"];
 // play (see the rentalBotActive-specific targeting/banking/hazard-
 // alert tuning inside the bot-AI branch below), not a free stat.
 const BOT_LIVES_BONUS = 6;
-// Both the reporting side (an actively-playing human) and the polling
-// side (useLiveMatchState's refetchInterval) use this same cadence —
-// keeping them equal is what makes the spectator's lerp window below
-// line up with how often a fresh sample can actually arrive.
-const LIVE_REPORT_INTERVAL_SEC = 0.35;
+// The reporting side (an actively-playing human's own client). The
+// polling side (useLiveMatchState's refetchInterval) is deliberately
+// set faster than this, not equal to it — see that hook's own
+// doc-comment for why. Lowered from 0.35 to 0.2 — confirmed live as a
+// real ask ("friends not using autopilot see laggy movement from
+// friends who are"): a bot's own steering can change direction far
+// more abruptly frame-to-frame than a human's smoother drag-based
+// input, so the SAME sample interval that looked fine interpolating a
+// human's gentler path produced a visibly bigger jump — and therefore
+// a jankier lerp — between two consecutive bot samples. More frequent,
+// smaller-delta samples is the direct fix; the lerp window itself
+// (see liveBuffers' own doc-comment) already adapts to whatever the
+// real gap between samples turns out to be, so this isn't relied on to
+// be exact.
+const LIVE_REPORT_INTERVAL_SEC = 0.2;
 
 function shortAddr(addr: string) {
   return addr.length > 10 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr;
@@ -714,7 +750,8 @@ export function CoinRushArena({
         lives: spectate ? 0 : diff.startLives + (loadout?.livesBonus ?? 0), carry: 0, banked: 0, active: !spectate, invuln: 0, knockback: 0,
         speed: 150 * diff.playerSpeedMult * (1 + (loadout?.speedMultBonus ?? 0)) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
         externallyDriven: false, oppSlot: null, isBot: false,
-        shapeKey: loadout?.shapeKey ?? null, fireShotCd: 0,
+        shapeKey: loadout?.shapeKey ?? null, fireShotCd: 0, shieldCd: 0, magnetCd: 0, boostCd: 0, fireCd: 0,
+        shieldUsesLeft: 0, magnetUsesLeft: 0, fireUsesLeft: 0,
       },
       ...botNames.map((name, i) => {
         const opp = opponents?.[i];
@@ -751,6 +788,12 @@ export function CoinRushArena({
           speed: (95 + rand() * 20) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
           externallyDriven, oppSlot: externallyDriven ? opp!.slotNumber : null, isBot,
           shapeKey: opp?.shapeKey ?? null, fireShotCd: 0,
+          // Staggered random starting cooldowns (filler bots only ever
+          // read these — see their own doc-comment on ShipEntity) so
+          // 2-3 bots on the same field don't all react to a hazard in
+          // perfect lockstep the first time one gets close.
+          shieldCd: rand() * 8, magnetCd: rand() * 8, boostCd: rand() * 6, fireCd: rand() * 10,
+          shieldUsesLeft: 3, magnetUsesLeft: 2, fireUsesLeft: 2,
         };
       }),
     ];
@@ -810,7 +853,9 @@ export function CoinRushArena({
     });
     const dashers: DasherEntity[] = Array.from({ length: diff.dasherCount }, () => {
       const p = randPointAwayFromSpawn();
-      return { x: p.x, y: p.y, r: 10.5 * DPR, state: "aim" as const, timer: 1.2 + rand() * 1.3, vx: 0, vy: 0, dirX: 0, dirY: 1 };
+      const dsh: DasherEntity = { x: p.x, y: p.y, r: 10.5 * DPR, state: "aim" as const, timer: 1.2 + rand() * 1.3, vx: 0, vy: 0, dirX: 0, dirY: 1 };
+      aimDasher(dsh, ships);
+      return dsh;
     });
 
     const hunterCarryPenalty = Math.round(BASE_HUNTER_CARRY_PENALTY * diff.carryPenaltyMult);
@@ -890,6 +935,35 @@ export function CoinRushArena({
     function clamp(v: number, a: number, b: number) { return Math.max(a, Math.min(b, v)); }
     function dist(a: { x: number; y: number }, b: { x: number; y: number }) {
       return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+    // Locks a dasher's telegraphed dash direction ONCE, at the moment
+    // it starts (or restarts) aiming — at the nearest ship right then,
+    // never updated again until it actually dashes. Confirmed live as
+    // the real cause behind "bots getting hit constantly, can't dodge
+    // dashers": the aim direction used to be recomputed EVERY frame for
+    // the entire ~1.2-2.5s telegraph (inline in the aim-state branch
+    // below), continuously re-locking onto whichever ship was currently
+    // closest — so a bot (or a human) that steered clear of the
+    // telegraphed line just caused the dasher to instantly re-aim at
+    // its new position, making the "dodge the line you can see" premise
+    // the whole mechanic (and its own avoidance code, which leans away
+    // from dsh.dirX/dirY) depends on physically impossible: there was
+    // never a fixed line to actually finish dodging. A telegraph that
+    // commits once and holds is what every other similar mechanic in
+    // this genre already does, and what the aim-line rendering (see
+    // draw()'s own "aim" branch) already visually implies to a player
+    // even though the direction underneath kept moving anyway.
+    function aimDasher(dsh: DasherEntity, ships: ShipEntity[]) {
+      let target: ShipEntity | null = null, bestD = Infinity;
+      for (const s of ships) {
+        if (!s.active) continue;
+        const d = dist(dsh, s);
+        if (d < bestD) { bestD = d; target = s; }
+      }
+      if (target) {
+        const dx = target.x - dsh.x, dy = target.y - dsh.y, len = Math.hypot(dx, dy) || 1;
+        dsh.dirX = dx / len; dsh.dirY = dy / len;
+      }
     }
     // Bot hazard-avoidance "panic" curve — 0 far away, ramping up to 1
     // right at the hazard, quadratically (not linearly) so the last
@@ -1047,10 +1121,22 @@ export function CoinRushArena({
       g.shakeMag = Math.max(0, g.shakeMag - dt * 4);
 
       const you = g.ships[0];
-      you.magnet = Math.max(0, you.magnet - dt);
-      you.shield = Math.max(0, you.shield - dt);
-      you.boost = Math.max(0, you.boost - dt);
-      you.fire = Math.max(0, you.fire - dt);
+      // Every ship, not just "you" — confirmed live as a real bug (and
+      // the actual cause behind "bots now keep shield/fire on the whole
+      // game"): this used to only ever decay "you"'s own values, so the
+      // new filler-bot power-up heuristic below (which sets s.shield/
+      // s.fire on a genuine bot) had nothing that ever counted them
+      // back down again — one activation just stayed on permanently
+      // for the rest of the match. An externally-driven real friend's
+      // ship gets these overwritten from its own polled sample later in
+      // the ships loop regardless, so decaying them here first doesn't
+      // fight that.
+      for (const s of g.ships) {
+        s.magnet = Math.max(0, s.magnet - dt);
+        s.shield = Math.max(0, s.shield - dt);
+        s.boost = Math.max(0, s.boost - dt);
+        s.fire = Math.max(0, s.fire - dt);
+      }
 
       // Live-position reporting — an actively-racing human fire-and-
       // forget reports its own ship's position/carry/lives every ~350ms
@@ -1338,15 +1424,25 @@ export function CoinRushArena({
             const ddx = s.x - dsh.x, ddy = s.y - dsh.y, dd = Math.hypot(ddx, ddy) || 1;
             const R = 165 * DPR * hazardAlertMult;
             if (dd < R) { const push = (R - dd) + panic(dd, R) * R * 1.6; avoidX += (ddx / dd) * push; avoidY += (ddy / dd) * push; }
-            // Already aiming at someone and about to charge — lean away
-            // from that telegraphed line specifically, not just the
-            // dasher's current position, since by the time it actually
-            // dashes it'll have covered real ground along that exact
-            // direction.
+            // Already aiming at someone and about to charge — step OFF
+            // that telegraphed line specifically (perpendicular to
+            // dirX/dirY), not just away from the dasher's current
+            // position or straight back along the line it's about to
+            // charge down. Retreating straight back (the old
+            // -dsh.dirX/-dsh.dirY push) barely helps against a dash at
+            // 430*DPR — over 4x a bot's own top speed — since the dash
+            // covers the retreat distance again almost instantly;
+            // stepping sideways is the only geometrically real dodge
+            // against something that much faster in a straight line.
+            // Side is picked from the ship's own current position
+            // relative to the line (not random) so it doesn't flip
+            // back and forth frame to frame while just off-line.
             const aimR = 260 * DPR * hazardAlertMult;
             if (dsh.state === "aim" && dd < aimR) {
-              avoidX += -dsh.dirX * (aimR - dd) * 0.7;
-              avoidY += -dsh.dirY * (aimR - dd) * 0.7;
+              const perpX = -dsh.dirY, perpY = dsh.dirX;
+              const side = ddx * perpX + ddy * perpY >= 0 ? 1 : -1;
+              avoidX += perpX * side * (aimR - dd) * 0.9;
+              avoidY += perpY * side * (aimR - dd) * 0.9;
             }
           }
           const dx = (tx - s.x) + avoidX * 2.8, dy = (ty - s.y) + avoidY * 2.8;
@@ -1405,6 +1501,68 @@ export function CoinRushArena({
           you.fire = 10 + (loadout?.fireDurationBonusSec ?? 0);
           g.fireUsesRemaining -= 1;
           playFireSound();
+        }
+      }
+
+      // Filler-bot power-up instincts — same triggers as the Rental
+      // Bot heuristic just above (Shield when a hazard's about to
+      // connect, Magnet on cooldown, Boost when clear, Fire when
+      // hazards cluster), applied to every genuine AI-filled seat.
+      // Confirmed live as a real gap behind "bots get hit constantly":
+      // a filler bot had zero defensive tools beyond steering — no
+      // Shield, ever, regardless of how close a hazard got — while a
+      // hunter's own top speed (see its construction above) can exceed
+      // a bot's, and only gets faster as the match clock runs down
+      // (speedFactor's ramp), making eventual contact a matter of time
+      // no amount of pathing alone can prevent once a fast roll catches
+      // one.
+      //
+      // Shield/Magnet/Fire are capped by shieldUsesLeft/magnetUsesLeft/
+      // fireUsesLeft (see their own doc-comment) on top of the cooldown
+      // — confirmed live as a real ask ("make it look more real — on/
+      // off 2-3 times the whole game"): a cooldown alone let a bot
+      // sitting in a hazard-dense area re-trigger the instant it came
+      // off cooldown, near-back-to-back for the whole match, reading as
+      // permanently lit up rather than a distinct, occasional move.
+      // Boost has no such budget — it has no glow-ring tell (see draw()'s
+      // own condition) and was never part of that complaint. Fire's own
+      // cooldown is also stretched out (25s vs the "you" heuristic's
+      // implicit ~10s reuse gap) for the same reason, on top of its cap.
+      // Per-ship cooldowns/budgets (see ShipEntity's own doc-comment) —
+      // deliberately silent (no play*Sound() calls): those are meant to
+      // read as feedback for the human's OWN actions, not fire for
+      // every bot on the field independently.
+      for (const s of g.ships) {
+        if (!s.isBot || !s.active) continue;
+        s.shieldCd = Math.max(0, s.shieldCd - dt);
+        s.magnetCd = Math.max(0, s.magnetCd - dt);
+        s.boostCd = Math.max(0, s.boostCd - dt);
+        s.fireCd = Math.max(0, s.fireCd - dt);
+
+        let nearestHazardD = Infinity;
+        let hazardsWithin150 = 0;
+        for (const h of g.hunters) { const d = dist(s, h); nearestHazardD = Math.min(nearestHazardD, d); if (d < 150 * DPR) hazardsWithin150++; }
+        for (const m of g.mines) { const d = dist(s, m); nearestHazardD = Math.min(nearestHazardD, d); if (d < 150 * DPR) hazardsWithin150++; }
+        for (const dsh of g.dashers) { const d = dist(s, dsh); nearestHazardD = Math.min(nearestHazardD, d); if (d < 150 * DPR) hazardsWithin150++; }
+
+        if (s.shield <= 0 && s.shieldCd <= 0 && s.shieldUsesLeft > 0 && nearestHazardD < 90 * DPR) {
+          s.shield = 4;
+          s.shieldCd = 20;
+          s.shieldUsesLeft -= 1;
+        }
+        if (s.magnet <= 0 && s.magnetCd <= 0 && s.magnetUsesLeft > 0) {
+          s.magnet = 5;
+          s.magnetCd = 25;
+          s.magnetUsesLeft -= 1;
+        }
+        if (s.boost <= 0 && s.boostCd <= 0 && nearestHazardD > 150 * DPR) {
+          s.boost = 2.5;
+          s.boostCd = 10;
+        }
+        if (s.fire <= 0 && s.fireCd <= 0 && s.fireUsesLeft > 0 && hazardsWithin150 >= 2) {
+          s.fire = 6;
+          s.fireCd = 25;
+          s.fireUsesLeft -= 1;
         }
       }
 
@@ -1499,6 +1657,7 @@ export function CoinRushArena({
             addParticles(dsh.x, dsh.y, "#ff7a3c", 20);
             const p = randPointInPlay(); dsh.x = p.x; dsh.y = p.y;
             dsh.state = "aim"; dsh.timer = 1.1 + g.rand() * 1.3;
+            aimDasher(dsh, g.ships);
             consumed = true;
             playZapSound();
           }
@@ -1591,13 +1750,10 @@ export function CoinRushArena({
 
       for (const dsh of g.dashers) {
         if (dsh.state === "aim") {
+          // dirX/dirY are locked once, the moment this aim phase
+          // started (see aimDasher's own doc-comment) — deliberately
+          // NOT recomputed here every frame anymore.
           dsh.timer -= dt;
-          let target: ShipEntity | null = null, bestD = Infinity;
-          for (const s of g.ships) { if (!s.active) continue; const d = dist(dsh, s); if (d < bestD) { bestD = d; target = s; } }
-          if (target) {
-            const dx = target.x - dsh.x, dy = target.y - dsh.y, len = Math.hypot(dx, dy) || 1;
-            dsh.dirX = dx / len; dsh.dirY = dy / len;
-          }
           dsh.x += Math.sin(g.elapsed + dsh.y * 0.02) * dt * 10 * DPR;
           dsh.y += Math.cos(g.elapsed + dsh.x * 0.02) * dt * 10 * DPR;
           if (dsh.timer <= 0) {
@@ -1630,8 +1786,12 @@ export function CoinRushArena({
           if (anyContact) {
             const p = randPointInPlay(); dsh.x = p.x; dsh.y = p.y;
             dsh.state = "aim"; dsh.timer = 1.1 + g.rand() * 1.3;
+            aimDasher(dsh, g.ships);
           }
-          if (dsh.timer <= 0) { dsh.state = "aim"; dsh.timer = 1.1 + g.rand() * 1.3; }
+          if (dsh.timer <= 0) {
+            dsh.state = "aim"; dsh.timer = 1.1 + g.rand() * 1.3;
+            aimDasher(dsh, g.ships);
+          }
         }
       }
 

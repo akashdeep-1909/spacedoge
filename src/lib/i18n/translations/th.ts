@@ -1461,6 +1461,9 @@ const th = {
     rentalBotShopClosed: "ร้านค้าปิดอยู่ในขณะนี้ — ใช้งาน Space DOGE BOT ไม่ได้จนกว่าร้านค้าจะเปิดอีกครั้ง",
     rentalBotFailedToSave: "อัปเดตตัวเลือก Space DOGE BOT ของคุณไม่สำเร็จ",
     rentalBotNeedsFriends: "Space DOGE BOT ใช้งานได้เฉพาะเมื่อเล่นกับเพื่อนจริงเท่านั้น — เชิญเพื่อนเพิ่มอีก {{count}} คนก่อนเริ่ม หรือล้างตัวเลือกด้านบนเพื่อเริ่มกับผู้เล่นแบบสุ่ม",
+    loadoutIntroTitle: "เลือกชุดอุปกรณ์ของคุณ",
+    loadoutIntroSubtitle: "เจ้าของห้องสามารถเริ่มเกมได้ทันทีที่ทุกคนเข้าร่วมครบ ดังนั้นโปรดเลือกสกินจรวดและ Space DOGE BOT ของคุณที่นี่ก่อน — คุณยังสามารถเปลี่ยนแปลงได้ด้านล่างได้ตลอดเวลาก่อนเริ่มการแข่งขัน",
+    loadoutIntroContinue: "ฉันพร้อมแล้ว",
   },
   gameArena: {
     title: "Coin Rush Arena",

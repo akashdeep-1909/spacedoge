@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
-import { useMyInvitations, useAcceptInvitation, useDeclineInvitation } from "@/lib/hooks";
+import { useMyInvitations, useDeclineInvitation } from "@/lib/hooks";
 import { gameModeLabel } from "@/lib/game-mode-labels";
 
 // Global "someone invited you to play" toast, mounted once in
@@ -32,7 +32,6 @@ export function IncomingInviteToast() {
   const pathname = usePathname();
   const router = useRouter();
   const { data } = useMyInvitations();
-  const accept = useAcceptInvitation();
   const decline = useDeclineInvitation();
   // Local-only — a toast the player dismisses (without accepting or
   // declining) just stops showing for the rest of this page session;
@@ -40,7 +39,6 @@ export function IncomingInviteToast() {
   // so it's still sitting there to accept/decline from the Play tab
   // whenever they get to it.
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
-  const [errorById, setErrorById] = useState<Record<string, string>>({});
 
   // Also suppressed inside an actual lobby/match (/dashboard/play/lobby/*)
   // — that page can be a full-screen live match (fixed inset-0, above
@@ -78,18 +76,13 @@ export function IncomingInviteToast() {
                 ✕
               </button>
             </div>
-            {errorById[inv.id] && <p className="mt-1.5 text-xs text-risk">{errorById[inv.id]}</p>}
             <div className="mt-2 flex gap-2">
+              {/* Doesn't actually join the lobby seat here — see the
+                  lobby page's own handleAcceptAndReady, which does the
+                  real accept-invitation call only once "I'm Ready" is
+                  pressed there, after a loadout's been picked. */}
               <button
-                onClick={async () => {
-                  setErrorById((prev) => ({ ...prev, [inv.id]: "" }));
-                  try {
-                    const lobby = await accept.mutateAsync(inv.id);
-                    router.push(`/dashboard/play/lobby/${lobby.id}`);
-                  } catch (err) {
-                    setErrorById((prev) => ({ ...prev, [inv.id]: err instanceof Error ? err.message : t("play.failedToAcceptInvitation") }));
-                  }
-                }}
+                onClick={() => router.push(`/dashboard/play/lobby/${inv.lobbyId}?invitationId=${inv.id}`)}
                 className="btn-game hud-corner flex-1 rounded-full px-3 py-1.5 text-xs"
               >
                 {t("play.acceptAndJoinButton")}

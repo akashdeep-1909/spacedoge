@@ -570,6 +570,16 @@ export async function serializeLobby(lobbyId: string, viewerWalletProfileId: str
     nominalRoomPoolUsdt,
     host: { address: lobby.host.address },
     isHost: viewerWalletProfileId === lobby.hostWalletProfileId,
+    // Session-based (the same viewerParticipant lookup myRentalBot/
+    // myLoadout already use), not derived from the client's own wagmi
+    // address — confirmed live as a real bug in the lobby page's
+    // pre-join gate (see its own amIJoined doc-comment): wagmi's
+    // useAccount().address can legitimately lag or be briefly
+    // unavailable right after a fresh SIWE session even with a real
+    // wallet connected, and comparing against it meant the gate could
+    // never reliably confirm "yes, I actually just joined" — this is
+    // the ground truth instead.
+    amIJoined: !!viewerParticipant,
     myRentalBot,
     myLoadout,
     slots,

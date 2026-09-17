@@ -1461,6 +1461,9 @@ const ru = {
     rentalBotShopClosed: "Магазин сейчас закрыт — Space DOGE BOT недоступен, пока он снова не откроется.",
     rentalBotFailedToSave: "Не удалось обновить выбор Space DOGE BOT",
     rentalBotNeedsFriends: "Space DOGE BOT работает только с реальными друзьями — пригласите ещё {{count}} перед началом или очистите выбор выше, чтобы начать со случайными игроками.",
+    loadoutIntroTitle: "Выберите снаряжение",
+    loadoutIntroSubtitle: "Хост может начать матч сразу, как только все присоединятся, поэтому сначала экипируйте скин ракеты и Space DOGE BOT здесь — вы всё ещё можете изменить это ниже в любой момент до начала матча.",
+    loadoutIntroContinue: "Я готов",
   },
   gameArena: {
     title: "Coin Rush Arena",

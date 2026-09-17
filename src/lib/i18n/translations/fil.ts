@@ -1461,6 +1461,9 @@ const fil = {
     rentalBotShopClosed: "Sarado ang shop ngayon — hindi magagamit ang Space DOGE BOT hanggang sa mabuksan ulit ito.",
     rentalBotFailedToSave: "Hindi na-update ang iyong pinili na Space DOGE BOT",
     rentalBotNeedsFriends: "Gumagana lang ang Space DOGE BOT kapag kasama ang totoong kaibigan — mag-imbita pa ng {{count}} bago magsimula, o i-clear ito sa itaas para magsimula gamit ang random na manlalaro.",
+    loadoutIntroTitle: "Piliin ang Iyong Loadout",
+    loadoutIntroSubtitle: "Puwedeng magsimula ang host sa sandaling kumpleto na ang lahat, kaya i-equip muna dito ang iyong rocket skin at Space DOGE BOT — puwede mo pa ring baguhin ito sa ibaba anumang oras bago magsimula ang laban.",
+    loadoutIntroContinue: "Handa Na Ako",
   },
   gameArena: {
     title: "Coin Rush Arena",

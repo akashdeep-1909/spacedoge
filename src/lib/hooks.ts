@@ -2220,6 +2220,11 @@ export interface LobbyState {
   nominalRoomPoolUsdt: number;
   host: { address: string };
   isHost: boolean;
+  // Session-based ground truth for "is the VIEWER already a JOINED
+  // participant here" — see serializeLobby's own doc-comment in
+  // src/lib/lobby.ts for why this exists instead of comparing against
+  // the client's own wagmi address.
+  amIJoined: boolean;
   // The VIEWER's own current Rental Bot selection for this lobby — set
   // any time before start via usePatchLobbyRentalBot, null if nothing's
   // equipped. Not yet consumed (see setLobbyRentalBot's own doc-comment
@@ -2458,7 +2463,19 @@ export function useAcceptInvitation() {
       if (!res.ok) throw new Error(body.error ?? "Failed to accept invitation");
       return body;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invitations"] }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["invitations"] });
+      // The response is already the fresh, post-join LobbyState (this
+      // wallet's own new seat included) — write it straight into the
+      // lobby page's own cache instead of waiting for its next poll.
+      // Confirmed live as a real bug: the lobby page's own
+      // "not-a-participant-yet" pre-join gate (see its own
+      // handleAcceptAndReady) reads amIJoined from this exact cached
+      // query, so without this it kept re-showing the pre-join screen
+      // for up to a few seconds after a successful accept — reading as
+      // "I'm Ready" not doing anything.
+      queryClient.setQueryData(["lobby", data.id], data);
+    },
   });
 }
 
@@ -2533,7 +2550,7 @@ export function useLiveMatchState(matchId: string | null, opts: { enabled: boole
       return res.json();
     },
     enabled: opts.enabled && !!matchId,
-    // Deliberately shorter than the ~350ms report cadence (see
+    // Deliberately shorter than the ~200ms report cadence (see
     // LIVE_REPORT_INTERVAL_SEC) — polling at the SAME rate as reporting
     // means the two are unsynchronized, so on average this only caught
     // a just-written sample after almost a full extra interval had
@@ -2545,7 +2562,7 @@ export function useLiveMatchState(matchId: string | null, opts: { enabled: boole
     // cheap — this is one in-memory Map lookup per request (see
     // liveMatchState.ts), not a DB query — so there's real headroom to
     // shrink just the read side without touching write volume at all.
-    refetchInterval: 180,
+    refetchInterval: 120,
     // A stale snapshot of a moving ship isn't "good enough" the way most
     // of this app's other polled data is — always prefer a fresh fetch.
     staleTime: 0,

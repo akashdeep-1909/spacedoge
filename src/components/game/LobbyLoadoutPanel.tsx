@@ -22,9 +22,18 @@ import { ShopItemIcon } from "@/components/game/ShopItemIcon";
 export function LobbyLoadoutPanel({
   lobbyId,
   myLoadout,
+  hideHeading = false,
 }: {
   lobbyId: string;
   myLoadout: Partial<Record<ShopItemCategory, { walletShopItemId: string; label: string }>>;
+  // The pre-join intro screen (see the lobby page's own
+  // showLoadoutIntro) already shows its own title/subtitle right above
+  // this panel — without this, its generic "Choose Your Loadout" text
+  // repeated a second time immediately below, reading as a rendering
+  // glitch rather than two different things (confirmed live, a real
+  // visual bug). The normal always-visible copy of this panel further
+  // down the waiting room keeps its own heading as before.
+  hideHeading?: boolean;
 }) {
   const { t } = useLocale();
   const { data: inventory, isLoading } = useShopInventory();
@@ -73,8 +82,12 @@ export function LobbyLoadoutPanel({
 
   return (
     <div className="game-panel hud-corner mt-4 rounded-2xl p-4">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-gold">{t("shop.loadoutModalTitle")}</p>
-      <p className="mt-1 text-xs text-muted">{t("shop.loadoutModalSubtitle")}</p>
+      {!hideHeading && (
+        <>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gold">{t("shop.loadoutModalTitle")}</p>
+          <p className="mt-1 text-xs text-muted">{t("shop.loadoutModalSubtitle")}</p>
+        </>
+      )}
 
       {shopClosed ? (
         <p className="mt-3 rounded-xl border border-line bg-panel-2 p-3 text-xs text-muted">{t("shop.loadoutShopClosed")}</p>

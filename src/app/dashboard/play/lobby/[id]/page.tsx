@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount } from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
 import { OnboardingGate } from "@/components/OnboardingGate";
@@ -26,9 +26,14 @@ import {
   useRecentPlayers,
   useMatchRoster,
   useLiveMatchState,
+  useAcceptInvitation,
+  usePatchLobbyLoadout,
+  usePatchLobbyRentalBot,
 } from "@/lib/hooks";
 import { RentalBotPanel } from "@/components/game/RentalBotPanel";
 import { LobbyLoadoutPanel } from "@/components/game/LobbyLoadoutPanel";
+import { PreJoinLoadoutPicker, type PreJoinSelections } from "@/components/game/PreJoinLoadoutPicker";
+import type { ShopItemCategory } from "@/lib/shop-shared";
 
 function displayName(address: string, nickname?: string | null) {
   return nickname || `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -58,9 +63,19 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   const { address } = useAccount();
   const { session } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Present only via the "Accept and Join" navigation for a direct
+  // invite (see IncomingInvitations/IncomingInviteToast) — everyone
+  // else (host, invite-link join, room-code join) reaches this page
+  // with no query string at all, and falls straight through to the
+  // already-joined gated screen below exactly as before.
+  const invitationId = searchParams.get("invitationId");
   const { t } = useLocale();
   const queryClient = useQueryClient();
   const submitResults = useSubmitMatchResults();
+  const acceptInvitation = useAcceptInvitation();
+  const patchLoadout = usePatchLobbyLoadout(lobbyId);
+  const patchRentalBot = usePatchLobbyRentalBot(lobbyId);
 
   const [inviteAddress, setInviteAddress] = useState("");
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -68,6 +83,35 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [origin] = useState(() => getPublicOrigin());
+  // Blocks the rest of this waiting room from rendering at all — see
+  // the early-return render guard below — until "I'm Ready" is
+  // clicked. Confirmed live as a real ask: this used to be a
+  // dismissible overlay ON TOP of the already-visible waiting room, so
+  // accepting an invite and landing here showed the room (and every
+  // other joined player) before you'd picked a loadout at all; now the
+  // loadout screen is the only thing rendered until you confirm, so
+  // "joining the room" (seeing/being seen by everyone else there) only
+  // visibly happens after you're actually ready — closer to solo/
+  // instant play's own pre-match LoadoutSelectModal, which the player
+  // has to dismiss before the match can start at all. This still can't
+  // force the HOST to wait for anyone else, and it's a client-side
+  // gate only — server-side, accepting the invite already made this
+  // wallet a real JOINED participant the moment "Accept and Join" was
+  // clicked (unchanged), so the two panels below remain the single
+  // place a loadout is ever actually recorded, whether shown here
+  // first or on the normal waiting-room view reached afterward.
+  // Selections save instantly per click either way (see those panels'
+  // own PATCH-per-click design) — this screen doesn't add a second,
+  // separate "confirm" step on top of that, it's purely about when the
+  // rest of the room becomes visible.
+  const [showLoadoutIntro, setShowLoadoutIntro] = useState(true);
+  // Local-only picks for the not-yet-joined pre-join screen (see
+  // PreJoinLoadoutPicker) — there's no lobby membership yet to save
+  // these against, so they live here until handleAcceptAndReady
+  // applies them right after the real accept-invitation call succeeds.
+  const [preJoinSelections, setPreJoinSelections] = useState<PreJoinSelections>({ loadout: {}, rentalBotItemId: null });
+  const [preJoinError, setPreJoinError] = useState<string | null>(null);
+  const [joiningFromInvite, setJoiningFromInvite] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<{
     rank: number | null;
@@ -360,6 +404,48 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
     return <p className="mx-auto max-w-md text-sm text-muted">{t("lobby.loading")}</p>;
   }
 
+  // Whether THIS wallet already has a seat in this lobby — the actual
+  // gate the pre-join screen below is built around. False for anyone
+  // who navigated straight here from "Accept and Join" without the
+  // real accept-invitation call having happened yet. Comes straight
+  // from the server's own session-based lookup (see LobbyState's own
+  // doc-comment) rather than being derived here from wagmi's
+  // useAccount().address matched against lobby.slots — confirmed live
+  // as a real bug: that comparison could stay false for a beat right
+  // after a genuinely successful accept (wagmi's own address state
+  // lagging behind, or simply unavailable, independent of whether the
+  // SIWE session itself was valid), which kept re-showing this same
+  // pre-join screen after "I'm Ready" instead of ever revealing the
+  // room, even though the join had actually gone through server-side.
+  const amIJoined = lobby.amIJoined;
+
+  // Runs the real join (accept-invitation — the same call "Accept and
+  // Join" used to make immediately) only now, at "I'm Ready," then
+  // applies whatever was picked on PreJoinLoadoutPicker now that
+  // membership actually exists to PATCH those selections against. A
+  // since-expired/already-handled invitation surfaces the server's own
+  // error message here rather than silently doing nothing.
+  async function handleAcceptAndReady() {
+    if (!invitationId) { setShowLoadoutIntro(false); return; }
+    setPreJoinError(null);
+    setJoiningFromInvite(true);
+    try {
+      await acceptInvitation.mutateAsync(invitationId);
+      const entries = Object.entries(preJoinSelections.loadout) as [ShopItemCategory, string | null][];
+      for (const [category, walletShopItemId] of entries) {
+        await patchLoadout.mutateAsync({ category, walletShopItemId });
+      }
+      if (preJoinSelections.rentalBotItemId) {
+        await patchRentalBot.mutateAsync(preJoinSelections.rentalBotItemId);
+      }
+      setShowLoadoutIntro(false);
+    } catch (err) {
+      setPreJoinError(err instanceof Error ? err.message : t("play.failedToAcceptInvitation"));
+    } finally {
+      setJoiningFromInvite(false);
+    }
+  }
+
   if (showGame && lobby.finalMatchId) {
     const lobbyMode = lobby.mode as GameMode;
     const lobbyTheme = THEME_BY_MODE[lobbyMode] ?? THEME_BY_MODE.EXPLORER_RUSH;
@@ -532,6 +618,68 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   const recentPlayers = (recentPlayersData?.players ?? []).filter(
     (p) => !alreadyInOrInvited.has(p.address.toLowerCase())
   );
+
+  // Not-yet-a-participant case — reached only via the "Accept and Join"
+  // navigation for a direct invite (see IncomingInvitations/
+  // IncomingInviteToast, which now send the recipient straight here
+  // with ?invitationId=... instead of calling accept immediately).
+  // Confirmed live as a real ask: accepting used to join the lobby
+  // seat (visible to the host, who could already start) THEN show this
+  // same loadout screen — so "joining" was already done before a
+  // loadout was ever picked. Picks here are local-only (see
+  // PreJoinLoadoutPicker's own doc-comment — there's no membership yet
+  // to PATCH against); handleAcceptAndReady below does the real accept
+  // first and only then applies them, so the seat only actually fills
+  // (and the host only actually sees this wallet) once "I'm Ready" is
+  // pressed here, not before.
+  if (invitationId && !amIJoined && (lobby.status === "WAITING" || lobby.status === "FULL")) {
+    return (
+      <div className="mx-auto max-w-md">
+        <div className="game-panel hud-corner rounded-2xl p-4">
+          <p className="text-sm font-black uppercase tracking-wide text-gold">{t("lobby.loadoutIntroTitle")}</p>
+          <p className="mt-1 text-xs text-muted">{t("lobby.loadoutIntroSubtitle")}</p>
+        </div>
+        <PreJoinLoadoutPicker selections={preJoinSelections} onChange={setPreJoinSelections} />
+        {preJoinError && <p className="mt-2 text-xs text-risk">{preJoinError}</p>}
+        <button
+          onClick={handleAcceptAndReady}
+          disabled={joiningFromInvite}
+          className="btn-game hud-corner mt-4 w-full rounded-full px-4 py-2.5 text-sm disabled:opacity-50"
+        >
+          {t("lobby.loadoutIntroContinue")}
+        </button>
+      </div>
+    );
+  }
+
+  // Already-a-participant case (host, or a wallet that reached this
+  // page some other way — invite link, room code, or a page reload
+  // after already accepting) — the same screen, but backed by the real
+  // per-lobby panels (immediate PATCH per click) since membership
+  // already exists. Blocks the rest of this waiting room entirely (not
+  // an overlay on top of it) until "I'm Ready" — see showLoadoutIntro's
+  // own doc-comment for why, and no dismiss besides that button (no X,
+  // no Escape, no backdrop-click) on purpose: an escape hatch would let
+  // someone skip straight past to the room exactly like before this
+  // existed.
+  if (showLoadoutIntro && (lobby.status === "WAITING" || lobby.status === "FULL")) {
+    return (
+      <div className="mx-auto max-w-md">
+        <div className="game-panel hud-corner rounded-2xl p-4">
+          <p className="text-sm font-black uppercase tracking-wide text-gold">{t("lobby.loadoutIntroTitle")}</p>
+          <p className="mt-1 text-xs text-muted">{t("lobby.loadoutIntroSubtitle")}</p>
+        </div>
+        <LobbyLoadoutPanel lobbyId={lobby.id} myLoadout={lobby.myLoadout} hideHeading />
+        <RentalBotPanel lobbyId={lobby.id} myRentalBot={lobby.myRentalBot} />
+        <button
+          onClick={() => setShowLoadoutIntro(false)}
+          className="btn-game hud-corner mt-4 w-full rounded-full px-4 py-2.5 text-sm"
+        >
+          {t("lobby.loadoutIntroContinue")}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-md">

@@ -1287,6 +1287,9 @@ const en = {
     rentalBotShopClosed: "The shop is currently closed — Space DOGE BOT can't be used until it reopens.",
     rentalBotFailedToSave: "Failed to update your Space DOGE BOT selection",
     rentalBotNeedsFriends: "Your Space DOGE BOT only works with real friends — invite {{count}} more before starting, or clear it above to start with random players.",
+    loadoutIntroTitle: "Choose Your Loadout",
+    loadoutIntroSubtitle: "The host can start as soon as everyone's in, so equip your rocket skin and Space DOGE BOT here first — you can still change these below any time before the match starts.",
+    loadoutIntroContinue: "I'm Ready",
   },
   gameArena: {
     title: "Coin Rush Arena",
