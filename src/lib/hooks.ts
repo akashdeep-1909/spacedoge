@@ -2533,7 +2533,19 @@ export function useLiveMatchState(matchId: string | null, opts: { enabled: boole
       return res.json();
     },
     enabled: opts.enabled && !!matchId,
-    refetchInterval: 350,
+    // Deliberately shorter than the ~350ms report cadence (see
+    // LIVE_REPORT_INTERVAL_SEC) — polling at the SAME rate as reporting
+    // means the two are unsynchronized, so on average this only caught
+    // a just-written sample after almost a full extra interval had
+    // already passed (a "beat frequency" problem, not a bug in either
+    // side individually). Confirmed live as a real contributor to
+    // "other players' movement looks laggy" on a real deployed server
+    // (round-trip time alone already adds real latency localhost
+    // testing never showed). Polling faster than writes change is
+    // cheap — this is one in-memory Map lookup per request (see
+    // liveMatchState.ts), not a DB query — so there's real headroom to
+    // shrink just the read side without touching write volume at all.
+    refetchInterval: 180,
     // A stale snapshot of a moving ship isn't "good enough" the way most
     // of this app's other polled data is — always prefer a fresh fetch.
     staleTime: 0,

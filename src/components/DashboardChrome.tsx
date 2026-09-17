@@ -11,6 +11,7 @@ import { BottomTabBar } from "@/components/BottomTabBar";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { SocialLinks } from "@/components/SocialLinks";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { IncomingInviteToast } from "@/components/IncomingInviteToast";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 
 // Split into a small always-visible primary set (guaranteed to fit next
@@ -106,6 +107,7 @@ export function DashboardChrome({ children }: { children: ReactNode }) {
       </footer>
 
       <BottomTabBar />
+      <IncomingInviteToast />
     </div>
   );
 }

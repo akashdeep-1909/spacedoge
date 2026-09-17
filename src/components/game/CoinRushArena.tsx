@@ -104,6 +104,10 @@ interface ShipEntity {
   // drawRocket's own doc-comment for the fairness constraint this is
   // built to respect (collision radius never varies by shape).
   shapeKey: string | null;
+  // Per-ship fire cooldown — see the bullet-spawning loop's own
+  // doc-comment for why this moved from a single g.fireShotCd (which
+  // only ever let "you" actually shoot) to one of these per ship.
+  fireShotCd: number;
 }
 
 const ITEM_STYLES: Record<ItemEntity["kind"], { r: number; value: number; rare: boolean; glyph: string }> = {
@@ -568,10 +572,6 @@ export function CoinRushArena({
     // loadout.fireExtraUses), gated on this counter instead of a Cd
     // timer.
     fireUsesRemaining: number;
-    // Time until the next burst goes out while fire is active — separate
-    // from `fireUsesRemaining`, which just gates whether fire can be
-    // triggered at all right now.
-    fireShotCd: number;
     // Damage feedback for the human ship, both decaying to 0 every
     // frame in update() — set to 1 in hitShip() the instant a real hit
     // (not shield-blocked) lands. youHitFlash tints the rocket red in
@@ -582,13 +582,30 @@ export function CoinRushArena({
     shakeMag: number;
     last: number;
     raf: number;
-    // Live-position spectate feature (see the `spectate`/`matchId` props
-    // above). liveReportCd: seconds until the next self-report while
-    // actively playing. liveBuffers: per-opponent (keyed by real
-    // slotNumber) last-two-samples buffer while spectating, used to lerp
-    // smooth motion between ~350ms polls instead of snapping every tick.
+    // Live-position sync (see the `spectate`/`matchId` props above and
+    // `liveOpponents`'s own doc-comment — active play now, not just
+    // spectating). liveReportCd: seconds until the next self-report
+    // while actively playing. liveBuffers: per-opponent (keyed by real
+    // slotNumber) last-two-samples buffer, used to lerp smooth motion
+    // between polls instead of snapping every tick. lerpMs is that
+    // interpolation's duration, adaptive rather than a flat assumed
+    // ~350ms — confirmed live as a real cause of "laggy/stuttery"
+    // opponent movement on a real deployed server (as opposed to
+    // localhost, where round trips are near-instant): a fixed 350ms
+    // window means any poll that actually takes longer than that
+    // (real network latency/jitter, not just localhost's near-zero
+    // round trip) leaves the ship completely frozen at its last known
+    // spot for the overrun, then snapping to lerp again once the next
+    // sample finally lands — a repeating freeze/catch-up pattern that
+    // reads as lag even though each individual position is correct.
+    // Stretching (or shrinking) the lerp window to match how long the
+    // PREVIOUS gap between samples actually took keeps motion
+    // continuous regardless of real poll timing, at the cost of being
+    // one sample-interval behind on how fast a sudden latency change
+    // is reflected — the right trade for smoothness over precision on
+    // a purely cosmetic sync.
     liveReportCd: number;
-    liveBuffers: Map<number, { from: LiveShipSample; to: LiveShipSample; toReceivedAt: number }>;
+    liveBuffers: Map<number, { from: LiveShipSample; to: LiveShipSample; toReceivedAt: number; lerpMs: number }>;
     // True once a final alive:false report has actually gone out for
     // this ship — see the reporting block below's own doc-comment for
     // why this exists (without it, a real death is never reported at
@@ -697,7 +714,7 @@ export function CoinRushArena({
         lives: spectate ? 0 : diff.startLives + (loadout?.livesBonus ?? 0), carry: 0, banked: 0, active: !spectate, invuln: 0, knockback: 0,
         speed: 150 * diff.playerSpeedMult * (1 + (loadout?.speedMultBonus ?? 0)) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
         externallyDriven: false, oppSlot: null, isBot: false,
-        shapeKey: loadout?.shapeKey ?? null,
+        shapeKey: loadout?.shapeKey ?? null, fireShotCd: 0,
       },
       ...botNames.map((name, i) => {
         const opp = opponents?.[i];
@@ -733,7 +750,7 @@ export function CoinRushArena({
           lives: diff.startLives + (isBot ? BOT_LIVES_BONUS : 0), carry: 0, banked: 0, active: true, invuln: 0, knockback: 0,
           speed: (95 + rand() * 20) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
           externallyDriven, oppSlot: externallyDriven ? opp!.slotNumber : null, isBot,
-          shapeKey: opp?.shapeKey ?? null,
+          shapeKey: opp?.shapeKey ?? null, fireShotCd: 0,
         };
       }),
     ];
@@ -845,7 +862,6 @@ export function CoinRushArena({
       dogeCoreT: 0,
       boostCd: 0, shieldCd: 0, magnetCd: 0,
       fireUsesRemaining: 1 + (loadout?.fireExtraUses ?? 0),
-      fireShotCd: 0,
       youHitFlash: 0,
       shakeMag: 0,
       last: performance.now(),
@@ -1123,7 +1139,14 @@ export function CoinRushArena({
           const sample = s.oppSlot != null ? liveOpponentsRef.current?.[s.oppSlot] : undefined;
           const buf = g.liveBuffers.get(s.oppSlot!);
           if (sample && (!buf || sample.updatedAt > buf.to.updatedAt)) {
-            g.liveBuffers.set(s.oppSlot!, { from: buf?.to ?? sample, to: sample, toReceivedAt: performance.now() });
+            const now = performance.now();
+            // See lerpMs's own doc-comment on liveBuffers: match the
+            // interpolation window to how long this gap between
+            // samples actually took, clamped so one unusually fast or
+            // slow poll can't make motion snap instantly or crawl for
+            // several seconds.
+            const lerpMs = buf ? Math.min(1500, Math.max(150, now - buf.toReceivedAt)) : LIVE_REPORT_INTERVAL_SEC * 1000;
+            g.liveBuffers.set(s.oppSlot!, { from: buf?.to ?? sample, to: sample, toReceivedAt: now, lerpMs });
           }
           return g.liveBuffers.has(s.oppSlot!);
         })();
@@ -1176,7 +1199,7 @@ export function CoinRushArena({
           // numbers on a HUD card, so those snap straight to the latest
           // known sample rather than being interpolated too.
           const b = g.liveBuffers.get(s.oppSlot!)!;
-          const t = Math.min(1, (performance.now() - b.toReceivedAt) / (LIVE_REPORT_INTERVAL_SEC * 1000));
+          const t = Math.min(1, (performance.now() - b.toReceivedAt) / b.lerpMs);
           const xFrac = b.from.xFrac + (b.to.xFrac - b.from.xFrac) * t;
           const yFrac = b.from.yFrac + (b.to.yFrac - b.from.yFrac) * t;
           const nx = clamp(xFrac * g.W, s.r, g.W - s.r);
@@ -1217,9 +1240,31 @@ export function CoinRushArena({
           // many times" now that BOT_LIVES_BONUS no longer applies here
           // (see that constant's own doc-comment) — filler bots'
           // thresholds are untouched.
-          const wantBank = s.isYou
-            ? s.carry >= 35 || (g.bankZone.open && s.carry >= 12 && dist(s, g.bankZone) < 240 * DPR)
-            : s.carry >= 55 || (g.bankZone.open && s.carry >= 20 && dist(s, g.bankZone) < 220 * DPR);
+          //
+          // Both branches now require g.bankZone.open — confirmed live
+          // as the actual cause of bots "just circling in place" and
+          // "sitting in the upper portion with no coins to collect":
+          // the vault sits right at the top of the play area (see
+          // bankZone's own homeY) and is only open ~40% of the time
+          // (bz.open cycles on an 8.4s period). The unconditional heavy-
+          // carry branch used to send a bot there the INSTANT carry
+          // crossed the threshold regardless of whether it could
+          // actually bank yet, so a bot that arrived mid-closed-phase
+          // just parked there tracking the vault's own slow side-to-
+          // side drift (bz.x's sine wave) for however long was left of
+          // the ~5s closed window — reading exactly like aimless
+          // circling near the top, ignoring every coin elsewhere on the
+          // map the whole time. Gating on open means a bot only ever
+          // commits to the vault once it can actually use it; the rest
+          // of the time it keeps doing the thing an attentive player
+          // would — collecting — and reacts the instant the vault opens
+          // (this recomputes every frame, so that's a same-frame
+          // reaction, not a delayed one).
+          const wantBank = g.bankZone.open && (
+            s.isYou
+              ? s.carry >= 35 || (s.carry >= 12 && dist(s, g.bankZone) < 240 * DPR)
+              : s.carry >= 55 || (s.carry >= 20 && dist(s, g.bankZone) < 220 * DPR)
+          );
           let tx = s.x, ty = s.y;
           if (wantBank) { tx = g.bankZone.x; ty = g.bankZone.y; }
           else if (s.isYou) {
@@ -1393,31 +1438,41 @@ export function CoinRushArena({
         }
       }
 
-      // Fire (limited uses per match, see useFire()) — for its whole 10s window
-      // the rocket auto-fires a 3-bullet burst every ~0.16s from its
-      // nose, aimed the direction it's currently facing. A bullet that
-      // touches a hunter/dasher/mine destroys it outright, at zero cost
-      // to the human ship (no life lost, no carry penalty, hitShip() is
-      // never called for these). "Destroyed" means the same thing it
-      // already does everywhere else in this file when a hazard lands a
-      // hit — relocated to a fresh random point via randPointInPlay(),
-      // same as a normal hit's own clean-up — so the field's hazard
-      // count never actually drops; they're gone from right here for a
-      // moment, then back in play somewhere else, same as they always
-      // were.
+      // Fire (limited uses per match for "you", see useFire()) — for its
+      // whole 10s window the rocket auto-fires a 3-bullet burst every
+      // ~0.16s from its nose, aimed the direction it's currently facing.
+      // A bullet that touches a hunter/dasher/mine destroys it outright,
+      // at zero cost to whichever ship fired it (no life lost, no carry
+      // penalty, hitShip() is never called for these). "Destroyed" means
+      // the same thing it already does everywhere else in this file
+      // when a hazard lands a hit — relocated to a fresh random point
+      // via randPointInPlay(), same as a normal hit's own clean-up — so
+      // the field's hazard count never actually drops; they're gone
+      // from right here for a moment, then back in play somewhere else,
+      // same as they always were.
       //
-      // Gated on you.active — without it, a fire burst still counting
-      // down at the moment the player dies kept auto-firing bullets from
-      // the dead ship's last position for the rest of its 10s window
-      // (confirmed live: the rocket dies but fire keeps bursting).
-      g.fireShotCd = Math.max(0, g.fireShotCd - dt);
-      if (you.active && you.fire > 0 && g.fireShotCd <= 0) {
-        g.fireShotCd = 0.16;
+      // Every active ship, not just "you" — confirmed live as a real
+      // gap ("can't see other users/rental bots firing"): this used to
+      // check `you.fire` and a single g.fireShotCd, so a bot's or a
+      // real opponent's own s.fire (already correctly synced/set by
+      // then — see the externallyDriven and rental-bot-heuristic code)
+      // lit up the glow ring but never actually fired anything, on
+      // ANY viewer's screen including the ship's own owner. Cooldown is
+      // now per-ship (ShipEntity.fireShotCd) since a single shared
+      // timer would make every firing ship burst in lockstep. Gated on
+      // s.active — without it, a fire burst still counting down at the
+      // moment a ship dies kept auto-firing bullets from its last
+      // position for the rest of its 10s window (confirmed live: the
+      // rocket dies but fire keeps bursting).
+      for (const s of g.ships) {
+        s.fireShotCd = Math.max(0, s.fireShotCd - dt);
+        if (!s.active || s.fire <= 0 || s.fireShotCd > 0) continue;
+        s.fireShotCd = 0.16;
         for (const da of [-0.18, 0, 0.18]) {
-          const a = you.angle + da;
+          const a = s.angle + da;
           g.bullets.push({
-            x: you.x + Math.cos(a) * you.r,
-            y: you.y + Math.sin(a) * you.r,
+            x: s.x + Math.cos(a) * s.r,
+            y: s.y + Math.sin(a) * s.r,
             vx: Math.cos(a) * 640 * DPR,
             vy: Math.sin(a) * 640 * DPR,
             life: 0.6,
