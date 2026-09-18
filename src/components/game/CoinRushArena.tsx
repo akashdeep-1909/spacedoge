@@ -589,6 +589,10 @@ export function CoinRushArena({
   const gRef = useRef<{
     W: number; H: number; DPR: number;
     time: number; running: boolean; elapsed: number;
+    // Real seconds owed to the simulation that haven't been stepped
+    // through yet — see loop()'s own doc-comment for why this exists
+    // (fixed-timestep catch-up on a backgrounded/throttled tab).
+    catchupBacklogSec: number;
     rand: () => number;
     pointer: { x: number; y: number; active: boolean };
     keys: { up: boolean; down: boolean; left: boolean; right: boolean };
@@ -892,6 +896,13 @@ export function CoinRushArena({
       // from being a permanent freeze.
       running: countdownAlreadyDoneRef.current,
       elapsed: startElapsedSec,
+      // See loop()'s own doc-comment for the real reason this exists:
+      // time/elapsed are still plain frame accumulators (+=/-= dt every
+      // simulated tick, unchanged below) — what changed is how many
+      // ticks a single requestAnimationFrame callback can run at once,
+      // so a backgrounded/throttled tab's simulation actually catches
+      // up to real elapsed time instead of falling behind it.
+      catchupBacklogSec: 0,
       rand,
       pointer: { x: SPAWN_X, y: SPAWN_Y, active: false },
       keys: { up: false, down: false, left: false, right: false },
@@ -1111,7 +1122,7 @@ export function CoinRushArena({
 
     function update(dt: number) {
       if (!g.running) return;
-      g.time -= dt;
+      g.time = Math.max(0, g.time - dt);
       g.elapsed += dt;
       g.dogeCoreT = Math.max(0, g.dogeCoreT - dt);
       g.boostCd = Math.max(0, g.boostCd - dt);
@@ -1292,9 +1303,40 @@ export function CoinRushArena({
           const ny = clamp(TOP_MARGIN + yFrac * (g.H - TOP_MARGIN - BOTTOM_MARGIN), TOP_MARGIN + s.r, g.H - BOTTOM_MARGIN - s.r);
           if (Math.hypot(nx - s.x, ny - s.y) > 1 * DPR) s.angle = Math.atan2(ny - s.y, nx - s.x);
           s.x = nx; s.y = ny;
+          // Caught before carry/lives get overwritten below — a non-
+          // fatal hit (lives dropped but the ship is still alive) got
+          // NO visual treatment at all here, unlike a local hit's own
+          // hitShip() (colored particle burst + s.invuln flicker,
+          // read below by draw()'s "blinking" skip-frame at line
+          // ~2192). Confirmed live as the other half of "can't see it
+          // dead and blink": a real opponent's death already got a
+          // burst (below), but every hit BEFORE the fatal one was a
+          // silent lives-counter decrement with no burst and no
+          // blink — so the ship never visibly reacted to being hit at
+          // all until it just vanished. s.invuln is otherwise only
+          // ever set inside hitShip(), which never runs for an
+          // externally-driven ship (its hits happen on the remote
+          // client's own simulation), so this is the one place that
+          // can mirror it here.
+          if (s.active && b.to.alive && b.to.lives < s.lives) {
+            addParticles(s.x, s.y, "#ff6767", 18);
+            s.invuln = hitInvulnSec;
+          }
           s.carry = b.to.carry;
           s.banked = b.to.banked;
           s.lives = b.to.lives;
+          // Same white death burst hitShip() plays for a LOCAL death —
+          // confirmed live as a real gap ("can't see when the auto
+          // pilot bot is killed," unlike shield/fire which already
+          // synced): a real opponent's death was applied here as a
+          // silent state flip with zero visual feedback, so their ship
+          // just quietly stopped updating rather than visibly dying.
+          // Checked on the actual active->inactive transition (not
+          // every frame b.to.alive happens to read false) so it fires
+          // exactly once, the moment this viewer's own client first
+          // learns about it — same "once" guarantee a local death
+          // already has.
+          if (s.active && !b.to.alive) addParticles(s.x, s.y, "#ffffff", 26);
           s.active = b.to.alive;
           // Just on/off, snapped straight to the latest sample like
           // carry/banked/lives above — confirmed live as a real gap
@@ -1445,6 +1487,26 @@ export function CoinRushArena({
               avoidY += perpY * side * (aimR - dd) * 0.9;
             }
           }
+          // Wall/corner repulsion — a separate failure mode from hazard
+          // avoidance above, confirmed live as a real bug ("bots
+          // accumulate in a corner, not moving"): a bot fleeing a
+          // hazard positioned generally toward the map's center gets
+          // pushed toward whichever edge is closest, and once two edges
+          // meet at a corner, the position clamp a few lines down pins
+          // it there while the avoidance vector — still pointing away
+          // from that same hazard, now straight into the wall — has
+          // nowhere left to actually go, reading as a bot vibrating in
+          // place in the corner (and, with several bots independently
+          // fleeing similar threats, several of them ending up pinned
+          // in the SAME corner together). A standing push back toward
+          // open space whenever a bot gets within wallMargin of any
+          // edge means it never settles at a boundary for long enough
+          // to get stuck there in the first place, corner or otherwise.
+          const wallMargin = 90 * DPR;
+          if (s.x < wallMargin) avoidX += (wallMargin - s.x) * 1.4;
+          if (s.x > g.W - wallMargin) avoidX -= (s.x - (g.W - wallMargin)) * 1.4;
+          if (s.y < TOP_MARGIN + wallMargin) avoidY += (TOP_MARGIN + wallMargin - s.y) * 1.4;
+          if (s.y > g.H - BOTTOM_MARGIN - wallMargin) avoidY -= (s.y - (g.H - BOTTOM_MARGIN - wallMargin)) * 1.4;
           const dx = (tx - s.x) + avoidX * 2.8, dy = (ty - s.y) + avoidY * 2.8;
           const d = Math.hypot(dx, dy) || 1;
           ax = dx / d; ay = dy / d;
@@ -2195,10 +2257,64 @@ export function CoinRushArena({
       }
     }
 
+    // Fixed-timestep catch-up: a backgrounded/throttled tab's
+    // requestAnimationFrame callbacks fire far less often than 60/sec
+    // (often ~1/sec or slower) — confirmed live as the actual cause
+    // behind "only the player I was actively watching ever finishes
+    // and gets paid; friends whose tab I wasn't looking at score 0" in
+    // Play-with-Friends. A single dt-capped update() per callback (the
+    // old behavior) means a hidden tab's SIMULATION falls further and
+    // further behind real elapsed time the longer it stays hidden — a
+    // 60s match could take 20+ real minutes to actually finish while
+    // backgrounded, almost always blowing past the 90s results
+    // grace window (RESULTS_GRACE_PERIOD_SECONDS, src/lib/lobby.ts)
+    // and scoring that participant 0 as a no-show.
+    //
+    // An earlier version of this fix read the mission clock straight
+    // from Date.now() instead, which does end the match on real time —
+    // but only the CLOCK, not the ship: a Rental-Bot-equipped player
+    // (the whole point of that feature is not needing to keep the tab
+    // focused) would have the match end the instant they checked back
+    // in, with almost nothing actually collected, since gameplay itself
+    // — movement, coin pickups, bank deposits, hazard dodges — never
+    // got the update() calls needed to simulate the time that had
+    // passed. Confirmed live as the real cause behind "rental bot
+    // finishes last with 0 collected, this used to be good."
+    //
+    // Catching up in real fixed-size (33ms) ticks fixes both at once:
+    // each callback can now run many simulated ticks back-to-back
+    // (cheap — this game's own entity counts make even a few hundred
+    // ticks sub-millisecond), so a long-hidden tab's ship actually
+    // plays through the gap — coins collected, hazards dodged, bank
+    // deposits made — rather than the mission clock silently
+    // outrunning a simulation that never got to run. MAX_CATCHUP_STEPS
+    // bounds a single callback's work (so one huge gap, e.g. the OS
+    // suspending the tab for a while, can't block the main thread for
+    // long); any remainder simply carries into the next callback
+    // rather than being dropped, so the backlog still fully drains —
+    // just over a handful of real frames instead of one.
+    const FIXED_STEP = 0.033;
+    // ~99s of simulated time per real frame — comfortably covers a
+    // whole match's worth of backlog (g.catchupBacklogSec is itself
+    // capped at durationSec above) in one callback for every mode this
+    // game has today, so a tab returning from the background is caught
+    // all the way up the instant a single frame renders rather than
+    // trickling back over several. Cheap enough not to matter even at
+    // this size — this game's own entity counts (a handful of ships,
+    // hazards, items) make a few thousand ticks sub-millisecond.
+    const MAX_CATCHUP_STEPS = 3000;
     function loop(now: number) {
-      const dt = Math.min(0.033, (now - g.last) / 1000 || 0);
+      const gapSec = Math.max(0, (now - g.last) / 1000 || 0);
       g.last = now;
-      update(dt);
+      g.catchupBacklogSec = Math.min(g.catchupBacklogSec + gapSec, durationSec);
+      let steps = 0;
+      while (g.running && g.catchupBacklogSec > 0 && steps < MAX_CATCHUP_STEPS) {
+        const step = Math.min(FIXED_STEP, g.catchupBacklogSec);
+        update(step);
+        g.catchupBacklogSec -= step;
+        steps++;
+      }
+      if (!g.running) g.catchupBacklogSec = 0;
       draw();
       g.raf = requestAnimationFrame(loop);
     }

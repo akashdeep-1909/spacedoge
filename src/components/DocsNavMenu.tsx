@@ -28,7 +28,7 @@ export function DocsDesktopDropdown() {
     <div className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
       <button
         type="button"
-        className={`relative flex items-center gap-1 whitespace-nowrap rounded-full px-3 py-2 transition-colors ${
+        className={`relative flex items-center gap-1 whitespace-nowrap rounded-full px-3 py-2 uppercase transition-colors ${
           open ? "text-foreground" : "text-muted hover:text-foreground"
         }`}
       >
@@ -43,7 +43,27 @@ export function DocsDesktopDropdown() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.15, ease: EASE }}
-            className="ld-glass absolute left-0 top-full z-30 mt-1 min-w-[200px] origin-top-left p-1.5 normal-case shadow-2xl"
+            // absolute! (forced !important) — .ld-glass itself (globals.css)
+            // hardcodes `position: relative` as a plain, un-layered CSS
+            // rule, which — per the CSS cascade-layers spec — beats
+            // Tailwind's own `absolute` utility outright regardless of
+            // class order, since every Tailwind utility lives inside a
+            // named layer and un-layered rules always win. Without the
+            // forced !important here this panel silently never left
+            // normal document flow at all, so its "block child wider
+            // than the button" content (492px vs button's 76px)
+            // inflated the whole wrapper — and this flex item within
+            // it — out to that width instead, which is what was
+            // actually covering the language switcher/Connect Wallet
+            // button, not a simple anchor-edge mistake.
+            //
+            // right-0/origin-top-right, not left-0 — "Docs" is the
+            // LAST item in the nav, right before those two. Once
+            // actually taken out of flow, anchoring to the left edge
+            // would still expand this min-w-[200px] panel rightward
+            // into them; the right edge expands left instead, into
+            // space the nav's own links already occupy.
+            className="ld-glass absolute! right-0 top-full z-30 mt-1 min-w-[200px] origin-top-right p-1.5 normal-case shadow-2xl"
           >
             {docs.map((doc) => (
               <a

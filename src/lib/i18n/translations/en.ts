@@ -1174,6 +1174,7 @@ const en = {
     couldNotStartMatch: "Could not start match.",
     couldNotCreateLobby: "Could not create lobby.",
     failedToAcceptInvitation: "Failed to accept invitation",
+    failedToDeclineInvitation: "Failed to decline invitation",
   },
   // Coin Rush Shop — Phase 1: cosmetic rocket skins only (no
   // gameplay-affecting items yet, see the shop plan for later phases).
@@ -1276,11 +1277,13 @@ const en = {
     startWithRandomPlayers: "Start with Random Players",
     startMatchButton: "Start Match",
     cancelButton: "Cancel",
+    leaveButton: "Leave Lobby",
     quitButton: "✕ Quit",
     failedToSendInvitation: "Failed to send invitation",
     failedToGenerateLink: "Failed to generate invite link",
     failedToStart: "Failed to start",
     failedToCancel: "Failed to cancel",
+    failedToLeave: "Failed to leave",
     rentalBotHeading: "Space DOGE BOT",
     rentalBotSubtitle: "Let a bot play this match for you — steers, dodges, and banks automatically.",
     rentalBotEmptyInventory: "You don't own any Space DOGE BOT passes yet.",

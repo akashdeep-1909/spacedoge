@@ -53,14 +53,20 @@ export interface ResolvedLoadout {
 // effect wiring anywhere yet (see the shop plan's own scope note), so
 // it's deliberately excluded from this list rather than shown as a
 // dead option.
+// RENTAL_BOT listed first — confirmed live as a real ask: the player
+// shop page (and the admin category picker, which shares this exact
+// order) both iterate this array top-to-bottom, so Space DOGE BOT used
+// to render dead last, well below the fold under every cosmetic/stat
+// category, instead of the prominent slot its own "let a bot play the
+// whole match for you" pitch deserves.
 export const SELLABLE_SHOP_CATEGORIES = [
+  "RENTAL_BOT",
   "ROCKET_SHAPE",
   "STAT_SPEED",
   "STAT_HEALTH",
   "POWERUP_MAGNET",
   "POWERUP_FIRE",
   "POWERUP_SHIELD",
-  "RENTAL_BOT",
 ] as const satisfies readonly ShopItemCategory[];
 
 // RENTAL_BOT is purchasable/admin-creatable like any other category

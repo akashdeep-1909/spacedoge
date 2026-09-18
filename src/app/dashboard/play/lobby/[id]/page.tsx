@@ -20,6 +20,7 @@ import {
   useInviteToLobby,
   useStartLobby,
   useCancelLobby,
+  useLeaveLobby,
   useGenerateInviteLink,
   useDisableInviteLink,
   useSubmitMatchResults,
@@ -27,6 +28,7 @@ import {
   useMatchRoster,
   useLiveMatchState,
   useAcceptInvitation,
+  useDeclineInvitation,
   usePatchLobbyLoadout,
   usePatchLobbyRentalBot,
 } from "@/lib/hooks";
@@ -74,6 +76,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   const queryClient = useQueryClient();
   const submitResults = useSubmitMatchResults();
   const acceptInvitation = useAcceptInvitation();
+  const declineInvitation = useDeclineInvitation();
   const patchLoadout = usePatchLobbyLoadout(lobbyId);
   const patchRentalBot = usePatchLobbyRentalBot(lobbyId);
 
@@ -139,6 +142,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   const invite = useInviteToLobby(lobbyId);
   const start = useStartLobby(lobbyId);
   const cancel = useCancelLobby(lobbyId);
+  const leave = useLeaveLobby(lobbyId);
   const generateLink = useGenerateInviteLink(lobbyId);
   const disableLink = useDisableInviteLink(lobbyId);
   const { data: recentPlayersData } = useRecentPlayers();
@@ -648,6 +652,40 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
         >
           {t("lobby.loadoutIntroContinue")}
         </button>
+        {/* No lobby membership exists yet at this point (see this
+            screen's own doc-comment above — the real accept-invitation
+            call only happens once "I'm Ready" is clicked) — so there's
+            nothing to leave/cancel server-side here, just a real
+            invitation still sitting PENDING. Two different ways back
+            out, not one, because they mean different things to the
+            host: Decline formally rejects it (existing invites-list
+            action, reused here — the host is notified, the invite
+            can't be re-accepted later); Cancel just leaves without
+            deciding, so the invite stays PENDING and this same screen
+            is still reachable again later from the invites list.
+            Confirmed live as a real gap: this screen only ever offered
+            a way FORWARD (accept), never back, unlike every other gate
+            in this room. */}
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button
+            onClick={() => router.push("/dashboard/play")}
+            disabled={joiningFromInvite}
+            className="btn-game-outline w-full rounded-full px-4 py-2 text-sm disabled:opacity-50"
+          >
+            {t("lobby.cancelButton")}
+          </button>
+          <button
+            onClick={() =>
+              declineInvitation.mutateAsync(invitationId)
+                .then(() => router.push("/dashboard/play"))
+                .catch((e) => setPreJoinError(e instanceof Error ? e.message : t("play.failedToDeclineInvitation")))
+            }
+            disabled={joiningFromInvite || declineInvitation.isPending}
+            className="btn-game-outline w-full rounded-full px-4 py-2 text-sm disabled:opacity-50"
+          >
+            {t("play.declineButton")}
+          </button>
+        </div>
       </div>
     );
   }
@@ -677,6 +715,41 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
         >
           {t("lobby.loadoutIntroContinue")}
         </button>
+        {/* Host-only — cancelling isn't valid for anyone else (see
+            useCancelLobby's own host-only check server-side). Confirmed
+            live as a real gap: the host who just created this lobby had
+            no way to back out except clicking through to the full room
+            first — this screen is the very first thing they see, so a
+            way out belongs right here too, not just further in. */}
+        {lobby.isHost ? (
+          <button
+            onClick={() => cancel.mutateAsync().catch((e) => setActionError(e instanceof Error ? e.message : t("lobby.failedToCancel")))}
+            disabled={cancel.isPending}
+            className="btn-game-outline mt-2 w-full rounded-full px-4 py-2 text-sm disabled:opacity-50"
+          >
+            {t("lobby.cancelButton")}
+          </button>
+        ) : (
+          // A joined non-host participant can't cancel the whole room
+          // (useCancelLobby is server-enforced host-only) — this is
+          // their own equivalent way back out: leaves just this seat,
+          // releasing their own entry-fee hold, and returns them to the
+          // play hub. Confirmed live as the other half of the same gap
+          // as the host's Cancel button above: a friend who accepted an
+          // invite by mistake had no way out of this exact screen either.
+          <button
+            onClick={() =>
+              leave.mutateAsync()
+                .then(() => router.push("/dashboard/play"))
+                .catch((e) => setActionError(e instanceof Error ? e.message : t("lobby.failedToLeave")))
+            }
+            disabled={leave.isPending}
+            className="btn-game-outline mt-2 w-full rounded-full px-4 py-2 text-sm disabled:opacity-50"
+          >
+            {t("lobby.leaveButton")}
+          </button>
+        )}
+        {actionError && <p className="mt-2 text-xs text-risk">{actionError}</p>}
       </div>
     );
   }
@@ -836,6 +909,33 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
           </div>
           {actionError && <p className="mt-2 text-xs text-risk">{actionError}</p>}
         </>
+      )}
+
+      {/* Non-host equivalent of the host's Cancel button right above —
+          same dual placement (also on the loadout-intro gate screen
+          above) for the same reason: the direct-invite-accept path
+          (handleAcceptAndReady) deliberately skips straight past that
+          gate screen once "I'm Ready" is clicked there (to avoid
+          showing the same loadout pickers twice), so a participant who
+          joined that way would otherwise never see a way to back out
+          at all. Confirmed live as a real gap: only the invite-link/
+          room-code paths (which DO stop on the gate screen first) ever
+          saw the leave button before this. */}
+      {!lobby.isHost && (lobby.status === "WAITING" || lobby.status === "FULL") && (
+        <div className="mt-4">
+          <button
+            onClick={() =>
+              leave.mutateAsync()
+                .then(() => router.push("/dashboard/play"))
+                .catch((e) => setActionError(e instanceof Error ? e.message : t("lobby.failedToLeave")))
+            }
+            disabled={leave.isPending}
+            className="btn-game-outline w-full rounded-full px-4 py-2 text-sm disabled:opacity-50"
+          >
+            {t("lobby.leaveButton")}
+          </button>
+          {actionError && <p className="mt-2 text-xs text-risk">{actionError}</p>}
+        </div>
       )}
     </div>
   );

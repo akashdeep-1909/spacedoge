@@ -2356,6 +2356,22 @@ export function useCancelLobby(lobbyId: string) {
   });
 }
 
+// A non-host JOINED participant backing out before the match starts —
+// only releases the caller's OWN entry-fee hold/seat, unlike
+// useCancelLobby which ends the whole room. No onSuccess cache write:
+// the caller is no longer a participant once this resolves, so the
+// page navigates them away instead of re-rendering this lobby.
+export function useLeaveLobby(lobbyId: string) {
+  return useMutation({
+    mutationFn: async (): Promise<LobbyState> => {
+      const res = await fetch(`/api/lobbies/${lobbyId}/leave`, { method: "POST" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to leave lobby");
+      return body;
+    },
+  });
+}
+
 // The caller's own Rental Bot selection for this lobby — callable by
 // host or joiner alike, any time before the lobby starts (see
 // setLobbyRentalBot's own doc-comment in src/lib/lobby.ts). Pass null

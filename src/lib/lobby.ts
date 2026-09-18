@@ -159,6 +159,72 @@ export async function cancelLobby(lobbyId: string, reason: string | null = null)
   });
 }
 
+// A single non-host JOINED participant backing out before the match
+// starts — confirmed live as a real gap: only the host had any way out
+// of the pre-start loadout screen (via cancelLobby above, which ends
+// the whole room for everyone); a friend who accepted an invite by
+// mistake, or just changed their mind, had no way back except leaving
+// the tab open on a screen they didn't want to be on. Unlike
+// cancelLobby, this only ever touches the caller's own seat: their own
+// entry-fee hold is released, everyone else's stays untouched. A FULL
+// room drops back to WAITING the instant a seat opens up so someone
+// else can join it.
+//
+// Deletes the participant row outright rather than soft-flipping it to
+// LEFT (which is what cancelLobby above still does): slotNumber is
+// permanently unique per lobby (@@unique([lobbyId, slotNumber])), so a
+// LEFT-but-still-present row keeps its slot forever reserved even
+// though the lobby's own UI already shows that seat as empty — the
+// NEXT joiner would land on a slot past LOBBY_MAX_PLAYERS instead of
+// reusing it, and serializeLobby's `slots` array (always exactly 1..
+// LOBBY_MAX_PLAYERS) would then silently never show that joiner at
+// all, despite them genuinely holding a seat and an entry-fee hold.
+// cancelLobby doesn't need this: it only ever runs on a lobby that's
+// about to become CANCELLED, which joinLobbySeat already refuses to
+// touch again regardless of what slotNumbers its LEFT rows hold.
+// Nothing else in the app reads LobbyParticipant.status === "LEFT" as
+// a history/audit signal, so deleting here loses nothing.
+export async function leaveLobbySeat(lobbyId: string, walletProfileId: string): Promise<{ ok: boolean; error?: string }> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const lobby = await db.gameLobby.findUnique({ where: { id: lobbyId }, include: { participants: true } });
+    if (!lobby) return { ok: false, error: "Lobby not found" };
+    if (lobby.status !== "WAITING" && lobby.status !== "FULL") {
+      return { ok: false, error: "This lobby has already started or ended" };
+    }
+    // The host has no equivalent here on purpose — removing them would
+    // leave the room without one; cancelLobby is their own way out.
+    if (lobby.hostWalletProfileId === walletProfileId) {
+      return { ok: false, error: "The host can't leave — cancel the lobby instead" };
+    }
+    const participant = lobby.participants.find((p) => p.walletProfileId === walletProfileId && p.status === "JOINED");
+    if (!participant) return { ok: false, error: "You're not in this lobby" };
+
+    const claimResult = await db.$transaction(async (tx) => {
+      const claim = await tx.gameLobby.updateMany({
+        where: { id: lobbyId, version: lobby.version, status: lobby.status },
+        data: { version: { increment: 1 } },
+      });
+      if (claim.count === 0) return { kind: "lost_race" as const };
+
+      await releaseEntryHold(tx, {
+        walletProfileId,
+        entryFeeUsdt: Number(lobby.entryFeeUsdt),
+        lobbyId,
+      });
+      await tx.lobbyParticipantSelection.deleteMany({ where: { lobbyParticipantId: participant.id } });
+      await tx.lobbyParticipant.delete({ where: { id: participant.id } });
+      if (lobby.status === "FULL") {
+        await tx.gameLobby.update({ where: { id: lobbyId }, data: { status: "WAITING" } });
+      }
+      return { kind: "left" as const };
+    });
+
+    if (claimResult.kind === "lost_race") continue; // retry against fresh state
+    return { ok: true };
+  }
+  return { ok: false, error: "Could not leave, please try again." };
+}
+
 type LobbyWithParticipants = GameLobby & { participants: LobbyParticipant[] };
 
 // The single place a Match is ever created from a lobby. Concurrency-
@@ -740,7 +806,18 @@ export async function joinLobbySeat(
     const eligibility = await checkPaidEligibility(walletProfile, walletProfile.id, Number(lobby.entryFeeUsdt));
     if (eligibility) return { ok: false, status: eligibility.status, error: eligibility.error };
 
-    const nextSlot = joinedCount + 1;
+    // slotNumber is permanently unique per lobby (@@unique([lobbyId,
+    // slotNumber])) even for a participant who has since LEFT (see
+    // leaveLobbySeat) — their row still exists, just with a different
+    // status. joinedCount+1 assumed slots always fill in lockstep 1..4,
+    // which broke the instant a seat could actually be vacated mid-
+    // lobby: a new joiner could collide with a departed participant's
+    // still-occupied slotNumber. Finding the smallest slot no existing
+    // row (any status) already holds is correct regardless of how
+    // fragmented the lobby's join/leave history is.
+    const usedSlots = new Set(lobby.participants.map((p) => p.slotNumber));
+    let nextSlot = 1;
+    while (usedSlots.has(nextSlot)) nextSlot++;
     const entryFeeUsdt = Number(lobby.entryFeeUsdt);
     const claimResult = await db.$transaction(async (tx) => {
       // The version-based claim below already prevents two joins from
@@ -774,7 +851,10 @@ export async function joinLobbySeat(
       await tx.lobbyParticipant.create({
         data: { lobbyId, walletProfileId: walletProfile.id, slotNumber: nextSlot, joinSource, entryHoldLedgerId: holdLedgerId },
       });
-      const newStatus = nextSlot >= LOBBY_MAX_PLAYERS ? "FULL" : lobby.status;
+      // Total occupied seats after this join, not the slot NUMBER just
+      // assigned — those diverge once a slot can be reused out of order
+      // (see nextSlot's own doc-comment above).
+      const newStatus = joinedCount + 1 >= LOBBY_MAX_PLAYERS ? "FULL" : lobby.status;
       const updated = await tx.gameLobby.update({ where: { id: lobbyId }, data: { status: newStatus } });
       return { kind: "joined" as const, lobby: updated };
     });
