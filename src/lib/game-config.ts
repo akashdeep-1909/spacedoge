@@ -272,7 +272,20 @@ export const THEME_BY_MODE: Record<GameMode, ModeTheme> = {
 // this to exactly the original flat 6/sec constant, so the one mode
 // this was actually tuned against doesn't regress. Still generous, not
 // tuned against real play data, same as the constant it replaces.
-const BASE_MAX_SCORE_PER_SECOND = 6; // bronze(1)/silver(3)/gold(10) mix, at EXPLORER_RUSH's baseline tuning
+// Raised from the original 6 — confirmed live as genuinely too tight,
+// not a one-off: the same real, actively-played run (Rental-Bot-driven,
+// value-aware coin targeting + Magnet + doge-core 2x chaining, all
+// tuned up earlier this same session) landed right at this ceiling in
+// back-to-back matches, capping and reward-blocking a run that had
+// nothing fabricated about it — a false-positive rate that high means
+// the constant was undersized for what a well-piloted run can actually
+// do, not that the runs were implausible. Still a rough heuristic, not
+// tuned against real collected play-rate data (see this constant's own
+// history) — doubled as a deliberately generous correction so a
+// genuinely good run stops getting confiscated, while a truly
+// fabricated claim (multiples of this, not a few percent over it)
+// still gets caught.
+const BASE_MAX_SCORE_PER_SECOND = 12; // bronze(1)/silver(3)/gold(10) mix, at EXPLORER_RUSH's baseline tuning
 export function maxPlausibleScorePerSecond(mode: GameMode): number {
   const diff = DIFFICULTY_BY_MODE[mode] ?? DIFFICULTY_BY_MODE.EXPLORER_RUSH;
   const baseline = DIFFICULTY_BY_MODE.EXPLORER_RUSH;
