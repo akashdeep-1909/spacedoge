@@ -224,7 +224,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           await tx.matchParticipant.update({ where: { id: p.id }, data: { score: fallbackScore, resultSubmittedAt: new Date() } });
           return { ...p, score: fallbackScore, resultBlockedReason: null, noShow: true };
         }
-        return p;
+        // A blocked score (implausibly high, or the match reported too
+        // short) is ranked the same way a no-show is — bottom of the
+        // pack, never ahead of a genuine unblocked score — not just
+        // denied a reward while still numerically outranking players
+        // who actually qualified. Confirmed live as a real gap: a
+        // capped-but-still-high score (this session's own earlier fix
+        // replacing the flat-0 wipe with a cap) could still be the
+        // NUMERICALLY highest submission in the room, landing at rank
+        // #1 with a LOSS badge and $0 reward — a confusing, backwards
+        // result next to players who scored lower but actually got
+        // paid. rankBotMatch's own noShow-first sort (see its
+        // noShowRank helper in game-config.ts) already does exactly
+        // the right thing here; this just extends the same signal to
+        // the OTHER way a score is blocked, not just a true no-show.
+        return { ...p, noShow: !!p.resultBlockedReason };
       })
     );
 

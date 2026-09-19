@@ -11,12 +11,40 @@
 // this one also needs a genuinely PERSISTENT node (the engine hum
 // below), not just one-shot blips.
 let ctx: AudioContext | null = null;
+let lastResumeAttempt = 0;
+
 function getCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
   const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AC) return null;
-  if (!ctx) ctx = new AC();
-  if (ctx.state === "suspended") ctx.resume().catch(() => {});
+  if (!ctx) {
+    ctx = new AC();
+    // Real-gesture backstop — the doc-comment above assumes creating
+    // this well after a match has started is itself always enough of
+    // a "user gesture" for the browser to unlock it immediately, but
+    // confirmed live as not always true (a state-transition-driven
+    // mount, e.g. clicking a "Resume Game" banner, doesn't necessarily
+    // land in the same task the browser credits as THE gesture). A
+    // genuine pointerdown/keydown anywhere on the page is a hard
+    // guarantee, so this exists purely as a backstop for whenever the
+    // throttled retry below hasn't caught up yet.
+    const unlock = () => { ctx?.resume().catch(() => {}); };
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+  }
+  // Throttled retry, not once per call — updateEngineSound() calls
+  // getCtx() every single game frame (~60/sec) for the whole match, so
+  // an unconditional ctx.resume() here meant a suspended context (one
+  // that hadn't actually been unlocked by a real gesture yet) got
+  // re-attempted 60 times a SECOND, continuously, for as long as it
+  // stayed suspended — each one a real rejected async call, not just a
+  // console warning. Confirmed live as a genuine perf issue, not
+  // cosmetic log spam. Once a second is still fast enough to pick up
+  // the unlock almost immediately once a real gesture does land.
+  if (ctx.state === "suspended" && Date.now() - lastResumeAttempt > 1000) {
+    lastResumeAttempt = Date.now();
+    ctx.resume().catch(() => {});
+  }
   return ctx;
 }
 
