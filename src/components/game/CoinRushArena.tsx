@@ -815,70 +815,75 @@ export function CoinRushArena({
     const realHumanCount = 1 + (opponents?.filter((o) => !o.isBot).length ?? 0);
 
     // Server settlement (rankBotMatch, src/lib/game-config.ts) always
-    // guarantees the 2 HIGHEST-scoring bots a final rank above the
-    // human, and lets only the single WEAKEST bot (by real score)
-    // genuinely contest 3rd/4th — but this local bot AI is purely
-    // cosmetic and has zero bearing on that real, independently-computed
-    // result. An earlier version of this fix picked the "real contest"
-    // bot with its own unrelated random draw, which could — and did —
-    // pick a bot whose true botScore() turned out highest, so it
-    // legitimately won 1st place after being shown trailing the human
-    // the entire match: still a bait-and-switch, just a rarer one.
-    // Computing the same botScore() the server will actually use for
-    // each bot slot and picking the genuinely lowest-scoring one as the
-    // contest bot makes the live leaderboard's foreshadowing correct,
-    // not just present. Bot slot indices 1/2/3 match match.participants'
-    // creation order (human first, then bots) — see settle/results
-    // routes' own botScore(mapSeed, match.participants.indexOf(p), …) calls.
-    // Mirrors rankBotMatch's own tie-break exactly (stable sort
-    // descending, last element) rather than a plain Math.min/indexOf —
-    // on the rare exact-score tie between two bots those two rules pick
-    // different array positions, which is otherwise invisible (the tied
-    // bots are indistinguishable by score) but worth matching precisely
-    // rather than leaving a coin-flip mismatch on the table. Only
-    // actually consulted (see displayRankedBoard) when realHumanCount
-    // <= 1 — harmless to always compute.
+    // guarantees the 2 HIGHEST-raw-scoring bots a final rank above the
+    // human — every bot's real payout there is a fixed reward-tier
+    // TARGET (computeRankTierTargetsPts/rankTierResult), not its raw
+    // botScore() at all; raw botScore only ever sets the "Collected"
+    // sub-number, for EVERY bot, contesting one included (it's never
+    // derived from this local, purely cosmetic bot AI's own live
+    // carry/banked — that has zero bearing on the real, independently-
+    // computed result). Bot slot indices 1/2/3 match match.participants'
+    // creation order — see settle/results routes' own
+    // botScore(mapSeed, p.slotNumber, …) calls.
+    //
+    // Confirmed live as two compounding real bugs, not just cosmetic:
+    // (1) showing the single weakest-by-raw-score bot its true, UNCAPPED
+    // local-sim carry/banked (the old "honest" branch here) let it rack
+    // up a cosmetic total — real coin pickups have no ceiling — far
+    // above what its own real formula-based score would ever be (1,537
+    // shown live vs. 90 actually settled, LOSS), while (2) predicting
+    // which of the two GUARANTEED bots lands rank 1 vs rank 2 purely
+    // from their raw botScore (highest = rank 1) breaks down the moment
+    // a real human's own score exceeds a bot's raw range (bots top out
+    // around ~210 for a 60s match; a well-played human can legitimately
+    // clear that — see BASE_MAX_SCORE_PER_SECOND's own history) — once
+    // that happens BOTH guaranteed bots get bumped just above the
+    // human's score (rankBotMatch's own score-bump), and which of the
+    // two random bump draws lands higher, not their original raw order,
+    // decides rank 1 vs 2. A static guess made once at match start (the
+    // old behavior) had no way to reflect that, so the live board could
+    // — and did — label the WRONG bot with the big number the whole
+    // match (e.g. showing 802 on the bot that will actually settle at
+    // 1,537, and 1,537 on the one that will actually lose). Both are
+    // fixed together below: every bot (contest one included) always
+    // foreshadows toward its own real final total, and the guaranteed-
+    // bot target assignment is recomputed every frame from bumpTargets()
+    // using the human's own LIVE running total as a stand-in for the
+    // not-yet-final score rankBotMatch's real bump will compare against
+    // — converging to the exact real assignment by the time it actually
+    // matters (match end), instead of guessing once and never updating.
     const botsByScoreDesc = [1, 2, 3]
       .map((slot) => ({ slot, score: botScore(mapSeed, slot, durationSec) }))
       .sort((a, b) => b.score - a.score);
-    const contestBotIndex = botsByScoreDesc[botsByScoreDesc.length - 1].slot - 1;
-
-    // What the two GUARANTEED bots (everyone except contestBotIndex
-    // above) are actually going to be paid isn't their raw botScore() at
-    // all — rankTierResult (game-config.ts) pays every rank 1-3 a fixed
-    // reward-tier TARGET (computeRankTierTargetsPts), independent of
-    // gameplay score; a guaranteed bot's raw botScore only ever set its
-    // "Collected" sub-number. Foreshadowing the live leaderboard toward
-    // that raw botScore (the old behavior here) meant a guaranteed
-    // winner displayed a small, slowly-climbing number the entire match
-    // — say 1 PTS with the clock almost out — then flipped to a
-    // completely unrelated, far larger total (1,379 PTS) the instant the
-    // match ended: confirmed live as exactly the "bot winner sequence is
-    // misplaced" complaint, a bot sitting visibly last the whole match
-    // that turns out to have actually won all along. Foreshadowing
-    // toward the SAME target the settle/results route will actually
-    // award instead makes the live board already show who's really
-    // winning, converging smoothly to the real final total instead of
-    // jumping to it at the last second. Not computed at all for
-    // PRACTICE (rankByScore — no guaranteed bot, no reward tier target
-    // to foreshadow) or KOL_REFERRAL_BONUS (rankKolBonusMatch pays a
-    // capped raw score, not a tier target) — both fall back to the old
-    // raw-botScore foreshadow in displayRankedBoard below.
-    //
-    // Which of the two guaranteed bots gets rank 1's (bigger) target vs
-    // rank 2's mirrors rankBotMatch's own guaranteedBots sort — by real
-    // botScore, highest first. Only wrong in the rare case where
-    // settlement's own score-bump (a guaranteed bot clamped just above
-    // the human's own eventual score) reorders them — this can't know
-    // the human's final score ahead of time, but is still far closer to
-    // the truth than foreshadowing the un-bonused raw botScore ever was.
+    // Not computed/used at all for PRACTICE (rankByScore — no guaranteed
+    // bot, no reward-tier target) or KOL_REFERRAL_BONUS
+    // (rankKolBonusMatch pays a capped raw score, not a tier target) —
+    // bumpTargets() returns an empty map for both, and every bot then
+    // just foreshadows its own raw botScore in displayRankedBoard below.
     const usesRankTierBonus = mode !== GameMode.PRACTICE && mode !== GameMode.KOL_REFERRAL_BONUS;
-    const guaranteedBotTargetBySlot = new Map<number, number>();
-    if (usesRankTierBonus) {
-      const rankTierTargets = computeRankTierTargetsPts(prizePoolUsdt, mapSeed);
-      const guaranteed = botsByScoreDesc.slice(0, 2);
-      guaranteedBotTargetBySlot.set(guaranteed[0].slot, rankTierTargets[1]);
-      guaranteedBotTargetBySlot.set(guaranteed[1].slot, rankTierTargets[2]);
+    const rankTierTargets = usesRankTierBonus ? computeRankTierTargetsPts(prizePoolUsdt, mapSeed) : null;
+    // Mirrors rankBotMatch's own bumpedGuaranteed step exactly: same
+    // seed string (so the two random draws it produces are identical to
+    // the server's), same guaranteedBots order (the 2 highest-raw bots,
+    // highest first), same bump formula, then re-sorted by the
+    // (possibly bumped) score to decide rank 1 vs rank 2. seededRandom()
+    // is a fresh generator from the same fixed seed every call, so
+    // calling this once per frame is safe — it always reproduces the
+    // exact same two bump amounts, only `bestHumanScoreSoFar` (the one
+    // input this can't know for certain until the human's run is over)
+    // changes from frame to frame.
+    function bumpedGuaranteedTargets(bestHumanScoreSoFar: number): Map<number, number> {
+      const targets = new Map<number, number>();
+      if (!rankTierTargets) return targets;
+      const bumpRand = seededRandom(`${mapSeed}:botScoreBump`);
+      const bumped = botsByScoreDesc.slice(0, 2).map((b) => ({
+        slot: b.slot,
+        score: b.score <= bestHumanScoreSoFar ? bestHumanScoreSoFar + Math.round(8 + bumpRand() * 25) : b.score,
+      }));
+      bumped.sort((a, b) => b.score - a.score);
+      targets.set(bumped[0].slot, rankTierTargets[1]);
+      targets.set(bumped[1].slot, rankTierTargets[2]);
+      return targets;
     }
 
     const items: ItemEntity[] = [];
@@ -1111,22 +1116,25 @@ export function CoinRushArena({
     // (and therefore hit detection, banking, everything
     // gameplay-relevant) are untouched.
     function displayRankedBoard() {
-      // Foreshadows each "guaranteed" bot's REAL final total — its
-      // reward-tier target (guaranteedBotTargetBySlot above) when one
-      // applies, else its raw botScore(mapSeed, i, durationSec) — by
-      // tracking the displayed total toward it smoothly over the
-      // match's own elapsed time, not a flat bump sized off the human's
-      // own current carry with zero connection to what settlement will
-      // actually show. Confirmed live as a real bug, not just cosmetic:
-      // foreshadowing only the raw botScore (no reward-tier target) kept
-      // a guaranteed bot's displayed score in the small "Collected"
-      // range the whole match (1 PTS with the clock almost out, in one
-      // observed case) then the real settlement value — gameplay PLUS
-      // that bot's fixed reward-tier bonus, a completely different
-      // magnitude — landed far higher (1,379 PTS), reading as the bot's
-      // score magically jumping at the very last second, and worse,
-      // sometimes reordering who visibly wins, instead of a race that
-      // was ever actually heading there the whole time.
+      // Foreshadows EVERY bot's REAL final total — a guaranteed bot's
+      // reward-tier target (bumpedGuaranteedTargets above, recomputed
+      // fresh each call from the human's own live running total) or,
+      // for the one bot that isn't guaranteed anything, its own raw
+      // botScore(mapSeed, i, durationSec) — by tracking the displayed
+      // total toward it smoothly over the match's own elapsed time.
+      // Never falls back to the ship's own real, locally-simulated
+      // carry/banked for a bot, no matter how that compares — that
+      // local AI's "collecting" is purely cosmetic and has already been
+      // confirmed live to run arbitrarily far from what the bot will
+      // actually be scored at (a weakest-by-raw-score bot's own live
+      // sim once reached 1,537 "collected" while its real settled score
+      // was 90, a LOSS) — showing it instead of the real foreshadow,
+      // even as a "let genuinely good performance shine through" floor,
+      // is exactly how a bot ends up mislabeled as the leader on the
+      // live board and then loses outright once settlement (which was
+      // never looking at this local sim to begin with) actually runs.
+      const bestHumanScoreSoFar = Math.floor(g.ships[0].carry + g.ships[0].banked);
+      const guaranteedTargetBySlot = bumpedGuaranteedTargets(bestHumanScoreSoFar);
       const display = g.ships.map((s, i) => {
         // A real opponent's ship (spectate mode, or a real friend's
         // seat during active play — see isBot's own doc-comment) shows
@@ -1137,14 +1145,9 @@ export function CoinRushArena({
         // rankBotMatch) — every bot's own true carry shows there too,
         // or the live leaderboard would keep foreshadowing an outcome
         // the actual settlement can no longer produce.
-        if (s.isYou || s.externallyDriven || !s.isBot || realHumanCount >= 2 || i - 1 === contestBotIndex) return s;
-        const realFinalTotal = guaranteedBotTargetBySlot.get(i) ?? botScore(mapSeed, i, durationSec);
+        if (s.isYou || s.externallyDriven || !s.isBot || realHumanCount >= 2) return s;
+        const realFinalTotal = guaranteedTargetBySlot.get(i) ?? botScore(mapSeed, i, durationSec);
         const foreshadowed = Math.round(realFinalTotal * Math.min(1, g.elapsed / durationSec));
-        // Real activity always wins over the foreshadow floor — a bot
-        // that's organically ahead of its own trajectory (rare, but
-        // possible) shows its true, still-growing number rather than
-        // being held back down to the floor.
-        if (s.carry + s.banked >= foreshadowed) return s;
         return { ...s, carry: 0, banked: foreshadowed };
       });
       return display.sort((a, b) => {
