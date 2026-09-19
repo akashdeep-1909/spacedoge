@@ -1074,16 +1074,21 @@ export function CoinRushArena({
     // (and therefore hit detection, banking, everything
     // gameplay-relevant) are untouched.
     function displayRankedBoard() {
-      const you = g.ships[0];
-      // Bumping just enough to clear the weighted RANKING metric (banked
-      // + carry*0.25) left the raw "N PTS CARRYING" number — the one a
-      // player actually eyeballs, per-card, bold — landing almost
-      // identical to their own (79 vs 75 read as a photo finish), only
-      // for the reward reveal to then show that bot winning 20x more.
-      // Bumping the displayed CARRY number itself, clearly past the
-      // human's own, makes the in-game leaderboard actually look like
-      // what it's foreshadowing instead of a coin-flip that happens to
-      // resolve one-sided — the whole point of this mechanic.
+      // Foreshadows each "guaranteed" bot's REAL, server-computed final
+      // score (botScore(mapSeed, i, durationSec) — the exact value
+      // settle/results route.ts will actually use, same formula/index
+      // contestBotIndex above already relies on) by tracking the
+      // displayed total toward it smoothly over the match's own
+      // elapsed time — not a flat bump sized off the human's own
+      // current carry with zero connection to what settlement will
+      // actually show. Confirmed live as a real bug, not just cosmetic:
+      // the old bump (Math.ceil(you.carry*1.25)+10) kept a guaranteed
+      // bot's displayed score just barely ahead of the human's own tiny
+      // live number all match, then the real settlement value (a
+      // completely unrelated formula) landed far higher — 80 PTS shown
+      // live, 241 PTS at final results — reading as the bot's score
+      // magically jumping at the very last second instead of a race
+      // that was ever actually heading there the whole time.
       const display = g.ships.map((s, i) => {
         // A real opponent's ship (spectate mode, or a real friend's
         // seat during active play — see isBot's own doc-comment) shows
@@ -1095,24 +1100,17 @@ export function CoinRushArena({
         // or the live leaderboard would keep foreshadowing an outcome
         // the actual settlement can no longer produce.
         if (s.isYou || s.externallyDriven || !s.isBot || realHumanCount >= 2 || i - 1 === contestBotIndex) return s;
-        if (s.carry > you.carry * 1.15) return s;
-        const bumpedCarry = Math.ceil(you.carry * 1.25) + 10;
-        // Confirmed live: once the human dies, you.carry never changes
-        // again (a dead ship neither moves nor collects), so a bump
-        // computed purely from it freezes solid for the rest of the
-        // match — even though this bot itself is still actively racing
-        // and genuinely picking things up the whole time (bots can no
-        // longer die at all, see hitShip()). Math.max against the bot's
-        // own real, still-growing s.carry lets the displayed number
-        // keep climbing from real activity the moment it organically
-        // overtakes the bump anchor, instead of looking stuck — the
-        // "always shows at least bump" guarantee this mechanic exists
-        // for is unaffected, since real growth can only ever push the
-        // shown number higher, never lower.
-        return { ...s, carry: Math.max(s.carry, bumpedCarry) };
+        const realFinalScore = botScore(mapSeed, i, durationSec);
+        const foreshadowed = Math.round(realFinalScore * Math.min(1, g.elapsed / durationSec));
+        // Real activity always wins over the foreshadow floor — a bot
+        // that's organically ahead of its own trajectory (rare, but
+        // possible) shows its true, still-growing number rather than
+        // being held back down to the floor.
+        if (s.carry + s.banked >= foreshadowed) return s;
+        return { ...s, carry: 0, banked: foreshadowed };
       });
       return display.sort((a, b) => {
-        const as = a.banked + a.carry * 0.25, bs = b.banked + b.carry * 0.25;
+        const as = a.banked + a.carry, bs = b.banked + b.carry;
         if (bs !== as) return bs - as;
         return b.lives - a.lives;
       });
@@ -2623,9 +2621,20 @@ export function CoinRushArena({
               }}
             >
               <span style={{ width: 10, height: 10, borderRadius: "50%", background: s.color, boxShadow: `0 0 8px ${s.color}` }} />
-              <div style={{ minWidth: 0 }}>
-                <strong style={{ display: "block", fontSize: 9.5, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#fff" }}>
-                  #{idx + 1} {s.isYou ? t("gameArena.youLeaderboardLabel") : s.name}
+              {/* "#1" as its own fixed-width span, not concatenated
+                  into the same ellipsis-truncated string as the name —
+                  a shortened wallet address ("0xfa10...bdba") already
+                  eats most of a narrow card's width on its own, so the
+                  combined "#1 0xfa10...bdba" string ran out of room
+                  and got cut off mid-address ("0xfa10...bd…"), reading
+                  like broken/garbled text rather than a deliberate
+                  truncation. Splitting them means the rank number can
+                  never be the thing that gets cut, and the name only
+                  loses its own tail end if it genuinely doesn't fit. */}
+              <div style={{ minWidth: 0, display: "flex", alignItems: "baseline", gap: 3 }}>
+                <strong style={{ flexShrink: 0, fontSize: 9.5, color: "#fff" }}>#{idx + 1}</strong>
+                <strong style={{ minWidth: 0, fontSize: 9.5, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#fff" }}>
+                  {s.isYou ? t("gameArena.youLeaderboardLabel") : s.name}
                 </strong>
               </div>
               {/* One combined number, not separate Carrying/Banked

@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
     });
 
     await tx.matchParticipant.create({
-      data: { matchId: created.id, walletProfileId: walletProfile.id, isBot: false },
+      data: { matchId: created.id, walletProfileId: walletProfile.id, isBot: false, slotNumber: 0 },
     });
 
     // Disclosed bots fill the remaining seats — doc section 5.3:
@@ -155,6 +155,16 @@ export async function POST(request: NextRequest) {
     // technically unable to receive or remove player rewards." Bots
     // never get a walletProfileId with real balances; they're purely
     // scored rows for ranking.
+    //
+    // slotNumber (1/2/3, matching this loop's own i) is explicit here
+    // for the same reason settle/route.ts now reads it instead of
+    // match.participants.indexOf(p): Postgres makes no row-order
+    // guarantee at all without an explicit ORDER BY, so that index was
+    // never reliably 1/2/3 matching creation order — confirmed live as
+    // a real bug via CoinRushArena's own client-side bot-score
+    // foreshadowing (which has to independently compute the exact same
+    // botScore(mapSeed, i, durationSec) the server will use, and can
+    // only agree with it if BOTH sides use the same stable index).
     for (let i = 1; i < econ.players; i++) {
       const botProfile = await tx.walletProfile.upsert({
         where: { address: `bot:${mapSeed}:${i}` },
@@ -162,7 +172,7 @@ export async function POST(request: NextRequest) {
         create: { address: `bot:${mapSeed}:${i}`, chainId: 0, ageConfirmed: true },
       });
       await tx.matchParticipant.create({
-        data: { matchId: created.id, walletProfileId: botProfile.id, isBot: true },
+        data: { matchId: created.id, walletProfileId: botProfile.id, isBot: true, slotNumber: i },
       });
     }
 

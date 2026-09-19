@@ -159,10 +159,22 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/matches
 
     // Score every participant: the caller's reported (and possibly
     // zeroed) score, and deterministic bot scores.
+    //
+    // p.slotNumber, not match.participants.indexOf(p) — Postgres makes
+    // no row-order guarantee at all without an explicit ORDER BY, so
+    // that index was never reliably 1/2/3 matching creation order.
+    // Confirmed live as a real bug: CoinRushArena's own client-side
+    // bot-score foreshadowing has to independently compute this exact
+    // same botScore(mapSeed, i, durationSec) ahead of time, and could
+    // only ever agree with what settlement actually pays out if both
+    // sides used the same STABLE index — POST /api/matches now sets
+    // slotNumber explicitly at creation for exactly this reason. The
+    // ?? fallback only matters for a match created before this fix
+    // (slotNumber still null on that old row).
     const scored = await Promise.all(
       match.participants.map(async (p) => {
         const participantScore = p.isBot
-          ? botScore(match.mapSeed, match.participants.indexOf(p), durationSec)
+          ? botScore(match.mapSeed, p.slotNumber ?? match.participants.indexOf(p), durationSec)
           : finalScore;
         await tx.matchParticipant.update({
           where: { id: p.id },
