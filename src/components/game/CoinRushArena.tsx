@@ -2628,19 +2628,25 @@ export function CoinRushArena({
                   #{idx + 1} {s.isYou ? t("gameArena.youLeaderboardLabel") : s.name}
                 </strong>
               </div>
-              {/* "Carry" (live, currently held, lost on a hit) is the
-                  number that's actually moving up/down during play, so
-                  it's the bold/prominent one — "Banked" (secured, only
-                  changes on a vault run) used to be the bold number with
-                  no label at all, which read as "my collected total"
-                  and stayed at 0 the whole run unless you'd banked,
-                  making real coin pickups look like they weren't
-                  registering anywhere. */}
+              {/* One combined number, not separate Carrying/Banked
+                  lines a player had to add up themselves to know
+                  their actual standing — confirmed live as a real,
+                  recurring source of confusion ("what is carrying and
+                  banked... we need to make it one"), especially once
+                  the exact same carry+banked total is also what
+                  actually determines rank/reward at settlement (see
+                  results/route.ts). Same phrasing ("N PTS collected")
+                  the top stat row's own YOUR RANK card already uses
+                  for this identical value, so the two don't read as
+                  two different numbers for the same thing. carry/
+                  banked as SEPARATE fields are untouched everywhere
+                  else (hitShip's carry penalty, the bank-zone deposit,
+                  the results pipeline) — this only changes what's
+                  displayed here, not how either one is actually
+                  tracked or scored. */}
               <div style={{ gridColumn: "1 / -1", textAlign: "left", marginTop: 1 }}>
-                <span style={{ fontSize: 10.5, fontWeight: 800, color: "#fff", whiteSpace: "nowrap" }}>{t("gameArena.ptsCarryValue", { count: s.carry })}</span>
-                <span style={{ marginLeft: 4, fontSize: 7, fontWeight: 600, color: "#a9bccb", textTransform: "uppercase", letterSpacing: ".01em" }}>{t("gameArena.carryingLabel")}</span>
-                <span style={{ display: "block", fontSize: 7.5, color: "#a9bccb", letterSpacing: ".01em", textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {t("gameArena.bankedLine", { count: s.banked })}
+                <span style={{ fontSize: 11, fontWeight: 800, color: "#fff", whiteSpace: "nowrap" }}>
+                  {t("gameArena.ptsCollectedSub", { count: Math.floor(s.carry + s.banked) })}
                 </span>
               </div>
             </div>
