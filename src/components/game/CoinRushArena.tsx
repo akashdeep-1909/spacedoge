@@ -2598,7 +2598,19 @@ export function CoinRushArena({
           <span>{t("gameArena.liveLeaderboardLabel")}</span>
           <b style={{ color: "#fff", fontWeight: 800 }}>{missionTitle}</b>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 5 }}>
+        {/* 2 columns (wraps to a 2x2 grid for the 4 racers), not 4
+            across — this whole game area is capped at min(450px,
+            100vw-20px) at EVERY call site (solo and Play-with-Friends
+            alike, see the wrappers in play/page.tsx and lobby/[id]/
+            page.tsx), so a real phone's usable width here is routinely
+            under 400px even at its widest. Squeezing name + "#1"/color
+            dot + carry/banked PTS into a ~85px-wide quarter-column left
+            almost every name ellipsis-truncated to 3-4 characters —
+            confirmed live as "leaderboard not responsive" on mobile.
+            Doubling each card's width fixes this at every width this
+            panel ever actually renders at, not just below some
+            breakpoint, so no media query/JS width-tracking is needed. */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 5 }}>
           {hud.board.map((s, idx) => (
             <div
               key={s.name}

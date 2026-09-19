@@ -138,10 +138,22 @@ export function ConnectWalletButton() {
             every page link) carries its own Disconnect entry instead —
             the header on a real phone width doesn't have room for logo +
             language flag + hamburger + identity pill + this button too;
-            they were silently overflowing past the right edge. */}
+            they were silently overflowing past the right edge.
+            hidden!/lg:inline-flex! (forced !important) — .btn-game-outline
+            (globals.css) is a plain, un-layered CSS rule that hardcodes
+            `display: inline-flex`, which — per the CSS cascade-layers
+            spec — silently beats Tailwind's own `hidden`/`lg:inline-flex`
+            utilities regardless of viewport width, since every Tailwind
+            utility lives inside a named layer and un-layered rules always
+            win. Without the forced !important this button never actually
+            left the layout below lg at all, stacking under the identity
+            pill instead of disappearing — confirmed live as a real
+            "header not responsive on mobile" report (same root cause as
+            the Docs nav dropdown fix — see that component's own
+            doc-comment). */}
         <button
           onClick={signOut}
-          className="btn-game-outline hidden whitespace-nowrap rounded-full px-3 py-1.5 text-xs lg:inline-flex"
+          className="btn-game-outline hidden! whitespace-nowrap rounded-full px-3 py-1.5 text-xs lg:inline-flex!"
         >
           {t("common.disconnect")}
         </button>

@@ -421,7 +421,18 @@ function KolVipSection({
       {kolVip.tiers.length > 0 && (
         <div className="mt-3">
           <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted">{t("refer.kolVipTierLadderTitle")}</p>
-          <div className="overflow-hidden rounded-xl border border-line">
+          {/* overflow-x-auto, not overflow-hidden — every cell below is
+              whitespace-nowrap (tier label + a NEXT/CURRENT tag, plus 3
+              right-aligned number columns), so this table is genuinely
+              wider than a phone screen at 10 tiers. overflow-hidden
+              CLIPPED that overflow outright with no way to reach it —
+              confirmed live as "table not scrollable on mobile" (the
+              Bonus column was permanently cut off, not just narrower).
+              scroll-fade-x hides the raw scrollbar and fades both edges
+              so the cut-off content reads as "swipe for more" rather
+              than looking broken/clipped — same treatment already used
+              for the dashboard nav pill's own overflow case. */}
+          <div className="scroll-fade-x overflow-x-auto rounded-xl border border-line">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gold/15 bg-panel-2 text-left text-[10px] uppercase tracking-widest text-gold">

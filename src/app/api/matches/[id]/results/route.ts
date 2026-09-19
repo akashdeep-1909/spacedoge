@@ -16,6 +16,7 @@ import {
 } from "@/lib/game-config";
 import { botScoreForSlot } from "@/lib/lobby";
 import { getPlatformTreasuryWalletProfileId } from "@/lib/treasury";
+import { getLiveMatchState } from "@/lib/liveMatchState";
 
 const bodySchema = z.object({
   score: z.number().int().min(0),
@@ -156,6 +157,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // durationSec was already computed above (needed there for the
     // plausibility clamp) — reused here for bot scoring.
+    // A no-show's fallback score reads from this same match's live-
+    // position feed (src/lib/liveMatchState.ts) — see its use in the
+    // no-show branch below for why.
+    const liveState = getLiveMatchState(match.id);
     const scoredParticipants = await Promise.all(
       refreshed.map(async (p) => {
         if (p.isBot) {
@@ -164,16 +169,36 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           return { ...p, score: botScoreValue };
         }
         if (p.resultSubmittedAt === null) {
-          // No-show by the results deadline — scored 0, ranked last (see
-          // rankBotMatch's noShow handling), and never paid a rank-tier
-          // reward regardless of where it lands (see rewardBlocked
-          // below) — without that, a human who simply never finishes
-          // could still collect a guaranteed top-3 payout whenever the
-          // other real players also happened to score low or no-show,
-          // which is exactly backwards: not finishing should never beat
-          // someone who actually played, even if they played badly.
-          await tx.matchParticipant.update({ where: { id: p.id }, data: { score: 0, resultSubmittedAt: new Date() } });
-          return { ...p, score: 0, resultBlockedReason: null, noShow: true };
+          // No-show by the results deadline. Confirmed live as a real
+          // bug: a player who was genuinely still racing right up to
+          // the deadline (real carry/banked, actively reporting their
+          // own live position every ~350ms the whole time — the same
+          // feed spectating friends already read) could still lose the
+          // race against another already-finished participant's
+          // routine 3-second retry poll, which is enough on its own to
+          // finalize the match — that player's own FORMAL submission
+          // arriving moments later found the match already SETTLED and
+          // simply handed back the no-show result, discarding their
+          // entire real run in favor of a flat 0 despite the server
+          // already holding independent proof of their actual
+          // progress. Falling back to that last-known live carry+banked
+          // (still clamped through the same plausibility ceiling a real
+          // submission would face) fixes the score itself; still
+          // ranked last and never paid a reward tier regardless (see
+          // rewardBlocked below) — without THAT half, a human who
+          // simply never finishes could still collect a guaranteed
+          // top-3 payout whenever the other real players also happened
+          // to score low or no-show, which is exactly backwards: not
+          // finishing in time should never beat someone who actually
+          // played, even if they played badly. A participant who never
+          // reported any live state at all (a genuine, total no-show)
+          // still scores a real 0 — there's no independent progress to
+          // recover for them.
+          const liveSample = p.slotNumber != null ? liveState[p.slotNumber] : undefined;
+          const liveScore = liveSample ? Math.floor(liveSample.carry + liveSample.banked) : 0;
+          const fallbackScore = Math.min(liveScore, maxPlausibleScore(match.mode, effectiveDurationSec));
+          await tx.matchParticipant.update({ where: { id: p.id }, data: { score: fallbackScore, resultSubmittedAt: new Date() } });
+          return { ...p, score: fallbackScore, resultBlockedReason: null, noShow: true };
         }
         return p;
       })

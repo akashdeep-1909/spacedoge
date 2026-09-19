@@ -127,16 +127,25 @@ function ShopContent() {
           <h1 className="text-glow-gold text-2xl font-black uppercase tracking-wide">{t("shop.pageTitle")}</h1>
           <p className="mt-0.5 text-sm text-muted">{t("shop.pageSubtitle")}</p>
         </div>
+        {/* hidden!/sm:inline-flex! (forced !important) — .btn-game-outline
+            (globals.css) is a plain, un-layered CSS rule hardcoding
+            `display: inline-flex`, which beats Tailwind's own responsive
+            display utilities regardless of viewport width (same root
+            cause as ConnectWalletButton's Disconnect button and the Docs
+            nav dropdown — see either's own doc-comment for the full cascade-
+            layers explanation). Without it, this and the sm:hidden! link
+            below both rendered at every width, showing "Back to Play"
+            twice on every screen size. */}
         <Link
           href="/dashboard/play"
-          className="btn-game-outline ml-auto hidden shrink-0 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide sm:inline-flex"
+          className="btn-game-outline ml-auto hidden! shrink-0 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide sm:inline-flex!"
         >
           {t("shop.backToPlayButton")}
         </Link>
       </div>
       <Link
         href="/dashboard/play"
-        className="btn-game-outline -mt-2 inline-flex w-fit shrink-0 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide sm:hidden"
+        className="btn-game-outline -mt-2 inline-flex! w-fit shrink-0 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide sm:hidden!"
       >
         {t("shop.backToPlayButton")}
       </Link>

@@ -9,6 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { OnboardingGate } from "@/components/OnboardingGate";
 import { useAuth } from "@/lib/auth-context";
 import { CoinRushArena } from "@/components/game/CoinRushArena";
+import { QuitMatchButton } from "@/components/game/QuitMatchButton";
 import {
   useCreateLobby,
   useMyInvitations,
@@ -274,12 +275,7 @@ function PlayFlow() {
         }}
       >
         <div className="relative h-[min(930px,calc(100vh-20px))] w-[min(450px,calc(100vw-20px))] overflow-hidden rounded-[36px] border border-white/15 bg-[#06101a] shadow-2xl">
-          <button
-            onClick={quitMatch}
-            className="absolute right-3 top-3 z-10 rounded-full border border-white/20 bg-black/50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white/70 backdrop-blur transition hover:border-risk/40 hover:text-risk"
-          >
-            ✕ {t("play.quitButton")}
-          </button>
+          <QuitMatchButton onQuit={quitMatch} label={`✕ ${t("play.quitButton")}`} confirmLabel={t("play.quitConfirmLabel")} />
           <CoinRushArena
             mapSeed={match.mapSeed}
             durationSec={match.durationSec}
