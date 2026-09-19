@@ -2598,19 +2598,19 @@ export function CoinRushArena({
           <span>{t("gameArena.liveLeaderboardLabel")}</span>
           <b style={{ color: "#fff", fontWeight: 800 }}>{missionTitle}</b>
         </div>
-        {/* 2 columns (wraps to a 2x2 grid for the 4 racers), not 4
-            across — this whole game area is capped at min(450px,
-            100vw-20px) at EVERY call site (solo and Play-with-Friends
-            alike, see the wrappers in play/page.tsx and lobby/[id]/
-            page.tsx), so a real phone's usable width here is routinely
-            under 400px even at its widest. Squeezing name + "#1"/color
-            dot + carry/banked PTS into a ~85px-wide quarter-column left
-            almost every name ellipsis-truncated to 3-4 characters —
-            confirmed live as "leaderboard not responsive" on mobile.
-            Doubling each card's width fixes this at every width this
-            panel ever actually renders at, not just below some
-            breakpoint, so no media query/JS width-tracking is needed. */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 5 }}>
+        {/* 4 across, one line — reverted back from a 2x2 grid.
+            Doubling row count there DID fix mobile name truncation,
+            but it also doubled this whole overlay's real rendered
+            height without TOP_MARGIN (this component's own boundary
+            that keeps the vault/ships clear of the HUD, a fixed
+            236*DPR) being told about it — confirmed live as a real,
+            more serious regression it caused: a ship near the vault
+            (which sits right at the top of the arena) could render
+            UNDERNEATH the now-taller opaque panel, reading as the
+            ship having vanished rather than just being covered.
+            Restoring one line first; the truncation problem needs a
+            fix that doesn't grow this panel's height instead. */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 5 }}>
           {hud.board.map((s, idx) => (
             <div
               key={s.name}

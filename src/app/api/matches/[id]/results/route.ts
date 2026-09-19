@@ -116,9 +116,33 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     let blockedReason: string | null = null;
     if (!me.resultSubmittedAt) {
       const maxPossible = maxPlausibleScore(match.mode, effectiveDurationSec);
-      if (floorDurationSec < MIN_MATCH_SECONDS) blockedReason = "Match too short to qualify for rewards.";
-      else if (score > maxPossible) blockedReason = "Score outside plausible range.";
-      const scoreToStore = blockedReason ? 0 : score;
+      // Two different failure shapes, two different responses. A match
+      // reported implausibly SHORT (floorDurationSec) really is the
+      // anti-farming case this exists for — an instant re-submit loop
+      // gains nothing if it's zeroed every time, so it stays zeroed.
+      // A score reported implausibly HIGH for its duration is a much
+      // softer signal: confirmed live as a real bug — a genuinely
+      // well-played run (464 collected in 60s Rookie Rush, all banked,
+      // no cheating involved) landed at ~2.7% over this heuristic
+      // ceiling and got its ENTIRE score thrown out to 0, not just the
+      // implausible excess. maxPlausibleScorePerSecond is a rough
+      // heuristic tuned against past gameplay, not a hard physical
+      // limit — this session's own bot-AI tuning improvements alone
+      // are enough to legitimately push a well-played (or Rental-Bot-
+      // played) run over a ceiling calibrated before those changes.
+      // Capping at the ceiling instead of zeroing keeps the anti-cheat
+      // protection (an actually-absurd claim still gets cut down hard,
+      // and still never qualifies for a reward — see rewardBlocked
+      // below) without punishing a marginal, plausibly-honest overage
+      // as if it were a wholesale fabrication.
+      let scoreToStore = score;
+      if (floorDurationSec < MIN_MATCH_SECONDS) {
+        blockedReason = "Match too short to qualify for rewards.";
+        scoreToStore = 0;
+      } else if (score > maxPossible) {
+        blockedReason = "Score outside plausible range.";
+        scoreToStore = Math.round(maxPossible);
+      }
       await tx.matchParticipant.update({
         where: { id: me.id },
         data: { score: scoreToStore, resultSubmittedAt: new Date(), resultBlockedReason: blockedReason },

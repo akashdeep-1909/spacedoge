@@ -125,9 +125,23 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/matches
   let blockedReason: string | null = null;
   if (!isPractice) {
     const maxPossible = maxPlausibleScore(match.mode, effectiveDurationSec);
-    if (floorDurationSec < MIN_MATCH_SECONDS) blockedReason = "Match too short to qualify for rewards.";
-    else if (score > maxPossible) blockedReason = "Score outside plausible range.";
-    if (blockedReason) finalScore = 0;
+    // Two different failure shapes, two different responses — see
+    // results/route.ts's identical split for the full rationale. An
+    // implausibly SHORT match is the genuine anti-farming case (an
+    // instant re-submit loop gains nothing zeroed every time); an
+    // implausibly HIGH score is a much softer signal — a genuinely
+    // well-played run can legitimately land just over this heuristic
+    // ceiling without any cheating involved, so it's capped at the
+    // ceiling instead of thrown out to 0. The reward is still blocked
+    // either way via humanBlocked/blockedReason below, which never
+    // relied on finalScore actually being 0 to do that.
+    if (floorDurationSec < MIN_MATCH_SECONDS) {
+      blockedReason = "Match too short to qualify for rewards.";
+      finalScore = 0;
+    } else if (score > maxPossible) {
+      blockedReason = "Score outside plausible range.";
+      finalScore = Math.round(maxPossible);
+    }
   }
 
   const outcome = await db.$transaction(async (tx) => {
