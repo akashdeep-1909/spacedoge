@@ -1480,6 +1480,7 @@ const id = {
     usdtPoolSub: "pool USDT",
     yourRankLabel: "Peringkat Anda",
     ptsCollectedSub: "{{count}} PTS terkumpul",
+    ptsCollectedLabel: "PTS Terkumpul",
     yourRocketLabel: "Roket Anda",
     liveLeaderboardLabel: "Papan Peringkat Langsung",
     youLeaderboardLabel: "ANDA",

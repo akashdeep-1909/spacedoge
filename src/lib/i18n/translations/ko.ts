@@ -1480,6 +1480,7 @@ const ko = {
     usdtPoolSub: "USDT 풀",
     yourRankLabel: "내 순위",
     ptsCollectedSub: "{{count}} PTS 수집됨",
+    ptsCollectedLabel: "PTS 수집됨",
     yourRocketLabel: "내 로켓",
     liveLeaderboardLabel: "실시간 리더보드",
     youLeaderboardLabel: "나",

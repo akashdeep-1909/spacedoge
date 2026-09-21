@@ -1480,6 +1480,7 @@ const fil = {
     usdtPoolSub: "USDT pool",
     yourRankLabel: "Ranggo Mo",
     ptsCollectedSub: "{{count}} PTS na nakolekta",
+    ptsCollectedLabel: "PTS na Nakolekta",
     yourRocketLabel: "Rocket Mo",
     liveLeaderboardLabel: "Live Leaderboard",
     youLeaderboardLabel: "IKAW",

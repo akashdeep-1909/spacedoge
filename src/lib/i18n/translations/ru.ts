@@ -1480,6 +1480,7 @@ const ru = {
     usdtPoolSub: "пул USDT",
     yourRankLabel: "Ваш ранг",
     ptsCollectedSub: "{{count}} PTS собрано",
+    ptsCollectedLabel: "PTS собрано",
     yourRocketLabel: "Ваша ракета",
     liveLeaderboardLabel: "Таблица лидеров в реальном времени",
     youLeaderboardLabel: "ВЫ",

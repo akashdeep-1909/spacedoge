@@ -1480,6 +1480,7 @@ const zh = {
     usdtPoolSub: "USDT 奖池",
     yourRankLabel: "您的排名",
     ptsCollectedSub: "已收集 {{count}} PTS",
+    ptsCollectedLabel: "已收集 PTS",
     yourRocketLabel: "您的飞船",
     liveLeaderboardLabel: "实时排行榜",
     youLeaderboardLabel: "您",

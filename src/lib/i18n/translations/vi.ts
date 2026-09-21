@@ -1480,6 +1480,7 @@ const vi = {
     usdtPoolSub: "quỹ USDT",
     yourRankLabel: "Hạng Của Bạn",
     ptsCollectedSub: "{{count}} PTS đã thu",
+    ptsCollectedLabel: "PTS đã thu",
     yourRocketLabel: "Tàu Của Bạn",
     liveLeaderboardLabel: "Bảng Xếp Hạng Trực Tiếp",
     youLeaderboardLabel: "BẠN",

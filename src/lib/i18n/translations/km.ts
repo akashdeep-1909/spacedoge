@@ -1480,6 +1480,7 @@ const km = {
     usdtPoolSub: "អាង USDT",
     yourRankLabel: "ចំណាត់ថ្នាក់របស់អ្នក",
     ptsCollectedSub: "{{count}} PTS បានប្រមូល",
+    ptsCollectedLabel: "PTS បានប្រមូល",
     yourRocketLabel: "រ៉ុក្កែតរបស់អ្នក",
     liveLeaderboardLabel: "តារាងចំណាត់ថ្នាក់ផ្ទាល់",
     youLeaderboardLabel: "អ្នក",

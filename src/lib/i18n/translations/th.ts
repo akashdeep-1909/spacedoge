@@ -1480,6 +1480,7 @@ const th = {
     usdtPoolSub: "พูล USDT",
     yourRankLabel: "อันดับของคุณ",
     ptsCollectedSub: "เก็บได้ {{count}} PTS",
+    ptsCollectedLabel: "PTS ที่เก็บได้",
     yourRocketLabel: "จรวดของคุณ",
     liveLeaderboardLabel: "กระดานผู้นำแบบสด",
     youLeaderboardLabel: "คุณ",

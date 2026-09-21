@@ -1306,6 +1306,7 @@ const en = {
     usdtPoolSub: "USDT pool",
     yourRankLabel: "Your Rank",
     ptsCollectedSub: "{{count}} PTS collected",
+    ptsCollectedLabel: "PTS Collected",
     yourRocketLabel: "Your Rocket",
     liveLeaderboardLabel: "Live Leaderboard",
     youLeaderboardLabel: "YOU",

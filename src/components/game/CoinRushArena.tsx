@@ -1015,7 +1015,16 @@ export function CoinRushArena({
     function aimDasher(dsh: DasherEntity, ships: ShipEntity[]) {
       let target: ShipEntity | null = null, bestD = Infinity;
       for (const s of ships) {
-        if (!s.active) continue;
+        // A real opponent's ship (externallyDriven) can never actually be
+        // hit by this local hazard field (see the dash/hunter hit-check
+        // loops' own "never independently apply its own hit to their
+        // ship" comment) — targeting one anyway used to be a real, live-
+        // confirmed bug: a hunter homes in on whatever's nearest every
+        // single frame, so once a real friend's ship became the nearest
+        // target it just kept re-locking onto their position forever,
+        // visibly gluing itself to their ship and riding along as they
+        // moved, since nothing ever registers a hit to relocate it away.
+        if (!s.active || s.externallyDriven) continue;
         const d = dist(dsh, s);
         if (d < bestD) { bestD = d; target = s; }
       }
@@ -1839,7 +1848,12 @@ export function CoinRushArena({
       for (const h of g.hunters) {
         h.phase += dt * 3;
         let target: ShipEntity | null = null, bestD = Infinity;
-        for (const s of g.ships) { if (!s.active) continue; const d = dist(h, s); if (d < bestD) { bestD = d; target = s; } }
+        // externallyDriven excluded — see aimDasher's identical guard/
+        // doc-comment above; a hunter homing in on a real friend's ship
+        // (which this local hazard sim can never actually hit — see the
+        // hit-check loop just below) just glues itself to their position
+        // forever instead of ever being knocked away by a real hit.
+        for (const s of g.ships) { if (!s.active || s.externallyDriven) continue; const d = dist(h, s); if (d < bestD) { bestD = d; target = s; } }
         if (!target) continue;
         const dx = target.x - h.x, dy = target.y - h.y, d = Math.hypot(dx, dy) || 1;
         const wobbleX = Math.cos(h.phase) * 12 * DPR, wobbleY = Math.sin(h.phase) * 12 * DPR;
@@ -2709,19 +2723,28 @@ export function CoinRushArena({
                   banked... we need to make it one"), especially once
                   the exact same carry+banked total is also what
                   actually determines rank/reward at settlement (see
-                  results/route.ts). Same phrasing ("N PTS collected")
-                  the top stat row's own YOUR RANK card already uses
-                  for this identical value, so the two don't read as
-                  two different numbers for the same thing. carry/
-                  banked as SEPARATE fields are untouched everywhere
-                  else (hitShip's carry penalty, the bank-zone deposit,
-                  the results pipeline) — this only changes what's
-                  displayed here, not how either one is actually
-                  tracked or scored. */}
-              <div style={{ gridColumn: "1 / -1", textAlign: "left", marginTop: 1 }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: "#fff", whiteSpace: "nowrap" }}>
-                  {t("gameArena.ptsCollectedSub", { count: Math.floor(s.carry + s.banked) })}
-                </span>
+                  results/route.ts). Number on its own line, "PTS
+                  Collected" as a caption below it — not one long
+                  interpolated string ("N PTS collected") — confirmed
+                  live as a real layout bug: a 3-4 digit count made that
+                  single string wide enough to wrap inside this narrow
+                  card, breaking mid-phrase and visually overlapping the
+                  rank/name row above it. Splitting the number from the
+                  label is also what the results screen's own "Collected
+                  N PTS" line already does (see MatchResultReveal.tsx),
+                  so the two now share the same visual pattern, not just
+                  the same phrasing. carry/banked as SEPARATE fields are
+                  untouched everywhere else (hitShip's carry penalty,
+                  the bank-zone deposit, the results pipeline) — this
+                  only changes what's displayed here, not how either one
+                  is actually tracked or scored. */}
+              <div style={{ gridColumn: "1 / -1", textAlign: "left", marginTop: 1, lineHeight: 1.15 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>
+                  {Math.floor(s.carry + s.banked).toLocaleString()}
+                </div>
+                <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: ".03em", textTransform: "uppercase", color: "#8a97a8" }}>
+                  {t("gameArena.ptsCollectedLabel")}
+                </div>
               </div>
             </div>
           ))}
