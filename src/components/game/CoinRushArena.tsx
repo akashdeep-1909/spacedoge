@@ -790,7 +790,28 @@ export function CoinRushArena({
           color: opp?.colorHex ?? BOT_COLORS[i], name: opp?.label ?? `@${name}`, isYou: false,
           lives: diff.startLives + (isBot ? BOT_LIVES_BONUS : 0), carry: 0, banked: 0, active: true, invuln: 0, knockback: 0,
           speed: (95 + rand() * 20) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
-          externallyDriven, oppSlot: externallyDriven ? opp!.slotNumber : null, isBot,
+          // opp?.slotNumber is this seat's REAL DB slotNumber (see the
+          // lobby page's own opponents useMemo — a lobby's host always
+          // takes slot 1, not 0, so a viewer who isn't the host sees
+          // their own opponents array start at a slot number other than
+          // 1) — needed for every opponent, not just an externally-
+          // driven real friend. A genuine filler bot's own slot used to
+          // only ever fall back to null here (only read for a real
+          // friend's live-sample lookup at the time), which silently
+          // left every bot-scoring call below using this ship's ARRAY
+          // index (always 1/2/3 by construction) as if it were the same
+          // as its real slot number — true by coincidence in solo play
+          // (slots are assigned 0/1/2/3 in that exact creation order),
+          // false in general for a lobby match, confirmed live as a real
+          // bug: a filler bot showed 132 PTS live, paced toward the
+          // WRONG slot's botScore() formula value, then settled at 93 —
+          // its own actual slot's value — a mismatch with nothing to do
+          // with the guaranteed-bot/genuine-multiplayer distinction
+          // already fixed earlier, just a plain wrong array index. i+1
+          // (this loop's own index, 0/1/2, shifted to the 1/2/3 slot
+          // numbering every bot creation route uses) is only a fallback
+          // for solo play, where opponents is entirely absent.
+          externallyDriven, oppSlot: opp?.slotNumber ?? (i + 1), isBot,
           shapeKey: opp?.shapeKey ?? null, fireShotCd: 0,
           // Staggered random starting cooldowns (filler bots only ever
           // read these — see their own doc-comment on ShipEntity) so
@@ -858,7 +879,13 @@ export function CoinRushArena({
     // rankBotMatch's real bump will compare against — converging to the
     // exact real assignment by the time it actually matters (match end),
     // instead of guessing once and never updating.
-    const botsByScoreDesc = [1, 2, 3]
+    // Each opponent ship's own REAL slot number (ships[1..3].oppSlot,
+    // see that field's own doc-comment above) — never the hardcoded
+    // [1,2,3] this used to assume, which silently broke the moment a
+    // lobby match's opponents didn't happen to occupy exactly those
+    // three slots (the host alone always takes slot 1, not 0 — see
+    // oppSlot's doc-comment for the confirmed-live bug this caused).
+    const botsByScoreDesc = [ships[1].oppSlot!, ships[2].oppSlot!, ships[3].oppSlot!]
       .map((slot) => ({ slot, score: botScore(mapSeed, slot, durationSec) }))
       .sort((a, b) => b.score - a.score);
     // Not computed/used at all for PRACTICE (rankByScore — no guaranteed
@@ -1816,7 +1843,17 @@ export function CoinRushArena({
               // bot toward its real target here — the reward-tier target
               // when guaranteed, else this same raw formula value — is
               // what closes that gap in every room shape, not just solo.
-              const target = guaranteedTargetBySlot?.get(si) ?? botScore(mapSeed, si, durationSec);
+              //
+              // s.oppSlot, not si (this ship's own ARRAY index) — see
+              // oppSlot's own doc-comment above for the confirmed-live
+              // bug that distinction closes: a lobby match's opponents
+              // don't necessarily occupy slots 1/2/3 in ship-array order
+              // (the host alone always takes slot 1, not 0), so pacing
+              // toward botScore(mapSeed, si, …) could target a
+              // completely different slot's formula value than the one
+              // settlement will actually pay THIS bot.
+              const slot = s.oppSlot ?? si;
+              const target = guaranteedTargetBySlot?.get(slot) ?? botScore(mapSeed, slot, durationSec);
               const paceTotal = Math.round(target * Math.min(1, g.elapsed / durationSec));
               const gained = Math.max(1, paceTotal - (s.carry + s.banked));
               s.carry += gained;
