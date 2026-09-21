@@ -416,15 +416,29 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/matches
 // rather than centralized, since the two callers' surrounding data
 // (Prisma includes) already differ slightly.
 function buildParticipantSummaries(
-  participants: { id: string; isBot: boolean; walletProfileId: string; score: number; rank: number | null; rewardUsdt: unknown; walletProfile: { address: string; nickname: string | null } }[],
+  participants: { id: string; isBot: boolean; walletProfileId: string; score: number; rank: number | null; slotNumber: number | null; rewardUsdt: unknown; walletProfile: { address: string; nickname: string | null } }[],
   myWalletProfileId: string,
   mapSeed: string
 ) {
   const sorted = participants.slice().sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
   // One shuffle per match, not per bot — guarantees no two bots in the
   // same room ever get the same name (see pickBotNames' doc-comment).
-  const botNames = pickBotNames(mapSeed, sorted.filter((p) => p.isBot).length);
-  let botIndex = 0;
+  //
+  // Assigned by SLOT NUMBER (ascending), not by iterating `sorted` in
+  // rank order — confirmed live as a real identity bug, not just
+  // cosmetic: CoinRushArena's own live leaderboard has no idea what any
+  // bot's final RANK will be (settlement hasn't happened yet), so it's
+  // always named its 3 bot ships off this exact same shuffled pool in
+  // SLOT order instead — the only stable thing it can know from the
+  // start. Naming here by rank instead meant whichever bot happened to
+  // finish 1st always got the pool's FIRST name regardless of which
+  // slot it actually was, so a bot a player watched race the whole
+  // match as "@Raven" could settle under a completely different name —
+  // read as "1st and last got swapped," when every bot's own score was
+  // actually correct the whole time, just relabeled at the very end.
+  const botsBySlot = participants.filter((p) => p.isBot).sort((a, b) => (a.slotNumber ?? 0) - (b.slotNumber ?? 0));
+  const botNames = pickBotNames(mapSeed, botsBySlot.length);
+  const nameByParticipantId = new Map(botsBySlot.map((p, i) => [p.id, botNames[i]]));
   return sorted.map((p) => {
     const rewardUsdt = Number(p.rewardUsdt);
     const rewardPts = Math.round(rewardUsdt * 1000);
@@ -434,7 +448,7 @@ function buildParticipantSummaries(
       isBot: p.isBot,
       isYou: p.walletProfileId === myWalletProfileId,
       displayAddress: p.isBot
-        ? `@${botNames[botIndex++]}`
+        ? `@${nameByParticipantId.get(p.id)}`
         : p.walletProfile.nickname || shortenWalletAddress(p.walletProfile.address),
       gameplayPts: p.score,
       bonusPts,

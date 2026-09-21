@@ -380,8 +380,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         participants: (() => {
           // One shuffle per match, not per bot — guarantees no two bots
           // in the same room ever get the same name.
-          const botNames = pickBotNames(outcome.match.mapSeed, outcome.all.filter((p) => p.isBot).length);
-          let botIndex = 0;
+          //
+          // Assigned by SLOT NUMBER (ascending), not by iterating
+          // outcome.all in rank order — confirmed live as a real
+          // identity bug, not just cosmetic, on the solo-vs-bots sibling
+          // route (settle/route.ts, same bug, same fix): CoinRushArena's
+          // own live leaderboard names each bot off this exact same
+          // shuffled pool in SLOT order (the only stable thing it can
+          // know before settlement even runs), so naming here by rank
+          // instead meant whichever bot happened to finish 1st always
+          // got the pool's FIRST name regardless of which slot it
+          // actually was — a bot watched racing the whole match as
+          // "@Raven" could settle under a completely different name,
+          // reading as "1st and last got swapped" even though every
+          // bot's own score was correct the whole time.
+          const botsBySlot = outcome.all.filter((p) => p.isBot).sort((a, b) => (a.slotNumber ?? 0) - (b.slotNumber ?? 0));
+          const botNames = pickBotNames(outcome.match.mapSeed, botsBySlot.length);
+          const nameByParticipantId = new Map(botsBySlot.map((p, i) => [p.id, botNames[i]]));
           return outcome.all.map((p) => {
             const pRewardUsdt = Number(p.rewardUsdt);
             const pRewardPts = Math.round(pRewardUsdt * 1000);
@@ -390,7 +405,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               isBot: p.isBot,
               isYou: p.walletProfileId === session.walletProfileId,
               displayAddress: p.isBot
-                ? `@${botNames[botIndex++]}`
+                ? `@${nameByParticipantId.get(p.id)}`
                 : p.walletProfile.nickname || shortenWalletAddress(p.walletProfile.address),
               gameplayPts: p.score,
               bonusPts: Math.max(0, pRewardPts - p.score),
