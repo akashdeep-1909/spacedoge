@@ -12,7 +12,7 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { getPublicOrigin } from "@/lib/publicUrl";
 import { NotificationsPrompt } from "@/components/NotificationsPrompt";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
-import { THEME_BY_MODE, RENTAL_BOT_MIN_HUMANS } from "@/lib/game-config";
+import { THEME_BY_MODE, RENTAL_BOT_MIN_HUMANS, LOBBY_MIN_HUMANS_TO_START } from "@/lib/game-config";
 import type { GameMode } from "@/generated/prisma/enums";
 import { MatchResultReveal, type MatchParticipantResult, type MatchPoolSummary } from "@/components/game/MatchResultReveal";
 import { gameModeLabel } from "@/lib/game-mode-labels";
@@ -587,7 +587,11 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
     return (
       <div className="mx-auto max-w-md text-center">
         <p className="text-sm text-muted">
-          {lobby.cancelReason === "RENTAL_BOT_NOT_ENOUGH_FRIENDS" ? t("lobby.cancelledRentalBotNotEnoughFriends") : t("lobby.cancelledNotice")}
+          {lobby.cancelReason === "RENTAL_BOT_NOT_ENOUGH_FRIENDS"
+            ? t("lobby.cancelledRentalBotNotEnoughFriends")
+            : lobby.cancelReason === "NOT_ENOUGH_FRIENDS"
+              ? t("lobby.cancelledNotEnoughFriends")
+              : t("lobby.cancelledNotice")}
         </p>
         <button onClick={() => router.push("/dashboard/play")} className="btn-game-outline mt-3 rounded-full px-4 py-2 text-sm">
           {t("lobby.backToGameModes")}
@@ -608,6 +612,14 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
   // participant's selection regardless, so a non-host joiner equipping
   // a Rental Bot the host can't see here still gets enforced there.
   const rentalBotNeedsMoreHumans = !!lobby.myRentalBot && lobby.humanCount < RENTAL_BOT_MIN_HUMANS;
+  // Explicit product direction: "Play with Friends" must actually be
+  // played with a friend — mirrors the server's own hard block (POST
+  // /api/lobbies/[id]/start, via lobbyNeedsMoreHumansToStart). Checked
+  // separately from, and only when NOT already covered by,
+  // rentalBotNeedsMoreHumans above — that message already explains a
+  // stricter version of the same "invite someone" ask when a Rental Bot
+  // is the reason, so this one only shows for the plain no-bot case.
+  const soloNeedsMoreHumans = !rentalBotNeedsMoreHumans && lobby.humanCount < LOBBY_MIN_HUMANS_TO_START;
 
   // Recent opponents not already occupying a seat or already invited —
   // no point quick-inviting someone who's already in or already pending.
@@ -886,6 +898,18 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
               <p className="rounded-xl border border-gold/25 bg-gold-soft px-3 py-2 text-center text-xs text-gold">
                 {t("lobby.rentalBotNeedsFriends", { count: RENTAL_BOT_MIN_HUMANS - lobby.humanCount })}
               </p>
+            ) : soloNeedsMoreHumans ? (
+              <div className="rounded-xl border border-gold/25 bg-gold-soft px-3 py-2 text-center">
+                <p className="text-xs text-gold">
+                  {t("lobby.soloNeedsFriends", { count: LOBBY_MIN_HUMANS_TO_START - lobby.humanCount })}
+                </p>
+                <button
+                  onClick={() => router.push("/dashboard/play")}
+                  className="btn-game-outline mt-2 w-full rounded-full px-4 py-1.5 text-xs"
+                >
+                  {t("lobby.playSoloInstead")}
+                </button>
+              </div>
             ) : (
               <button
                 onClick={() => start.mutateAsync().catch((e) => setActionError(e instanceof Error ? e.message : t("lobby.failedToStart")))}

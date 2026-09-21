@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { finalizeLobby, serializeLobby, lobbyNeedsMoreHumansForRentalBot } from "@/lib/lobby";
-import { RENTAL_BOT_MIN_HUMANS } from "@/lib/game-config";
+import { finalizeLobby, serializeLobby, lobbyNeedsMoreHumansForRentalBot, lobbyNeedsMoreHumansToStart } from "@/lib/lobby";
+import { RENTAL_BOT_MIN_HUMANS, LOBBY_MIN_HUMANS_TO_START } from "@/lib/game-config";
 
 // POST /api/lobbies/[id]/start — host-only "Start Game with AI Racers"
 // early-start button. Fills every empty seat with a deterministic bot
@@ -20,6 +20,19 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   }
   if (lobby.status !== "WAITING" && lobby.status !== "FULL") {
     return NextResponse.json({ error: "Lobby can no longer be started" }, { status: 409 });
+  }
+
+  // Explicit product direction: "Play with Friends" must actually be
+  // played with a friend — a host who invites nobody and clicks Start
+  // anyway is functionally solo play wearing a lobby costume. See
+  // LOBBY_MIN_HUMANS_TO_START's own doc-comment; the plain solo "Play"
+  // button was never subject to this rule and is the way to actually
+  // play alone against bots.
+  if (await lobbyNeedsMoreHumansToStart(id)) {
+    return NextResponse.json(
+      { error: `Invite at least ${LOBBY_MIN_HUMANS_TO_START - 1} friend before starting, or play solo instead from the mode picker.` },
+      { status: 409 }
+    );
   }
 
   // Real enforcement of "Rental Bot only works with real friends" for

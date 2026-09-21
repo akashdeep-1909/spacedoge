@@ -62,6 +62,27 @@ export const FORGE_CUP_COOLDOWN_DAYS = 7;
 // pre-emptively instead of letting the host hit a server error).
 export const RENTAL_BOT_MIN_HUMANS = 3;
 
+// Explicit product direction: "Play with Friends" must actually be
+// played with a friend — a host who invites nobody and starts anyway
+// (AI silently filling all 3 remaining seats) is functionally solo play
+// wearing a lobby costume, the exact same complaint the Rental Bot rule
+// above already exists to close for that one purchased item. This is
+// the same rule generalized to every lobby, bot or no bot: at least
+// this many real JOINED humans (host included) before "Start with
+// Random Players" — or the wait window's own passive expiry — is
+// allowed to actually finalize the room into a match. A host who wants
+// to play alone against bots should use the plain solo "Play" button
+// instead (src/app/dashboard/play/page.tsx), which was never subject to
+// this lobby-specific rule. See src/lib/lobby.ts
+// (lobbyNeedsMoreHumansToStart, used by POST /api/lobbies/[id]/start to
+// hard-block the manual action and by finalizeIfExpired to cancel
+// rather than auto-fill on timeout) and the lobby waiting-room page
+// (client-side mirror, disables the button pre-emptively). Deliberately
+// lower than RENTAL_BOT_MIN_HUMANS (3) — a Rental Bot equipped still
+// needs that stricter bar regardless; this is the floor for every
+// lobby, bot or no bot.
+export const LOBBY_MIN_HUMANS_TO_START = 2;
+
 // v3 economy: two-level referral, carved out of the platform fee (O =
 // 0.30T above) and paid at match entry, not settlement — see
 // src/lib/referrals.ts. Both are percentages of platformFeeUsdt itself

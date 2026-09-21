@@ -2,7 +2,7 @@ import { randomBytes, createHash } from "node:crypto";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { BalanceType, GameMode } from "@/generated/prisma/enums";
-import { GAME_MODE_CONFIG, botScore, RENTAL_BOT_MIN_HUMANS } from "@/lib/game-config";
+import { GAME_MODE_CONFIG, botScore, RENTAL_BOT_MIN_HUMANS, LOBBY_MIN_HUMANS_TO_START } from "@/lib/game-config";
 import { getGameModeConfigs, getGameModeConfig, computeRoomEconomicsFromConfig } from "@/lib/gameModes";
 import { distributeEntryFeeToTreasuryAndReferrals } from "@/lib/referrals";
 import { getWalletBalances, lockWalletForBalanceChange, getLedgerBalance } from "@/lib/balances";
@@ -391,6 +391,24 @@ export async function lobbyNeedsMoreHumansForRentalBot(lobbyId: string): Promise
   return lobby.participants.some((p) => !!p.walletShopItemId);
 }
 
+// Generalizes the Rental-Bot-specific rule above to every lobby — see
+// LOBBY_MIN_HUMANS_TO_START's own doc-comment. Used the exact same way:
+// POST /api/lobbies/[id]/start hard-blocks the host's deliberate "Start
+// with Random Players" click, and finalizeIfExpired below cancels
+// (rather than auto-finalizing with AI fill) a lobby whose wait window
+// ran out with only the host ever present. Checked independently of,
+// and before, lobbyNeedsMoreHumansForRentalBot above — a room with a
+// Rental Bot equipped still needs that stricter 3-human bar even once
+// this 2-human floor is cleared.
+export async function lobbyNeedsMoreHumansToStart(lobbyId: string): Promise<boolean> {
+  const lobby = await db.gameLobby.findUnique({
+    where: { id: lobbyId },
+    include: { participants: { where: { status: "JOINED" } } },
+  });
+  if (!lobby) return false;
+  return lobby.participants.length < LOBBY_MIN_HUMANS_TO_START;
+}
+
 // Lazy expiry — no cron/queue infra exists in this stack (confirmed).
 // Called from GET /api/lobbies/[id] (so any active poller self-heals
 // the lobby) and from POST /api/lobbies/sweep-expired (a cron-style
@@ -404,6 +422,20 @@ export async function finalizeIfExpired(lobbyId: string): Promise<boolean> {
   if (lobby.status === "WAITING") {
     if (Date.now() < lobby.expiresAt.getTime()) return false;
 
+    // Nobody ever actually joined the host — same rule
+    // POST /api/lobbies/[id]/start already hard-blocks on the deliberate
+    // "Start with Random Players" click (see lobbyNeedsMoreHumansToStart's
+    // own doc-comment); letting the clock quietly auto-start with AI
+    // filling every seat instead was the same "With Friends, no friends"
+    // loophole with extra steps. Cancel the room instead (releases the
+    // host's entry-fee hold) so they actually have to invite someone —
+    // or just use the plain solo "Play" button, which was never subject
+    // to this rule at all.
+    if (await lobbyNeedsMoreHumansToStart(lobbyId)) {
+      await cancelLobby(lobbyId, "NOT_ENOUGH_FRIENDS");
+      return false;
+    }
+
     // A Rental Bot equipped but the room never reached
     // RENTAL_BOT_MIN_HUMANS real friends by the time the wait window
     // ran out — POST /api/lobbies/[id]/start already hard-blocks the
@@ -413,11 +445,10 @@ export async function finalizeIfExpired(lobbyId: string): Promise<boolean> {
     // auto-starting with AI filling every empty seat — was the same
     // loophole with extra steps. Cancel the room instead (releases
     // every joined human's entry-fee hold) so the host actually has to
-    // get their friends in, never just wait the timer out. This is the
-    // ONLY thing that can turn a finalize into a cancel — a lobby with
-    // no Rental Bot equipped (or one that already has enough humans)
-    // keeps behaving exactly as before, auto-starting with AI fill on
-    // expiry.
+    // get their friends in, never just wait the timer out. A lobby with
+    // no Rental Bot equipped (and already past the general 2-human floor
+    // just above) keeps behaving exactly as before, auto-starting with
+    // AI fill on expiry.
     if (await lobbyNeedsMoreHumansForRentalBot(lobbyId)) {
       await cancelLobby(lobbyId, "RENTAL_BOT_NOT_ENOUGH_FRIENDS");
       return false;
