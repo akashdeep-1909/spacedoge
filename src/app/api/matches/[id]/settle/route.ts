@@ -262,29 +262,23 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/matches
     let unclaimedUsdt = 0;
 
     for (const p of ranked) {
-      // A "guaranteed" bot (rank 1/2 in this always-solo-vs-bots route,
-      // outside Practice — see rankBotMatch's own doc-comment) never
-      // really earned its reward through gameplay at all; the number it
-      // actually displayed growing live, the whole match, was always its
-      // own reward-tier TARGET (CoinRushArena's bumpedGuaranteedTargets/
-      // pickup-pacing, src/components/game/CoinRushArena.tsx) — not the
-      // small raw/bumped botScore p.score still holds here. Storing that
-      // raw value as "Collected" left the results screen showing a
-      // completely different, much smaller number than what the player
-      // just watched (1,319 PTS live vs. "Collected 472" at the same
-      // rank 1 bot) under the exact same label, with a huge invented
-      // "+1,055 bonus" bridging the gap — confirmed live as a real bug,
-      // not just cosmetic: nothing was ever actually bridged, the bot's
-      // displayed total already WAS the target the whole time. Folding
-      // the target into gameplayPts here (rewardPts/rewardUsdt are
-      // unaffected either way — rankTierResult's reward output only
-      // depends on rank, never on the score passed in) makes "Collected"
-      // match what was live and lets bonusPts fall out to its honest 0,
-      // exactly like a human's own row already does when their real
-      // score already met the target.
-      const isGuaranteedBot = !isPractice && p.isBot && (p.rank === 1 || p.rank === 2);
-      const effectiveScore = isGuaranteedBot ? targets[p.rank as 1 | 2] : p.score;
-      const result = rankTierResult(p.rank, effectiveScore, targets);
+      // Explicit product direction: "Collected" and the reward-tier
+      // bonus must always show as two separate numbers, for every rank
+      // — never one folded silently into the other. An earlier version
+      // here set a guaranteed bot's "Collected" equal to its full reward
+      // total (bonusPts always 0) to match what CoinRushArena's live
+      // leaderboard paces toward — but confirmed live as reading wrong
+      // the OTHER way: "Collected 1,511 PTS" with no separate bonus line
+      // looked like nothing was ever topped up, when a rank-1/2 bot's
+      // reward is still mostly the guaranteed tier bonus, not gameplay.
+      // p.score (this bot's own raw/bumped botScore — see rankBotMatch's
+      // doc-comment) is what "Collected" shows again, with rankTierResult
+      // below always surfacing the full gap up to the reward as its own
+      // bonusPts line, matching the pattern rank 3/4 (and every human
+      // row) already used the whole time. rewardPts/rewardUsdt are
+      // unaffected either way — rankTierResult's reward output only ever
+      // depends on rank, never on the score passed in.
+      const result = rankTierResult(p.rank, p.score, targets);
       const isMe = p.id === me.id;
       const humanBlocked = isMe && !!blockedReason;
       // Display value (stored on the row, shown in the results UI):
@@ -301,15 +295,9 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/matches
 
       await tx.matchParticipant.update({
         where: { id: p.id },
-        // effectiveScore (rankBotMatch's own bump for a guaranteed bot,
-        // or that bot's own reward-tier target — see isGuaranteedBot
-        // above) — persisted here so the DB row (and everything read
-        // back from it after this transaction) matches what's shown,
-        // not the pre-bump/pre-target value written during the scoring
-        // step above.
         data: isPractice
           ? { rank: p.rank, score: p.score }
-          : { rank: p.rank, rewardUsdt: displayRewardUsdt, score: effectiveScore, resultBlockedReason: isMe ? blockedReason : undefined },
+          : { rank: p.rank, rewardUsdt: displayRewardUsdt, score: p.score, resultBlockedReason: isMe ? blockedReason : undefined },
       });
 
       if (creditable && displayRewardUsdt > 0) {

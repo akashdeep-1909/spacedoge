@@ -470,7 +470,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
             onComplete={handleComplete}
             fullscreen
             missionTitle={gameModeLabel(t, lobby.mode, lobby.modeLabel)}
-            prizePoolUsdt={lobby.nominalRoomPoolUsdt}
+            prizePoolUsdt={lobby.rewardPoolUsdt}
             walletAddress={address}
             nickname={session?.nickname}
             mode={lobbyMode}
@@ -536,7 +536,7 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
             onComplete={() => {}}
             fullscreen
             missionTitle={gameModeLabel(t, lobby.mode, lobby.modeLabel)}
-            prizePoolUsdt={lobby.nominalRoomPoolUsdt}
+            prizePoolUsdt={lobby.rewardPoolUsdt}
             walletAddress={address}
             nickname={session?.nickname}
             mode={lobbyMode}

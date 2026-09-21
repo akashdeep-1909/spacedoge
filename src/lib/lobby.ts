@@ -591,6 +591,26 @@ export async function serializeLobby(lobbyId: string, viewerWalletProfileId: str
   // could drift from what this specific room actually charged.
   const cfg = await getGameModeConfig(lobby.mode);
   const nominalRoomPoolUsdt = Number(lobby.entryFeeUsdt) * LOBBY_MAX_PLAYERS;
+  // The REAL reward pool (70% of the full room — see
+  // computeRoomEconomicsFromConfig's own doc-comment, same formula
+  // finalizeLobby uses to actually stamp Match.prizePoolUsdt) — never
+  // the un-reduced nominalRoomPoolUsdt above. Confirmed live as a real
+  // bug: the lobby page was passing nominalRoomPoolUsdt (the full,
+  // 100% headline number, e.g. $4.00) as CoinRushArena's own
+  // prizePoolUsdt prop, so a "With Friends" match's live HUD showed a
+  // different PRIZE POOL figure than the identical solo mode ($4.00 vs
+  // solo's correct $2.80) — and, more seriously, fed the wrong pool
+  // into the client's own computeRankTierTargetsPts (CoinRushArena's
+  // bumpedGuaranteedTargets, used to pace a guaranteed bot's live PTS
+  // toward its real reward-tier target), so a lobby match's live-paced
+  // bot totals were computed against a target ~43% too high, converging
+  // to a number settlement (which correctly uses Match.prizePoolUsdt)
+  // would never actually pay.
+  const rewardPoolUsdt = computeRoomEconomicsFromConfig({
+    entryFeeUsdt: Number(lobby.entryFeeUsdt),
+    durationSec: lobby.durationSec,
+    prefundedPoolUsdt: null,
+  }).prizePoolUsdt;
   // The VIEWER's own current Rental Bot selection for this lobby (set/
   // cleared any time before start via setLobbyRentalBot) — null if
   // they haven't equipped one, or if viewerWalletProfileId isn't even
@@ -634,6 +654,7 @@ export async function serializeLobby(lobbyId: string, viewerWalletProfileId: str
     entryFeeUsdt: Number(lobby.entryFeeUsdt),
     durationSec: lobby.durationSec,
     nominalRoomPoolUsdt,
+    rewardPoolUsdt,
     host: { address: lobby.host.address },
     isHost: viewerWalletProfileId === lobby.hostWalletProfileId,
     // Session-based (the same viewerParticipant lookup myRentalBot/

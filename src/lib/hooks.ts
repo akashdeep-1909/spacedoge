@@ -2218,6 +2218,7 @@ export interface LobbyState {
   entryFeeUsdt: number;
   durationSec: number;
   nominalRoomPoolUsdt: number;
+  rewardPoolUsdt: number;
   host: { address: string };
   isHost: boolean;
   // Session-based ground truth for "is the VIEWER already a JOINED
