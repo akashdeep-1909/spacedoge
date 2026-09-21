@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
-import { seededRandom, DIFFICULTY_BY_MODE, THEME_BY_MODE, pickBotNames, botScore, computeRankTierTargetsPts } from "@/lib/game-config";
-import { GameMode } from "@/generated/prisma/enums";
+import { seededRandom, DIFFICULTY_BY_MODE, THEME_BY_MODE, pickBotNames, botScore } from "@/lib/game-config";
+import type { GameMode } from "@/generated/prisma/enums";
 import { reportLiveMatchState } from "@/lib/hooks";
 import type { LiveShipSample } from "@/lib/liveMatchStateTypes";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
@@ -193,6 +193,18 @@ const BOT_COLORS = ["#3cc4ff", "#4af4af", "#ff7a7a"];
 // play (see the rentalBotActive-specific targeting/banking/hazard-
 // alert tuning inside the bot-AI branch below), not a free stat.
 const BOT_LIVES_BONUS = 6;
+// A bot's real, displayed carry/banked reaches its real final total
+// (botScore(), see the item-pickup loop below) by this fraction of the
+// match's own duration, not the full 1.0 — see that pacing formula's
+// own doc-comment for why front-loading it matters: the leaderboard's
+// sort order is just the ships' real carry/banked now, so a bot that's
+// genuinely going to win needs its own real number to organically
+// overtake everyone else's well before the final second, not right at
+// it, or "the bot was losing the whole game and then won" is exactly
+// what the leaderboard visibly shows. 0.5 means every guaranteed bot's
+// real number is already fully caught up to its own true total for the
+// match's entire second half.
+const PACE_CONVERGE_BY_FRAC = 0.5;
 // The reporting side (an actively-playing human's own client). The
 // polling side (useLiveMatchState's refetchInterval) is deliberately
 // set faster than this, not equal to it — see that hook's own
@@ -823,103 +835,6 @@ export function CoinRushArena({
       }),
     ];
 
-    // How many REAL humans (not filler bots) are actually in this
-    // match — "you" plus any opponent seat whose own isBot is false. In
-    // solo/instant play `opponents` is entirely absent, so this is
-    // always 1. Server settlement (rankBotMatch, src/lib/game-config.ts)
-    // now only ever guarantees a bot a rank at all when this is <= 1 —
-    // real multiplayer (2+ humans) ranks purely by score, bots included
-    // — so every bit of the "guaranteed bot" foreshadowing logic below
-    // must be gated the same way, or the live leaderboard keeps
-    // bait-and-switching a rank that the server no longer actually
-    // guarantees.
-    const realHumanCount = 1 + (opponents?.filter((o) => !o.isBot).length ?? 0);
-
-    // Server settlement (rankBotMatch, src/lib/game-config.ts) always
-    // guarantees the 2 HIGHEST-raw-scoring bots a final rank above the
-    // human — every bot's real payout there is a fixed reward-tier
-    // TARGET (computeRankTierTargetsPts/rankTierResult), not its raw
-    // botScore() at all; raw botScore only ever sets the "Collected"
-    // sub-number, for EVERY bot, contesting one included (it's never
-    // derived from this local, purely cosmetic bot AI's own live
-    // carry/banked — that has zero bearing on the real, independently-
-    // computed result). Bot slot indices 1/2/3 match match.participants'
-    // creation order — see settle/results routes' own
-    // botScore(mapSeed, p.slotNumber, …) calls.
-    //
-    // Confirmed live as three compounding real bugs, not just cosmetic:
-    // (1) showing the single weakest-by-raw-score bot its true, UNCAPPED
-    // local-sim carry/banked let it rack up a cosmetic total — real coin
-    // pickups have no ceiling — far above what its own real formula-based
-    // score would ever be (1,537 shown live vs. 90 actually settled,
-    // LOSS); (2) predicting which of the two GUARANTEED bots lands rank 1
-    // vs rank 2 purely from their raw botScore (highest = rank 1) breaks
-    // down the moment a real human's own score exceeds a bot's raw range
-    // (bots top out around ~210 for a 60s match; a well-played human can
-    // legitimately clear that — see BASE_MAX_SCORE_PER_SECOND's own
-    // history) — once that happens BOTH guaranteed bots get bumped just
-    // above the human's score (rankBotMatch's own score-bump), and which
-    // of the two random bump draws lands higher, not their original raw
-    // order, decides rank 1 vs 2, so a static guess made once at match
-    // start had no way to reflect that and could label the WRONG bot with
-    // the big number all match; (3) an earlier fix for both of those
-    // replaced the leaderboard number with a pure elapsed-time formula —
-    // technically converging to the right totals, but completely
-    // disconnected from whether that bot's ship was anywhere near a coin,
-    // which read as exactly "the bot isn't collecting anything and its
-    // PTS is still climbing," just as fake as the bug it replaced.
-    //
-    // Explicit product direction settled all three for good: a bot's
-    // DISPLAYED PTS is always its real, honest carry/banked — exactly
-    // what it visibly picked up, never a projection, and never including
-    // any reward-tier bonus (that's revealed only in the results
-    // dialog, same as it already is for a human's own row). This map is
-    // used purely to decide the leaderboard's SORT ORDER instead — see
-    // displayRankedBoard's own doc-comment — recomputed fresh each call
-    // from the human's own LIVE running total as a stand-in for the
-    // not-yet-final score rankBotMatch's real bump will compare against,
-    // so the ORDER converges to the exact real assignment by the time it
-    // actually matters (match end), without that prediction ever
-    // touching what's actually shown.
-    // Each opponent ship's own REAL slot number (ships[1..3].oppSlot,
-    // see that field's own doc-comment above) — never the hardcoded
-    // [1,2,3] this used to assume, which silently broke the moment a
-    // lobby match's opponents didn't happen to occupy exactly those
-    // three slots (the host alone always takes slot 1, not 0 — see
-    // oppSlot's doc-comment for the confirmed-live bug this caused).
-    const botsByScoreDesc = [ships[1].oppSlot!, ships[2].oppSlot!, ships[3].oppSlot!]
-      .map((slot) => ({ slot, score: botScore(mapSeed, slot, durationSec) }))
-      .sort((a, b) => b.score - a.score);
-    // Not computed/used at all for PRACTICE (rankByScore — no guaranteed
-    // bot, no reward-tier target) or KOL_REFERRAL_BONUS
-    // (rankKolBonusMatch pays a capped raw score, not a tier target) —
-    // bumpTargets() returns an empty map for both, and every bot then
-    // just foreshadows its own raw botScore in displayRankedBoard below.
-    const usesRankTierBonus = mode !== GameMode.PRACTICE && mode !== GameMode.KOL_REFERRAL_BONUS;
-    const rankTierTargets = usesRankTierBonus ? computeRankTierTargetsPts(prizePoolUsdt, mapSeed) : null;
-    // Mirrors rankBotMatch's own bumpedGuaranteed step exactly: same
-    // seed string (so the two random draws it produces are identical to
-    // the server's), same guaranteedBots order (the 2 highest-raw bots,
-    // highest first), same bump formula, then re-sorted by the
-    // (possibly bumped) score to decide rank 1 vs rank 2. seededRandom()
-    // is a fresh generator from the same fixed seed every call, so
-    // calling this once per frame is safe — it always reproduces the
-    // exact same two bump amounts, only `bestHumanScoreSoFar` (the one
-    // input this can't know for certain until the human's run is over)
-    // changes from frame to frame.
-    function bumpedGuaranteedTargets(bestHumanScoreSoFar: number): Map<number, number> {
-      const targets = new Map<number, number>();
-      if (!rankTierTargets) return targets;
-      const bumpRand = seededRandom(`${mapSeed}:botScoreBump`);
-      const bumped = botsByScoreDesc.slice(0, 2).map((b) => ({
-        slot: b.slot,
-        score: b.score <= bestHumanScoreSoFar ? bestHumanScoreSoFar + Math.round(8 + bumpRand() * 25) : b.score,
-      }));
-      bumped.sort((a, b) => b.score - a.score);
-      targets.set(bumped[0].slot, rankTierTargets[1]);
-      targets.set(bumped[1].slot, rankTierTargets[2]);
-      return targets;
-    }
 
     const items: ItemEntity[] = [];
     for (let i = 0; i < diff.itemCount; i++) items.push(spawnItem(rand, W, H, DPR, TOP_MARGIN, BOTTOM_MARGIN));
@@ -1153,47 +1068,31 @@ export function CoinRushArena({
     }
 
     // What's shown on the live leaderboard is always a ship's real,
-    // honestly-collected carry/banked — a bot's number used to be
-    // overridden with a synthetic projection toward its eventual
-    // reward-tier total, which read as fake in two different ways at
-    // two different times (confirmed live both ways): first "the bot
-    // isn't collecting coins but its PTS is going up" when the
-    // projection had no connection to visible pickups, then "the bonus
-    // is folded directly into Collected" once it converged all the way
-    // to the reward total with no separate reveal left. Explicit product
-    // direction: never show the bonus-inflated number here at all — only
-    // in the results dialog, same as everyone (bots included) already
-    // gets a "Collected + bonus" breakdown there.
+    // honestly-collected carry/banked, and the leaderboard POSITION is
+    // now always sorted by that exact same real number — no separate
+    // prediction deciding rank while a different, smaller real number
+    // sits next to it. Confirmed live as a real bug, not just cosmetic:
+    // an earlier version sorted by a target-based PREDICTION instead
+    // (to stop a guaranteed bot sitting in last place all match before
+    // jumping to 1st at the very end), but that meant a bot could be
+    // shown in 1st place with a LOWER real number than the human
+    // sitting in 3rd — position and number visibly contradicting each
+    // other, reading as exactly as fake as the bug it replaced.
     //
-    // The SORT order is a separate concern from the DISPLAYED number,
-    // though, and still needs the real prediction — without it, a
-    // guaranteed bot's honestly-small live carry could leave it sitting
-    // in last place the whole match before jumping to 1st at the very
-    // end, the original "misplaced winner" bug this whole mechanism
-    // exists to prevent. predictedTotal mirrors the same target math the
-    // pickup loop used to pace toward directly (now used only to decide
-    // ORDER, never to touch carry/banked) — a guaranteed bot's own
-    // reward-tier target, or the plain raw botScore for the one bot
-    // that isn't guaranteed anything, scaled by elapsed/duration so an
-    // early match doesn't already show the final ranking as a fait
-    // accompli.
+    // What actually fixes both problems at once is the item-pickup
+    // loop's own pacing curve (see PACE_CONVERGE_BY_FRAC below): a
+    // guaranteed bot's real carry now front-loads all the way to its
+    // real target by the match's own halfway point instead of trickling
+    // in linearly to the very last second, so for at least the second
+    // half of every match its real, honestly-displayed number has
+    // already organically overtaken everyone else's — the plain sort
+    // below is correct simply because the real numbers already are.
     function displayRankedBoard() {
-      const you = g.ships[0];
-      const bestHumanScoreSoFar = Math.floor(you.active ? you.banked : you.carry + you.banked);
-      const guaranteedTargetBySlot = realHumanCount < 2 ? bumpedGuaranteedTargets(bestHumanScoreSoFar) : null;
-      function predictedTotal(s: ShipEntity, i: number): number {
-        if (s.isYou || s.externallyDriven || !s.isBot || realHumanCount >= 2) return s.carry + s.banked;
-        const slot = s.oppSlot ?? i;
-        const target = guaranteedTargetBySlot?.get(slot) ?? botScore(mapSeed, slot, durationSec);
-        return target * Math.min(1, g.elapsed / durationSec);
-      }
-      return g.ships
-        .map((s, i) => ({ s, predicted: predictedTotal(s, i) }))
-        .sort((a, b) => {
-          if (b.predicted !== a.predicted) return b.predicted - a.predicted;
-          return b.s.lives - a.s.lives;
-        })
-        .map((x) => x.s);
+      return [...g.ships].sort((a, b) => {
+        const as = a.banked + a.carry, bs = b.banked + b.carry;
+        if (bs !== as) return bs - as;
+        return b.lives - a.lives;
+      });
     }
 
     let lastHudUpdate = 0;
@@ -1839,12 +1738,27 @@ export function CoinRushArena({
       // toward that SAME formula value here, at the moment of a real
       // pickup — every point still requires an actual, visible coin
       // grab, it's just sized to close the gap to the formula's own
-      // total instead of the item's face value. This is deliberately
-      // its raw botScore(), never a reward-tier target (see
-      // displayRankedBoard's own doc-comment for why that's a separate,
-      // sort-only concern) — so what's shown here converges to exactly
-      // what "Collected" will read at settlement, and never previews any
-      // reward-tier bonus.
+      // total instead of the item's face value.
+      //
+      // PACE_CONVERGE_BY_FRAC front-loads that convergence to the
+      // match's own first half instead of spreading it linearly across
+      // the whole match — confirmed live as a real bug, not just slow:
+      // displayRankedBoard's own leaderboard sort is just the ships'
+      // real carry/banked now (see its doc-comment — a SEPARATE
+      // prediction used to drive sort order instead, which could and did
+      // show a bot in 1st place with a lower real number than a human
+      // sitting in 3rd, position and number visibly contradicting each
+      // other). With a linear full-match convergence, a bot that's
+      // genuinely going to win still spent most of the match honestly
+      // behind on real carry, so a plain real-value sort left it sitting
+      // out of 1st for most of the match before a late surge — reading
+      // as "the bot was losing the whole game and then won," the exact
+      // fakeness complaint this exists to close. Reaching its real
+      // target by the match's own halfway point means a bot's own real,
+      // honestly-displayed number has organically overtaken everyone
+      // else's for at least the second half of every match — the plain
+      // sort is correct simply because the real numbers already are, no
+      // separate prediction needed.
       for (const it of g.items) {
         it.spin += dt * 2.2;
         for (let si = 0; si < g.ships.length; si++) {
@@ -1860,7 +1774,7 @@ export function CoinRushArena({
             } else if (s.isBot) {
               const slot = s.oppSlot ?? si;
               const target = botScore(mapSeed, slot, durationSec);
-              const paceTotal = Math.round(target * Math.min(1, g.elapsed / durationSec));
+              const paceTotal = Math.round(target * Math.min(1, (g.elapsed / durationSec) / PACE_CONVERGE_BY_FRAC));
               const gained = Math.max(1, paceTotal - (s.carry + s.banked));
               s.carry += gained;
               addParticles(it.x, it.y, it.rare ? "#7affc8" : "#44d39f", it.rare ? 14 : 8);
