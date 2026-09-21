@@ -248,10 +248,31 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const ranked = rankBotMatch(scoredParticipants, match.mapSeed);
     const prizePoolUsdt = Number(match.prizePoolUsdt);
     const targets = computeRankTierTargetsPts(prizePoolUsdt, match.mapSeed);
+    // rankBotMatch's guarantee (see its own doc-comment in game-config.ts)
+    // only ever applies with fewer than 2 real humans in the room — a
+    // genuine multi-human lobby ranks purely by score, no guaranteed bot,
+    // nothing to override below.
+    const guaranteeApplies = humans.length < 2 && refreshed.some((p) => p.isBot);
 
     let unclaimedUsdt = 0;
     for (const p of ranked) {
-      const result = rankTierResult(p.rank, p.score, targets);
+      // A "guaranteed" bot (rank 1/2 under rankBotMatch's solo-vs-bots
+      // guarantee) never really earned its reward through gameplay —
+      // the number it displayed growing live, the whole match, was
+      // always its own reward-tier TARGET (CoinRushArena's
+      // bumpedGuaranteedTargets/pickup-pacing), not the small raw/bumped
+      // botScoreForSlot p.score still holds here. Storing that raw value
+      // as "Collected" left the results screen showing a completely
+      // different, much smaller number than what the player just
+      // watched, under the exact same label, bridged by a huge invented
+      // "bonus" — confirmed live as a real bug on the solo-vs-bots
+      // sibling route (settle/route.ts), same rankBotMatch mechanism,
+      // fixed identically here. rewardPts/rewardUsdt are unaffected
+      // either way — rankTierResult's reward output only depends on
+      // rank, never on the score passed in.
+      const isGuaranteedBot = guaranteeApplies && p.isBot && (p.rank === 1 || p.rank === 2);
+      const effectiveScore = isGuaranteedBot ? targets[p.rank as 1 | 2] : p.score;
+      const result = rankTierResult(p.rank, effectiveScore, targets);
       // A no-show is treated exactly like a blocked score for reward
       // purposes (see the no-show branch above) — never paid, even if
       // rankBotMatch's noShow-last ordering still left it landing on a
@@ -266,11 +287,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // non-no-show human.
       const creditable = !p.isBot && !rewardBlocked;
 
-      // score may have been bumped by rankBotMatch (a guaranteed bot
-      // displaying more PTS than it actually simulated) — persisted here
-      // so the DB row matches what's shown, not the pre-bump value
-      // written during the scoring step above.
-      await tx.matchParticipant.update({ where: { id: p.id }, data: { rank: p.rank, rewardUsdt: displayRewardUsdt, score: p.score } });
+      // effectiveScore (rankBotMatch's own bump for a guaranteed bot, or
+      // that bot's own reward-tier target — see isGuaranteedBot above) —
+      // persisted here so the DB row matches what's shown, not the
+      // pre-bump/pre-target value written during the scoring step above.
+      await tx.matchParticipant.update({ where: { id: p.id }, data: { rank: p.rank, rewardUsdt: displayRewardUsdt, score: effectiveScore } });
       if (creditable && displayRewardUsdt > 0) {
         await tx.ledgerEntry.create({
           data: {
