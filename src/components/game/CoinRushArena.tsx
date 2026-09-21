@@ -1817,26 +1817,38 @@ export function CoinRushArena({
         }
       }
 
-      // Coin pickup — any active ship can collect, and always earns
-      // exactly the item's own real face value. Explicit product
-      // direction: the live leaderboard must never show a bonus-inflated
-      // number — only the "Collected" PTS a ship has genuinely picked
-      // up, same as a human's own row always has. A bot's REAL final
-      // score (raw botScore, or that plus a reward-tier bonus for a
-      // guaranteed one — see rankBotMatch's doc-comment in
-      // game-config.ts) is a completely separate, server-only number
-      // this local AI has no way to earn through visible pickups anyway
-      // — so s.carry/s.banked now just track REAL collection, honestly,
-      // for every ship. displayRankedBoard() below still predicts each
-      // bot's eventual real total (same target math this loop used to
-      // pace toward directly) purely to sort the leaderboard into the
-      // right order — that's what stops a bot from looking like it lost
-      // the whole match and then winning; the NUMBER shown next to it
-      // stays honest, and the reward-tier bonus reveal is saved for the
-      // results dialog.
+      // Coin pickup — any active ship can collect.
+      //
+      // "You" always earns exactly the item's own real face value — that
+      // number is what actually gets reported to settlement, so it has
+      // to stay genuinely real/verifiable.
+      //
+      // A bot is different: whatever it visibly earns here is PURELY
+      // cosmetic — its real settled score is always the server's own
+      // deterministic botScore(mapSeed, slot, durationSec) formula (see
+      // settle/results route.ts), completely decoupled from anything
+      // that happens in this local canvas simulation, and that can never
+      // change without trusting a client-reported bot score for real —
+      // which would reopen the exact anti-farming hole rankBotMatch's
+      // contest mechanic exists to close (a malicious client could just
+      // report a near-zero score for whichever bot it's contesting).
+      // So instead of real item face value (which has no reason to land
+      // anywhere near that formula's output — confirmed live as a real
+      // bug, "Collected" showing a completely different, unrelated
+      // number in the results screen than what was live) a bot paces
+      // toward that SAME formula value here, at the moment of a real
+      // pickup — every point still requires an actual, visible coin
+      // grab, it's just sized to close the gap to the formula's own
+      // total instead of the item's face value. This is deliberately
+      // its raw botScore(), never a reward-tier target (see
+      // displayRankedBoard's own doc-comment for why that's a separate,
+      // sort-only concern) — so what's shown here converges to exactly
+      // what "Collected" will read at settlement, and never previews any
+      // reward-tier bonus.
       for (const it of g.items) {
         it.spin += dt * 2.2;
-        for (const s of g.ships) {
+        for (let si = 0; si < g.ships.length; si++) {
+          const s = g.ships[si];
           // A spectated real opponent's carry already comes verbatim
           // from their own polled report — a local pickup here would
           // double-count on top of that.
@@ -1845,6 +1857,13 @@ export function CoinRushArena({
             if (it.kind === "dogecore") {
               g.dogeCoreT = 6;
               addParticles(it.x, it.y, "#ff9f1c", 16);
+            } else if (s.isBot) {
+              const slot = s.oppSlot ?? si;
+              const target = botScore(mapSeed, slot, durationSec);
+              const paceTotal = Math.round(target * Math.min(1, g.elapsed / durationSec));
+              const gained = Math.max(1, paceTotal - (s.carry + s.banked));
+              s.carry += gained;
+              addParticles(it.x, it.y, it.rare ? "#7affc8" : "#44d39f", it.rare ? 14 : 8);
             } else {
               const mult = g.dogeCoreT > 0 && s.isYou ? 2 : 1;
               const gained = it.value * mult;
