@@ -1811,7 +1811,32 @@ export function CoinRushArena({
       // just toward its own plain botScore fallback in that case, same
       // as results/route.ts's genuine-multiplayer branch actually pays
       // it (see that fallback's own doc-comment just below).
-      const bestHumanScoreSoFar = Math.floor(g.ships[0].carry + g.ships[0].banked);
+      //
+      // you.banked while the human is still alive, not their full
+      // carry+banked — carry alone can legitimately DROP (a hazard hit
+      // reduces it, see hitShip's own penalty), and confirmed live as a
+      // real bug: feeding the raw, dippable carry+banked in let a
+      // guaranteed bot's target assignment flip mid-match during a brief
+      // window where the human's live carry spiked (picked up something
+      // valuable right before a hit knocked it back down) — a bot's own
+      // accumulated pacing only ever increases, so whatever it had
+      // already raced toward the WRONG (temporarily-assigned, bigger)
+      // target during that window never got clawed back once the
+      // assignment reverted, ending with a bot showing MORE live than
+      // its own real final total. A first fix tried a monotonic
+      // running-peak of carry+banked instead — still provably unsafe (a
+      // brief spike could permanently mis-assign a bot for the rest of
+      // the match, simulated and confirmed worse in some cases, never
+      // shipped). banked is different: it only ever grows (banking is
+      // one-way, only carry is ever lost to a hit) AND it's a genuine
+      // lower bound on the human's eventual final score (final = last
+      // carry + last banked >= any earlier banked) — so any bump this
+      // triggers is GUARANTEED to also hold at settlement (settlement
+      // compares against the human's real final score, which can only
+      // be >= this). Once the human is confirmed dead (ship inactive),
+      // their carry+banked stops changing entirely, so it's safe (and
+      // more accurate) to use the full frozen total from that point on.
+      const bestHumanScoreSoFar = Math.floor(you.active ? you.banked : you.carry + you.banked);
       const guaranteedTargetBySlot = realHumanCount < 2 ? bumpedGuaranteedTargets(bestHumanScoreSoFar) : null;
       for (const it of g.items) {
         it.spin += dt * 2.2;
