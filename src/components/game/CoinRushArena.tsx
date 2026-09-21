@@ -1769,10 +1769,12 @@ export function CoinRushArena({
       // value. bestHumanScoreSoFar/guaranteedTargetBySlot recomputed
       // fresh on every pickup (cheap — bots pick up at most roughly once
       // a second) rather than cached, so it always reflects the human's
-      // latest score. Only for solo-vs-bots (realHumanCount < 2, the only
-      // regime rankBotMatch's guarantee/bump ever applies in) — a filler
-      // bot in genuine multiplayer keeps earning its plain, honest item
-      // value below, unchanged.
+      // latest score. Empty outside solo-vs-bots (realHumanCount < 2,
+      // the only regime rankBotMatch's guarantee/bump ever applies in —
+      // see its own doc-comment above) — every bot still paces below,
+      // just toward its own plain botScore fallback in that case, same
+      // as results/route.ts's genuine-multiplayer branch actually pays
+      // it (see that fallback's own doc-comment just below).
       const bestHumanScoreSoFar = Math.floor(g.ships[0].carry + g.ships[0].banked);
       const guaranteedTargetBySlot = realHumanCount < 2 ? bumpedGuaranteedTargets(bestHumanScoreSoFar) : null;
       for (const it of g.items) {
@@ -1787,8 +1789,25 @@ export function CoinRushArena({
             if (it.kind === "dogecore") {
               g.dogeCoreT = 6;
               addParticles(it.x, it.y, "#ff9f1c", 16);
-            } else if (s.isBot && guaranteedTargetBySlot) {
-              const target = guaranteedTargetBySlot.get(si) ?? botScore(mapSeed, si, durationSec);
+            } else if (s.isBot) {
+              // Every bot's REAL final score — guaranteed or not — is
+              // always this same deterministic botScore(mapSeed, si,
+              // durationSec) formula server-side (results/route.ts calls
+              // it botScoreForSlot, an alias of the exact same function),
+              // completely decoupled from this local AI's own movement/
+              // pickups — a filler bot in a genuine "With Friends" room
+              // (2+ real humans, no guarantee at all — see
+              // guaranteedTargetBySlot's own doc-comment) is no
+              // exception. Confirmed live as a real bug there too, not
+              // just solo: a filler bot showing a small, honest 10 PTS
+              // live the whole match settled at a formula-derived 110 —
+              // enough to leapfrog a real human who was visibly ahead
+              // (71) into last place with a LOSS badge, with nothing on
+              // the live board ever hinting it was coming. Pacing every
+              // bot toward its real target here — the reward-tier target
+              // when guaranteed, else this same raw formula value — is
+              // what closes that gap in every room shape, not just solo.
+              const target = guaranteedTargetBySlot?.get(si) ?? botScore(mapSeed, si, durationSec);
               const paceTotal = Math.round(target * Math.min(1, g.elapsed / durationSec));
               const gained = Math.max(1, paceTotal - (s.carry + s.banked));
               s.carry += gained;
