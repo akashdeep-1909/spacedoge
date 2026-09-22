@@ -2212,6 +2212,7 @@ export interface LobbySlot {
 export interface LobbyState {
   id: string;
   roomCode: string;
+  mapSeed: string;
   status: "WAITING" | "FULL" | "FILLING_AI" | "STARTING" | "STARTED" | "CANCELLED" | "EXPIRED";
   mode: string;
   modeLabel: string;

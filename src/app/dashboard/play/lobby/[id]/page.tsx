@@ -464,7 +464,21 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
         <div className="relative h-[min(930px,calc(100vh-20px))] w-[min(450px,calc(100vw-20px))] overflow-hidden rounded-[36px] border border-white/15 bg-[#06101a] shadow-2xl">
           <QuitMatchButton onQuit={quitMatch} label={t("lobby.quitButton")} confirmLabel={t("lobby.quitConfirmLabel")} />
           <CoinRushArena
-            mapSeed={lobby.id}
+            // lobby.mapSeed — the REAL seed the finalized Match's own
+            // hazard/item layout AND server-side bot scoring
+            // (botScoreForSlot) both key off, never lobby.id. Confirmed
+            // live as a serious, long-standing bug: this used to pass
+            // lobby.id as a mapSeed stand-in (good enough to make the
+            // visual layout look consistent for every viewer, since
+            // they'd all get the same wrong seed) — but every bot-score
+            // PREDICTION CoinRushArena computes client-side (live
+            // pacing, the reward-tier bump math) used a completely
+            // different seed than what settle/results routes actually
+            // use, so a bot's live number had no real relationship to
+            // what it would settle at, in every single "With Friends"
+            // match. See serializeLobby's own doc-comment in
+            // src/lib/lobby.ts for the full history.
+            mapSeed={lobby.mapSeed}
             durationSec={lobby.durationSec}
             startElapsedSec={startElapsedSec}
             onComplete={handleComplete}
@@ -530,7 +544,21 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
             {t("lobby.spectateBadge", { submitted: waitingForOthers.submitted, total: waitingForOthers.total })}
           </div>
           <CoinRushArena
-            mapSeed={lobby.id}
+            // lobby.mapSeed — the REAL seed the finalized Match's own
+            // hazard/item layout AND server-side bot scoring
+            // (botScoreForSlot) both key off, never lobby.id. Confirmed
+            // live as a serious, long-standing bug: this used to pass
+            // lobby.id as a mapSeed stand-in (good enough to make the
+            // visual layout look consistent for every viewer, since
+            // they'd all get the same wrong seed) — but every bot-score
+            // PREDICTION CoinRushArena computes client-side (live
+            // pacing, the reward-tier bump math) used a completely
+            // different seed than what settle/results routes actually
+            // use, so a bot's live number had no real relationship to
+            // what it would settle at, in every single "With Friends"
+            // match. See serializeLobby's own doc-comment in
+            // src/lib/lobby.ts for the full history.
+            mapSeed={lobby.mapSeed}
             durationSec={lobby.durationSec}
             startElapsedSec={startElapsedSec}
             onComplete={() => {}}

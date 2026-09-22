@@ -679,6 +679,23 @@ export async function serializeLobby(lobbyId: string, viewerWalletProfileId: str
   return {
     id: lobby.id,
     roomCode: lobby.roomCode,
+    // The REAL seed a finalized match's own hazard/item layout AND its
+    // server-side bot scoring (botScoreForSlot, see game-config.ts's
+    // botScore) both key off — Match.mapSeed is always copied verbatim
+    // from this at finalizeLobby time. Confirmed live as a serious,
+    // long-standing bug: the lobby waiting-room page had no way to read
+    // this (never exposed here before), so it passed CoinRushArena its
+    // own lobby.id as a mapSeed stand-in instead — good enough to make
+    // the VISUAL layout look consistent for everyone in the room (same
+    // wrong seed for every viewer), but every bot-score PREDICTION this
+    // component computes client-side (the live pacing target, the
+    // reward-tier bump math) used a completely different seed than the
+    // server's own settle/results routes actually use, so a bot's live
+    // number had no real relationship at all to what it would settle
+    // at — every "With Friends" match, every time. Solo/instant play
+    // never had this bug (POST /api/matches returns its match's own
+    // real mapSeed directly, always used as-is).
+    mapSeed: lobby.mapSeed,
     status: lobby.status,
     mode: lobby.mode,
     modeLabel: cfg.label,
