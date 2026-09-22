@@ -84,6 +84,24 @@ interface ShipEntity {
   // MatchParticipant.slotNumber (the key live-state is reported/polled
   // under), or null for "you" and for true local bots.
   externallyDriven: boolean;
+  // Recomputed every frame in the ships-movement loop (see
+  // hasLiveSample's own doc-comment): true only while externallyDriven
+  // AND a live sample for this slot is both present and fresh enough
+  // to trust (see LIVE_SAMPLE_STALE_MS). Always false for "you" and
+  // for a genuine bot. This is the actual signal for "does a local
+  // pickup/hazard-hit here double-count against that ship's own real,
+  // reported progress right now" — externallyDriven alone answers
+  // "is this seat a real friend at all," which stays true the whole
+  // match even during the bridge before their first sample arrives or
+  // after their reporting goes stale, and those two questions used to
+  // be conflated: the item-pickup and hazard loops below all gated on
+  // externallyDriven directly, which meant a bridging/stale real
+  // friend's ship visibly steered around the map (the movement branch
+  // already knew about the bridge) but could never actually gain a
+  // point or take a hit anywhere else in this file, reading as "stuck
+  // at 0 PTS, hazards pass through it, it never dies" — confirmed live
+  // as a real bug, not just a display quirk.
+  liveDriven: boolean;
   oppSlot: number | null;
   // True for an actual AI-filled seat, false for a real human (you or
   // any other real participant) — distinct from externallyDriven,
@@ -220,6 +238,25 @@ const PACE_CONVERGE_BY_FRAC = 0.5;
 // real gap between samples turns out to be, so this isn't relied on to
 // be exact.
 const LIVE_REPORT_INTERVAL_SEC = 0.2;
+// How long a spectated real opponent's last live sample is trusted
+// before this client gives up on it and falls back to the same local
+// bot-AI bridge already used before that ship's first-ever sample
+// arrives (see hasLiveSample's own doc-comment) — confirmed live as a
+// real bug ("one bot is still stuck on 0 PTS the whole match, hazards
+// hit it but health stays full, it never dies"): once a single live
+// sample had ever arrived for a slot, this client trusted it FOREVER,
+// so a real friend whose own reporting genuinely stopped (tab
+// backgrounded/suspended — Rental Bot's whole premise is not needing
+// to keep watching) froze on every OTHER participant's screen at
+// whatever position/carry/lives that last sample happened to hold,
+// often near-zero if it stopped moments after match start. Well above
+// the ~120ms poll interval and the occasional slow round trip, so
+// ordinary jitter never trips it — this only fires once reporting has
+// genuinely gone quiet. Purely a display fallback for what OTHER
+// viewers see; never touches this ship's own real settlement, which
+// already falls back to the server's own liveMatchState.ts store (see
+// its own staleness handling) independent of any spectator's canvas.
+const LIVE_SAMPLE_STALE_MS = 4000;
 
 function shortAddr(addr: string) {
   return addr.length > 10 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr;
@@ -765,7 +802,7 @@ export function CoinRushArena({
         // equipping a Rental Bot alone grants nothing extra here.
         lives: spectate ? 0 : diff.startLives + (loadout?.livesBonus ?? 0), carry: 0, banked: 0, active: !spectate, invuln: 0, knockback: 0,
         speed: 150 * diff.playerSpeedMult * (1 + (loadout?.speedMultBonus ?? 0)) * DPR, magnet: 0, shield: 0, boost: 0, fire: 0,
-        externallyDriven: false, oppSlot: null, isBot: false,
+        externallyDriven: false, liveDriven: false, oppSlot: null, isBot: false,
         shapeKey: loadout?.shapeKey ?? null, fireShotCd: 0, shieldCd: 0, magnetCd: 0, boostCd: 0, fireCd: 0,
         shieldUsesLeft: 0, magnetUsesLeft: 0, fireUsesLeft: 0,
       },
@@ -823,7 +860,7 @@ export function CoinRushArena({
           // (this loop's own index, 0/1/2, shifted to the 1/2/3 slot
           // numbering every bot creation route uses) is only a fallback
           // for solo play, where opponents is entirely absent.
-          externallyDriven, oppSlot: opp?.slotNumber ?? (i + 1), isBot,
+          externallyDriven, liveDriven: false, oppSlot: opp?.slotNumber ?? (i + 1), isBot,
           shapeKey: opp?.shapeKey ?? null, fireShotCd: 0,
           // Staggered random starting cooldowns (filler bots only ever
           // read these — see their own doc-comment on ShipEntity) so
@@ -1045,16 +1082,23 @@ export function CoinRushArena({
     function aimDasher(dsh: DasherEntity, ships: ShipEntity[]) {
       let target: ShipEntity | null = null, bestD = Infinity;
       for (const s of ships) {
-        // A real opponent's ship (externallyDriven) can never actually be
-        // hit by this local hazard field (see the dash/hunter hit-check
-        // loops' own "never independently apply its own hit to their
-        // ship" comment) — targeting one anyway used to be a real, live-
-        // confirmed bug: a hunter homes in on whatever's nearest every
-        // single frame, so once a real friend's ship became the nearest
-        // target it just kept re-locking onto their position forever,
-        // visibly gluing itself to their ship and riding along as they
-        // moved, since nothing ever registers a hit to relocate it away.
-        if (!s.active || s.externallyDriven) continue;
+        // A ship currently mirroring a real opponent's own reported
+        // state (liveDriven — see its own doc-comment) can never
+        // actually be hit by this local hazard field (see the
+        // dash/hunter hit-check loops' own "never independently apply
+        // its own hit to their ship" comment) — targeting one anyway
+        // used to be a real, live-confirmed bug: a hunter homes in on
+        // whatever's nearest every single frame, so once a real
+        // friend's ship became the nearest target it just kept
+        // re-locking onto their position forever, visibly gluing
+        // itself to their ship and riding along as they moved, since
+        // nothing ever registers a hit to relocate it away. Excluded
+        // only while liveDriven is actually true, not for the whole
+        // match — a bridging/stale real friend's ship (no live sample
+        // yet, or its reporting has gone quiet) IS fair game here,
+        // same as a genuine bot, since nothing else is simulating hits
+        // for it right now either.
+        if (!s.active || s.liveDriven) continue;
         const d = dist(dsh, s);
         if (d < bestD) { bestD = d; target = s; }
       }
@@ -1308,8 +1352,15 @@ export function CoinRushArena({
             const lerpMs = buf ? Math.min(1500, Math.max(150, now - buf.toReceivedAt)) : LIVE_REPORT_INTERVAL_SEC * 1000;
             g.liveBuffers.set(s.oppSlot!, { from: buf?.to ?? sample, to: sample, toReceivedAt: now, lerpMs });
           }
-          return g.liveBuffers.has(s.oppSlot!);
+          const current = g.liveBuffers.get(s.oppSlot!);
+          return !!current && performance.now() - current.toReceivedAt < LIVE_SAMPLE_STALE_MS;
         })();
+        // See liveDriven's own doc-comment on ShipEntity — this is the
+        // single source of truth every other loop below (item pickup,
+        // hazard targeting/collision) now reads instead of the static
+        // externallyDriven, so a bridging/stale real friend's ship is
+        // actually simulated locally everywhere, not just steered.
+        s.liveDriven = hasLiveSample;
         let ax = 0, ay = 0;
         if (s.isYou && !rentalBotActive) {
           // Default is drag-anywhere-to-steer (aim at the drag point) —
@@ -1869,10 +1920,15 @@ export function CoinRushArena({
         it.spin += dt * 2.2;
         for (let si = 0; si < g.ships.length; si++) {
           const s = g.ships[si];
-          // A spectated real opponent's carry already comes verbatim
-          // from their own polled report — a local pickup here would
-          // double-count on top of that.
-          if (!s.active || s.externallyDriven) continue;
+          // While liveDriven, a spectated real opponent's carry already
+          // comes verbatim from their own polled report — a local
+          // pickup here would double-count on top of that. NOT gated on
+          // the static externallyDriven — see liveDriven's own
+          // doc-comment: a real friend with no live sample yet, or
+          // whose reporting has gone stale, earns real pickups right
+          // here exactly like a genuine bot does, instead of visibly
+          // steering toward items it can never actually collect.
+          if (!s.active || s.liveDriven) continue;
           if (dist(s, it) < s.r + it.r + 3 * DPR) {
             if (it.kind === "dogecore") {
               g.dogeCoreT = 6;
@@ -1911,12 +1967,13 @@ export function CoinRushArena({
       for (const h of g.hunters) {
         h.phase += dt * 3;
         let target: ShipEntity | null = null, bestD = Infinity;
-        // externallyDriven excluded — see aimDasher's identical guard/
+        // liveDriven excluded — see aimDasher's identical guard/
         // doc-comment above; a hunter homing in on a real friend's ship
+        // that's currently mirroring their own real reported state
         // (which this local hazard sim can never actually hit — see the
         // hit-check loop just below) just glues itself to their position
         // forever instead of ever being knocked away by a real hit.
-        for (const s of g.ships) { if (!s.active || s.externallyDriven) continue; const d = dist(h, s); if (d < bestD) { bestD = d; target = s; } }
+        for (const s of g.ships) { if (!s.active || s.liveDriven) continue; const d = dist(h, s); if (d < bestD) { bestD = d; target = s; } }
         if (!target) continue;
         const dx = target.x - h.x, dy = target.y - h.y, d = Math.hypot(dx, dy) || 1;
         const wobbleX = Math.cos(h.phase) * 12 * DPR, wobbleY = Math.sin(h.phase) * 12 * DPR;
@@ -1935,11 +1992,15 @@ export function CoinRushArena({
         // exactly as before for the ordinary one-ship case.
         let anyContact = false;
         for (const s of g.ships) {
-          // A spectated real opponent's lives/carry already come
-          // verbatim from their own polled report — this local hazard
-          // field isn't synced with theirs, so it must never independently
-          // apply its own hit to their ship (see Phase 6 scope notes).
-          if (!s.active || s.externallyDriven) continue;
+          // While liveDriven, a spectated real opponent's lives/carry
+          // already come verbatim from their own polled report — this
+          // local hazard field isn't synced with theirs, so it must
+          // never independently apply its own hit to their ship (see
+          // Phase 6 scope notes). Not liveDriven (no sample yet, or
+          // gone stale — see that field's own doc-comment) means
+          // nothing else is simulating this ship right now, so it's
+          // fair game for a real local hit exactly like a genuine bot.
+          if (!s.active || s.liveDriven) continue;
           if (dist(s, h) < s.r + h.r + 2 * DPR) {
             hitShip(s, hunterCarryPenalty, (s.x - h.x) * 1.1, (s.y - h.y) * 1.1, "#ff6767");
             anyContact = true;
@@ -1977,7 +2038,7 @@ export function CoinRushArena({
           // standing in the exact same spot untouched.
           let anyContact = false;
           for (const s of g.ships) {
-            if (!s.active || s.externallyDriven) continue; // see the hunters loop's identical guard above
+            if (!s.active || s.liveDriven) continue; // see the hunters loop's identical guard above
             if (dist(s, dsh) < s.r + dsh.r + 2 * DPR) {
               hitShip(s, dasherCarryPenalty, dsh.vx * 0.12, dsh.vy * 0.12, "#d8ecff");
               anyContact = true;
@@ -2006,7 +2067,7 @@ export function CoinRushArena({
         // See the hunters loop's identical fix above.
         let anyContact = false;
         for (const s of g.ships) {
-          if (!s.active || s.externallyDriven) continue; // see the hunters loop's identical guard above
+          if (!s.active || s.liveDriven) continue; // see the hunters loop's identical guard above
           if (dist(s, m) < s.r + m.r + 1 * DPR) {
             hitShip(s, mineCarryPenalty, (s.x - m.x) * 1.6, (s.y - m.y) * 1.6, "#f4c15d");
             anyContact = true;
