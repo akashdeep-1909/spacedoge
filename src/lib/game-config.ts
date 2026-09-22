@@ -487,13 +487,14 @@ export function rankByScore<T extends { score: number }>(participants: T[]): (T 
 //     0 bots + 1 human — degenerate/edge case; ranks by score (nothing to guard).
 //
 //   Genuine multiplayer (2+ real humans, any number of filler bots,
-//   including 0) — ranks purely by score, no guarantee, no bump:
+//   including 0) — ranked purely by (possibly bumped, see below) score,
+//   still never a rank GUARANTEE:
 //     2-4 humans + 0-2 bots.
 //
-// Only needs isBot/score from each participant; returns the same
-// objects with a `rank` field attached (unsorted — callers that need
-// leaderboard order should sort the result by .rank).
-export function rankBotMatch<T extends { isBot: boolean; score: number; noShow?: boolean }>(
+// Only needs isBot/score/slotNumber from each participant; returns the
+// same objects with a `rank` field attached (unsorted — callers that
+// need leaderboard order should sort the result by .rank).
+export function rankBotMatch<T extends { isBot: boolean; score: number; noShow?: boolean; slotNumber: number | null }>(
   participants: T[],
   mapSeed: string
 ): (T & { rank: number })[] {
@@ -513,11 +514,45 @@ export function rankBotMatch<T extends { isBot: boolean; score: number; noShow?:
 
   // Genuine multiplayer — 2+ real humans actually competing, so there's
   // no farming risk left for the solo guarantee below to protect
-  // against; a filler bot here is just another opponent. Subsumes the
-  // old "bots.length === 0" branch (a full room of real humans always
-  // lands here too) — see this function's own doc-comment above.
+  // against; a filler bot here is just another opponent, and RANK is
+  // still decided purely by score — no bot is ever handed a rank a real
+  // human out-collected it for. Explicit product direction, though: a
+  // bot's own SCORE (not its rank) still gets the exact same "never read
+  // as embarrassingly, obviously behind" bump the solo branch below
+  // already gives a guaranteed bot, applied to every bot here instead of
+  // just the top two — so a bot that would otherwise trail every real
+  // human by a wide margin stays competitive enough that a human beating
+  // it still feels like a real contest, not a foregone one. Every bot
+  // gets its own independent bump draw, consumed in the same raw-score-
+  // descending order (never participants' own array position, which
+  // Postgres makes no row-order guarantee about at all without an
+  // explicit ORDER BY) the solo branch just below already uses — see
+  // that draw loop's own doc-comment for why that order is reproducible
+  // on its own. A human's own score is NEVER touched here — only ever a
+  // bot's. Subsumes the old "bots.length === 0" branch (a full room of
+  // real humans always lands here too, and this loop is simply empty
+  // for it) — see this function's own doc-comment above.
   if (humans.length >= 2 || bots.length === 0) {
-    return [...participants]
+    const bestHumanScore = humans.length ? Math.max(...humans.map((h) => h.score)) : 0;
+    const bumpRand = seededRandom(`${mapSeed}:multiplayerBotBump`);
+    // `bots` (declared above) is already sorted by raw score descending
+    // — draws bumpRand() in that same order, matching the solo branch's
+    // own identical convention just below (and CoinRushArena's own
+    // client-side mirror of both). Reproducible on its own: raw score is
+    // a pure function of (mapSeed, slot, durationSec), never DB row
+    // order, so sorting by it is already stable without needing a
+    // separate slot-based tiebreak.
+    const bumpDrawBySlot = new Map<number, number>();
+    for (const b of bots) {
+      bumpDrawBySlot.set(b.slotNumber ?? -1, Math.round(8 + bumpRand() * 25));
+    }
+    const bumped = participants.map((p) => {
+      if (!p.isBot) return p;
+      const bumpDraw = bumpDrawBySlot.get(p.slotNumber ?? -1)!;
+      const score = p.score <= bestHumanScore ? bestHumanScore + bumpDraw : p.score;
+      return { ...p, score };
+    });
+    return bumped
       .sort((a, b) => noShowRank(a) - noShowRank(b) || b.score - a.score)
       .map((p, i) => ({ ...p, rank: i + 1 }));
   }
