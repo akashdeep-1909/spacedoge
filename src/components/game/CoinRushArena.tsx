@@ -835,6 +835,66 @@ export function CoinRushArena({
       }),
     ];
 
+    // How many REAL humans (not filler bots) are actually in this match
+    // — "you" plus any opponent seat whose own isBot is false. In solo/
+    // instant play `opponents` is entirely absent, so this is always 1.
+    // Server settlement (rankBotMatch, src/lib/game-config.ts) only ever
+    // bumps a bot's score at all when this is <= 1 — real multiplayer
+    // (2+ humans) never bumps anyone, bots included, so
+    // guaranteedScoreBySlot below must stay gated the same way or a
+    // filler bot in a real "With Friends" room would pace toward a bump
+    // the server is never actually going to apply.
+    const realHumanCount = 1 + (opponents?.filter((o) => !o.isBot).length ?? 0);
+
+    // Each opponent ship's own REAL slot number (ships[1..3].oppSlot, see
+    // that field's own doc-comment above) — never the ship's own array
+    // index, which only coincidentally matches its slot in solo play.
+    const botsByScoreDesc = [ships[1].oppSlot!, ships[2].oppSlot!, ships[3].oppSlot!]
+      .map((slot) => ({ slot, score: botScore(mapSeed, slot, durationSec) }))
+      .sort((a, b) => b.score - a.score);
+
+    // Explicit product direction, and the deeper fix behind it: a human
+    // who's visibly leading the whole match (real, honestly-collected
+    // PTS ahead of every bot) shouldn't watch a bot "steal" 1st/2nd at
+    // the very last second once settlement's own guarantee kicks in —
+    // that's exactly what rankBotMatch's real score-bump already exists
+    // to prevent for the FINAL "Collected" number (see its own doc-
+    // comment in game-config.ts: a guaranteed bot's stored score is
+    // bumped to bestHumanScore + a small random amount whenever its own
+    // raw botScore wouldn't otherwise clear the human's), but this local
+    // sim's pacing target used to ignore that entirely and pace toward
+    // the plain, un-bumped raw botScore() — so a bot's real, honestly-
+    // displayed carry stayed capped at a SMALL fixed number even while a
+    // well-played human kept climbing past it, only for the bot's real
+    // FINAL "Collected" (which the server DOES bump) to reveal well
+    // above the human's at settlement — confirmed live as reading like
+    // the bot's win was manufactured after the fact ("you were #1 the
+    // whole game and still lost").
+    //
+    // Mirrors rankBotMatch's own per-bot bump exactly — same seed string
+    // (identical random draws to the server's), same guaranteedBots set
+    // (the 2 highest-raw bots), same formula — so what this paces toward
+    // is always exactly what "Collected" will read at settlement,
+    // bumped or not, never a reward-tier target (that stays a
+    // settlement-only reveal, per the same product direction — see the
+    // item-pickup loop's own doc-comment). bestHumanScoreSoFar is always
+    // you.banked while alive (never the full, DIPPABLE carry+banked — a
+    // hazard hit can reduce carry, see hitShip's own penalty), switching
+    // to the frozen full total once you're confirmed dead — the exact
+    // same provably-safe proxy an earlier fix already established: banked
+    // only ever grows, and is a genuine lower bound on the human's real
+    // eventual final score, so any bump this computes is guaranteed to
+    // also hold at real settlement — never an overshoot, only ever a
+    // bot's target catching up as the human's own real total grows.
+    function guaranteedScoreBySlot(bestHumanScoreSoFar: number): Map<number, number> {
+      const map = new Map<number, number>();
+      const bumpRand = seededRandom(`${mapSeed}:botScoreBump`);
+      for (const b of botsByScoreDesc.slice(0, 2)) {
+        const score = b.score <= bestHumanScoreSoFar ? bestHumanScoreSoFar + Math.round(8 + bumpRand() * 25) : b.score;
+        map.set(b.slot, score);
+      }
+      return map;
+    }
 
     const items: ItemEntity[] = [];
     for (let i = 0; i < diff.itemCount; i++) items.push(spawnItem(rand, W, H, DPR, TOP_MARGIN, BOTTOM_MARGIN));
@@ -1724,9 +1784,11 @@ export function CoinRushArena({
       //
       // A bot is different: whatever it visibly earns here is PURELY
       // cosmetic — its real settled score is always the server's own
-      // deterministic botScore(mapSeed, slot, durationSec) formula (see
-      // settle/results route.ts), completely decoupled from anything
-      // that happens in this local canvas simulation, and that can never
+      // deterministic botScore(mapSeed, slot, durationSec) formula, or
+      // that same formula's own real score-bump for a guaranteed bot
+      // (see settle/results route.ts, and guaranteedScoreBySlot's own
+      // doc-comment above), completely decoupled from anything that
+      // happens in this local canvas simulation, and that can never
       // change without trusting a client-reported bot score for real —
       // which would reopen the exact anti-farming hole rankBotMatch's
       // contest mechanic exists to close (a malicious client could just
@@ -1735,8 +1797,8 @@ export function CoinRushArena({
       // anywhere near that formula's output — confirmed live as a real
       // bug, "Collected" showing a completely different, unrelated
       // number in the results screen than what was live) a bot paces
-      // toward that SAME formula value here, at the moment of a real
-      // pickup — every point still requires an actual, visible coin
+      // toward that SAME formula/bumped value here, at the moment of a
+      // real pickup — every point still requires an actual, visible coin
       // grab, it's just sized to close the gap to the formula's own
       // total instead of the item's face value.
       //
@@ -1759,6 +1821,16 @@ export function CoinRushArena({
       // else's for at least the second half of every match — the plain
       // sort is correct simply because the real numbers already are, no
       // separate prediction needed.
+      //
+      // bestHumanScoreSoFar/guaranteedScoreBySlot recomputed fresh on
+      // every pickup (cheap — bots pick up at most roughly once a
+      // second) rather than cached, so a guaranteed bot's target keeps
+      // tracking the human's own real total as it grows. Gated on
+      // realHumanCount < 2 — see guaranteedScoreBySlot's own doc-comment
+      // for why a genuine "With Friends" room (2+ real humans) must
+      // never apply this at all.
+      const bestHumanScoreSoFar = Math.floor(you.active ? you.banked : you.carry + you.banked);
+      const guaranteedTargetBySlot = realHumanCount < 2 ? guaranteedScoreBySlot(bestHumanScoreSoFar) : null;
       for (const it of g.items) {
         it.spin += dt * 2.2;
         for (let si = 0; si < g.ships.length; si++) {
@@ -1773,7 +1845,7 @@ export function CoinRushArena({
               addParticles(it.x, it.y, "#ff9f1c", 16);
             } else if (s.isBot) {
               const slot = s.oppSlot ?? si;
-              const target = botScore(mapSeed, slot, durationSec);
+              const target = guaranteedTargetBySlot?.get(slot) ?? botScore(mapSeed, slot, durationSec);
               const paceTotal = Math.round(target * Math.min(1, (g.elapsed / durationSec) / PACE_CONVERGE_BY_FRAC));
               const gained = Math.max(1, paceTotal - (s.carry + s.banked));
               s.carry += gained;
