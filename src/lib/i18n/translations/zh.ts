@@ -1467,6 +1467,7 @@ const zh = {
     rentalBotShopClosed: "商店目前已关闭——在重新开放前无法使用 Space DOGE BOT。",
     rentalBotFailedToSave: "更新 Space DOGE BOT 选择失败",
     rentalBotNeedsFriends: "Space DOGE BOT 仅在与真实好友同玩时生效——请再邀请 {{count}} 位好友后再开始，或在上方清除该选择以随机玩家开始。",
+    readyToStartCountdown: "房间已满——将在 {{seconds}} 秒后开始。如果需要，请立即设置您的 Space DOGE BOT！",
     soloNeedsFriends: "与好友同玩需要房间内至少有 {{count}} 位真实好友才能开始。请在上方邀请好友，或改为独自游戏。",
     playSoloInstead: "改为独自游戏",
     loadoutIntroTitle: "选择你的装备",

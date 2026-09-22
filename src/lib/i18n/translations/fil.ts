@@ -1467,6 +1467,7 @@ const fil = {
     rentalBotShopClosed: "Sarado ang shop ngayon — hindi magagamit ang Space DOGE BOT hanggang sa mabuksan ulit ito.",
     rentalBotFailedToSave: "Hindi na-update ang iyong pinili na Space DOGE BOT",
     rentalBotNeedsFriends: "Gumagana lang ang Space DOGE BOT kapag kasama ang totoong kaibigan — mag-imbita pa ng {{count}} bago magsimula, o i-clear ito sa itaas para magsimula gamit ang random na manlalaro.",
+    readyToStartCountdown: "Puno na ang silid — magsisimula sa loob ng {{seconds}}s. Itakda ang iyong Space DOGE BOT ngayon kung gusto mo!",
     soloNeedsFriends: "Kailangan ng Play with Friends ng kahit {{count}} tunay na kaibigan sa room bago ka makapagsimula. Mag-imbita ng isang tao sa itaas, o maglaro na lang nang solo.",
     playSoloInstead: "Maglaro na Lang Nang Solo",
     loadoutIntroTitle: "Piliin ang Iyong Loadout",

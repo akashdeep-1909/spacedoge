@@ -83,6 +83,25 @@ export const RENTAL_BOT_MIN_HUMANS = 3;
 // lobby, bot or no bot.
 export const LOBBY_MIN_HUMANS_TO_START = 2;
 
+// The room filling to LOBBY_MAX_PLAYERS real humans used to finalize
+// (lock in every loadout, including Rental Bot, and start the match)
+// SYNCHRONOUSLY inside that same join request — which meant whoever's
+// own join just filled the last seat had literally zero chance to open
+// the waiting room and equip Rental Bot first, since their match was
+// already starting before they'd even navigated there. Confirmed live
+// as the actual cause behind "the 4th friend is playing but PTS always
+// 0 even with everyone on rental bot": that participant's loadout was
+// never set (nothing to consume — see consumeLoadoutSelections), so
+// they played fully manually with nobody actually touching the
+// controls (they were relying on the bot), which genuinely earns close
+// to nothing. This many seconds of real slack between "room becomes
+// FULL" (joinLobbySeat) and "actually finalize" (finalizeIfExpired,
+// polled the same way lobby WAITING-expiry already is) gives every
+// participant — especially whoever just joined — a real window to
+// finish setting up before it locks in. See GameLobby.readyToFinalizeAt
+// for where this is actually applied.
+export const LOBBY_FULL_GRACE_SECONDS = 6;
+
 // v3 economy: two-level referral, carved out of the platform fee (O =
 // 0.30T above) and paid at match entry, not settlement — see
 // src/lib/referrals.ts. Both are percentages of platformFeeUsdt itself

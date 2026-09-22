@@ -1467,6 +1467,7 @@ const ko = {
     rentalBotShopClosed: "현재 상점이 닫혀 있습니다 — 상점이 다시 열릴 때까지 Space DOGE BOT을 사용할 수 없습니다.",
     rentalBotFailedToSave: "Space DOGE BOT 선택 업데이트에 실패했습니다",
     rentalBotNeedsFriends: "Space DOGE BOT는 실제 친구와 함께할 때만 작동합니다 — 시작하기 전에 {{count}}명을 더 초대하거나, 위에서 선택을 취소하고 무작위 플레이어로 시작하세요.",
+    readyToStartCountdown: "방이 가득 찼습니다 — {{seconds}}초 후 시작됩니다. 원하시면 지금 Space DOGE BOT을 설정하세요!",
     soloNeedsFriends: "친구와 함께 플레이하려면 시작하기 전에 방에 실제 친구가 최소 {{count}}명 있어야 합니다. 위에서 친구를 초대하거나 솔로 플레이를 선택하세요.",
     playSoloInstead: "대신 솔로 플레이",
     loadoutIntroTitle: "로드아웃을 선택하세요",

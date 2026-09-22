@@ -823,6 +823,21 @@ model GameLobby {
   inviteTokenHash     String?       @unique // active invite-link token's hash; null = link disabled
   inviteTokenVersion  Int           @default(1) // bumped on regenerate/disable, invalidating the old token
   expiresAt           DateTime // server-authoritative 60s join-window deadline
+  // Set the instant the room fills to LOBBY_MAX_PLAYERS real humans
+  // (joinLobbySeat), to now + LOBBY_FULL_GRACE_SECONDS — null the rest
+  // of the time. Auto-start used to finalize synchronously inside that
+  // SAME join request, which meant the human whose own join just
+  // filled the room had zero chance to equip Rental Bot (or any other
+  // loadout pick) before their match started already-locked-in-manual —
+  // confirmed live as the actual cause behind "the 4th friend is
+  // playing but PTS always 0 even with rental bot selected," since a
+  // rental-bot user who never gets an actual bot driving their ship,
+  // and never provides manual input either (they were relying on the
+  // bot), genuinely earns close to nothing. finalizeIfExpired now waits
+  // for this timestamp before actually finalizing a FULL lobby, giving
+  // every participant — especially whoever just joined — a real, short
+  // window to finish setting up.
+  readyToFinalizeAt   DateTime?
   startedAt           DateTime?
   cancelledAt         DateTime?
   // Null for an ordinary host-initiated cancel. Set to

@@ -1293,6 +1293,7 @@ const en = {
     rentalBotShopClosed: "The shop is currently closed — Space DOGE BOT can't be used until it reopens.",
     rentalBotFailedToSave: "Failed to update your Space DOGE BOT selection",
     rentalBotNeedsFriends: "Your Space DOGE BOT only works with real friends — invite {{count}} more before starting, or clear it above to start with random players.",
+    readyToStartCountdown: "Room full — starting in {{seconds}}s. Set your Space DOGE BOT now if you want one!",
     soloNeedsFriends: "Play with Friends needs at least {{count}} real friend in the room before you can start. Invite someone above, or play solo instead.",
     playSoloInstead: "Play Solo Instead",
     loadoutIntroTitle: "Choose Your Loadout",

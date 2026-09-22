@@ -1467,6 +1467,7 @@ const vi = {
     rentalBotShopClosed: "Cửa hàng hiện đang đóng — Space DOGE BOT không thể sử dụng cho đến khi cửa hàng mở lại.",
     rentalBotFailedToSave: "Cập nhật lựa chọn Space DOGE BOT thất bại",
     rentalBotNeedsFriends: "Space DOGE BOT chỉ hoạt động khi chơi với bạn bè thật — hãy mời thêm {{count}} người trước khi bắt đầu, hoặc xóa lựa chọn ở trên để bắt đầu với người chơi ngẫu nhiên.",
+    readyToStartCountdown: "Phòng đã đầy — sẽ bắt đầu sau {{seconds}} giây. Thiết lập Space DOGE BOT của bạn ngay bây giờ nếu muốn!",
     soloNeedsFriends: "Chơi cùng bạn bè cần ít nhất {{count}} người bạn thật trong phòng trước khi bạn có thể bắt đầu. Hãy mời ai đó ở trên, hoặc chơi một mình thay thế.",
     playSoloInstead: "Chơi Một Mình Thay Thế",
     loadoutIntroTitle: "Chọn Trang Bị Của Bạn",

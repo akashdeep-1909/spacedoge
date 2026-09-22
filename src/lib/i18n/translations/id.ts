@@ -1467,6 +1467,7 @@ const id = {
     rentalBotShopClosed: "Toko sedang tutup — Space DOGE BOT tidak bisa dipakai sampai toko dibuka kembali.",
     rentalBotFailedToSave: "Gagal memperbarui pilihan Space DOGE BOT Anda",
     rentalBotNeedsFriends: "Space DOGE BOT hanya berfungsi dengan teman sungguhan — undang {{count}} orang lagi sebelum memulai, atau hapus pilihannya di atas untuk memulai dengan pemain acak.",
+    readyToStartCountdown: "Ruang penuh — dimulai dalam {{seconds}}d. Atur Space DOGE BOT Anda sekarang jika Anda mau!",
     soloNeedsFriends: "Bermain dengan Teman membutuhkan setidaknya {{count}} teman sungguhan di ruangan sebelum Anda dapat memulai. Undang seseorang di atas, atau bermain solo saja.",
     playSoloInstead: "Bermain Solo Saja",
     loadoutIntroTitle: "Pilih Perlengkapanmu",

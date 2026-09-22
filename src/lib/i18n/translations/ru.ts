@@ -1467,6 +1467,7 @@ const ru = {
     rentalBotShopClosed: "Магазин сейчас закрыт — Space DOGE BOT недоступен, пока он снова не откроется.",
     rentalBotFailedToSave: "Не удалось обновить выбор Space DOGE BOT",
     rentalBotNeedsFriends: "Space DOGE BOT работает только с реальными друзьями — пригласите ещё {{count}} перед началом или очистите выбор выше, чтобы начать со случайными игроками.",
+    readyToStartCountdown: "Комната заполнена — начало через {{seconds}} с. Настройте Space DOGE BOT сейчас, если хотите!",
     soloNeedsFriends: "Для игры с друзьями в комнате должен быть хотя бы {{count}} настоящий друг, прежде чем вы сможете начать. Пригласите кого-нибудь выше или играйте в одиночку.",
     playSoloInstead: "Играть в одиночку",
     loadoutIntroTitle: "Выберите снаряжение",

@@ -630,6 +630,15 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
 
   const secondsLeft = Math.max(0, Math.round((new Date(lobby.expiresAt).getTime() - new Date(lobby.serverTime).getTime()) / 1000));
   const countdownLabel = `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`;
+  // Room just filled and hasn't actually finalized yet — see
+  // LOBBY_FULL_GRACE_SECONDS' own doc-comment in src/lib/game-config.ts.
+  // Surfaced so whoever's own join just filled the room (previously the
+  // match started before they could even see this page) notices they
+  // still have a moment to equip Rental Bot.
+  const readySecondsLeft =
+    lobby.status === "FULL" && lobby.readyToFinalizeAt
+      ? Math.max(0, Math.round((new Date(lobby.readyToFinalizeAt).getTime() - new Date(lobby.serverTime).getTime()) / 1000))
+      : null;
   const emptySeats = lobby.maxPlayers - lobby.humanCount;
   // Proactive mirror of the server's own hard block (POST
   // /api/lobbies/[id]/start, via lobbyNeedsMoreHumansForRentalBot) —
@@ -840,6 +849,12 @@ function LobbyFlow({ lobbyId }: { lobbyId: string }) {
           RENTAL_BOT (its own separate panel, kept below) — previously
           Play-with-Friends never actually consumed a rocket skin or
           Speed/Health/Magnet/Fire/Shield upgrade at all. */}
+      {readySecondsLeft !== null && (
+        <p className="game-panel hud-corner mt-4 rounded-2xl border border-gold/25 bg-gold-soft p-3 text-center text-xs font-bold text-gold">
+          {t("lobby.readyToStartCountdown", { seconds: readySecondsLeft })}
+        </p>
+      )}
+
       {(lobby.status === "WAITING" || lobby.status === "FULL") && (
         <>
           <LobbyLoadoutPanel lobbyId={lobby.id} myLoadout={lobby.myLoadout} />

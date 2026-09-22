@@ -2247,6 +2247,10 @@ export interface LobbyState {
   hasInviteLink: boolean;
   pendingInvitations: { id: string; recipientAddress: string; recipientNickname?: string | null; expiresAt: string }[];
   expiresAt: string;
+  // Set only while status is FULL and the room hasn't actually
+  // finalized yet — see LOBBY_FULL_GRACE_SECONDS' own doc-comment in
+  // src/lib/game-config.ts. Null the rest of the time.
+  readyToFinalizeAt: string | null;
   startedAt: string | null;
   finalMatchId: string | null;
   // Null for an ordinary host-initiated cancel. "RENTAL_BOT_NOT_ENOUGH_

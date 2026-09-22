@@ -2,7 +2,7 @@ import { randomBytes, createHash } from "node:crypto";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { BalanceType, GameMode } from "@/generated/prisma/enums";
-import { GAME_MODE_CONFIG, botScore, RENTAL_BOT_MIN_HUMANS, LOBBY_MIN_HUMANS_TO_START } from "@/lib/game-config";
+import { GAME_MODE_CONFIG, botScore, RENTAL_BOT_MIN_HUMANS, LOBBY_MIN_HUMANS_TO_START, LOBBY_FULL_GRACE_SECONDS } from "@/lib/game-config";
 import { getGameModeConfigs, getGameModeConfig, computeRoomEconomicsFromConfig } from "@/lib/gameModes";
 import { distributeEntryFeeToTreasuryAndReferrals } from "@/lib/referrals";
 import { getWalletBalances, lockWalletForBalanceChange, getLedgerBalance } from "@/lib/balances";
@@ -460,6 +460,14 @@ export async function finalizeIfExpired(lobbyId: string): Promise<boolean> {
       where: { id: lobbyId, status: "WAITING", version: lobby.version },
       data: { status: "FILLING_AI", version: { increment: 1 } },
     });
+  } else if (lobby.status === "FULL") {
+    // See LOBBY_FULL_GRACE_SECONDS' own doc-comment — joinLobbySeat no
+    // longer finalizes synchronously the instant the room fills, so
+    // this is the actual trigger once that short window has genuinely
+    // passed. Not yet: do nothing this poll, not an error — the exact
+    // same "come back next poll" shape WAITING's own expiresAt check
+    // above already uses.
+    if (!lobby.readyToFinalizeAt || Date.now() < lobby.readyToFinalizeAt.getTime()) return false;
   } else if (lobby.status !== "FILLING_AI") {
     return false;
   }
@@ -728,6 +736,13 @@ export async function serializeLobby(lobbyId: string, viewerWalletProfileId: str
       expiresAt: inv.expiresAt,
     })),
     expiresAt: lobby.expiresAt,
+    // Set only while status is FULL and finalize hasn't happened yet —
+    // see LOBBY_FULL_GRACE_SECONDS' own doc-comment. The waiting-room
+    // page uses this to show "starting in a few seconds," so whoever
+    // just filled the room actually notices they still have a moment
+    // to equip Rental Bot instead of assuming the match already locked
+    // their loadout in.
+    readyToFinalizeAt: lobby.readyToFinalizeAt,
     startedAt: lobby.startedAt,
     finalMatchId: lobby.finalMatchId,
     cancelReason: lobby.cancelReason,
@@ -923,8 +938,20 @@ export async function joinLobbySeat(
       // Total occupied seats after this join, not the slot NUMBER just
       // assigned — those diverge once a slot can be reused out of order
       // (see nextSlot's own doc-comment above).
-      const newStatus = joinedCount + 1 >= LOBBY_MAX_PLAYERS ? "FULL" : lobby.status;
-      const updated = await tx.gameLobby.update({ where: { id: lobbyId }, data: { status: newStatus } });
+      const justFilled = joinedCount + 1 >= LOBBY_MAX_PLAYERS;
+      const newStatus = justFilled ? "FULL" : lobby.status;
+      const updated = await tx.gameLobby.update({
+        where: { id: lobbyId },
+        data: {
+          status: newStatus,
+          // See LOBBY_FULL_GRACE_SECONDS' own doc-comment — this join
+          // itself might be the one that just filled the room, and
+          // finalizing right here would leave THIS SAME participant no
+          // chance to equip Rental Bot before the match already locked
+          // their loadout in.
+          readyToFinalizeAt: justFilled ? new Date(Date.now() + LOBBY_FULL_GRACE_SECONDS * 1000) : undefined,
+        },
+      });
       return { kind: "joined" as const, lobby: updated };
     });
 
@@ -932,7 +959,6 @@ export async function joinLobbySeat(
       return { ok: false, status: 402, error: `You need at least ${entryFeeUsdt} USDT in your Deposit USDT to join this match.` };
     }
     if (claimResult.kind === "lost_race") continue; // retry against fresh state
-    const claimedLobby = claimResult.lobby;
 
     // Notify the host the instant someone accepts — via whichever of
     // the three accept paths (direct invite, invitation, invite link)
@@ -947,9 +973,11 @@ export async function joinLobbySeat(
       });
     }
 
-    if (claimedLobby.status === "FULL") {
-      await finalizeLobby(lobbyId); // spec section 15A: all 4 human seats filled — auto-start
-    }
+    // spec section 15A: all 4 human seats filled — auto-start, but not
+    // synchronously inside this same request — see LOBBY_FULL_GRACE_
+    // SECONDS' own doc-comment. finalizeIfExpired (polled the same way
+    // lobby WAITING-expiry already is, see GET /api/lobbies/[id]) picks
+    // this up once readyToFinalizeAt actually passes.
     return { ok: true, lobbyId };
   }
   return { ok: false, status: 409, error: "Could not join, please try again." };
