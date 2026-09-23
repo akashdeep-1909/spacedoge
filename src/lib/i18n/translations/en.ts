@@ -1258,7 +1258,7 @@ const en = {
     waitingCount: "{{submitted}} of {{total}} results in.",
     cancelledNotice: "This lobby was cancelled. Any held entry fee has been returned to your Deposit USDT.",
     cancelledRentalBotNotEnoughFriends: "Space DOGE BOT matches require playing with friends. This room was canceled because the invite window closed before your friends joined. Any held entry fees have been refunded, and your Space DOGE BOT credit has not been consumed.",
-    cancelledNotEnoughFriends: "Play with Friends needs at least one real friend in the room. This room was canceled because nobody joined before the invite window closed. Any held entry fee has been returned to your Deposit USDT — for solo play against bots, use the Play button instead.",
+    cancelledNotEnoughFriends: "Play with Friends needs at least one invited friend in the room. This room was canceled because nobody joined before the invite window closed. Any held entry fee has been returned to your Deposit USDT — for solo play against random users go back to game modes and use the play button instead.",
     heading: "👥 Play with Friends",
     summaryLine: "{{mode}} · {{fee}} USDT entry · Room {{code}}",
     hostTag: "(Host)",

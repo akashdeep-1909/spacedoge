@@ -1432,7 +1432,7 @@ const zhTW = {
     waitingCount: "{{submitted}}/{{total}} 個結果已提交。",
     cancelledNotice: "此房間已取消。任何被保留的入場費已退回至您的 Deposit USDT。",
     cancelledRentalBotNotEnoughFriends: "Space DOGE BOT 對戰須與朋友一同進行。由於邀請時限已於您的朋友加入前屆滿，本房間已取消。任何被保留的入場費均已退回，您的 Space DOGE BOT 點數尚未被使用。",
-    cancelledNotEnoughFriends: "與朋友同玩需要房間內至少有一位真實朋友。由於邀請時限屆滿前無人加入，本房間已取消。任何被保留的入場費均已退回至您的 Deposit USDT——如需獨自對戰機器人，請改用「開始遊戲」按鈕。",
+    cancelledNotEnoughFriends: "與朋友同玩需要房間內至少有一位受邀朋友。由於邀請時限屆滿前無人加入，本房間已取消。任何被保留的入場費均已退回至您的 Deposit USDT——如需獨自對戰隨機玩家，請返回遊戲模式並改用「開始遊戲」按鈕。",
     heading: "👥 與好友同樂",
     summaryLine: "{{mode}} · {{fee}} USDT 入場費 · 房間 {{code}}",
     hostTag: "（房主）",

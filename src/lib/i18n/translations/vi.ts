@@ -1432,7 +1432,7 @@ const vi = {
     waitingCount: "{{submitted}}/{{total}} kết quả đã nộp.",
     cancelledNotice: "Phòng chờ này đã bị hủy. Bất kỳ phí tham gia nào đang giữ đã được hoàn lại vào Deposit USDT của bạn.",
     cancelledRentalBotNotEnoughFriends: "Các trận Space DOGE BOT yêu cầu chơi cùng bạn bè. Phòng này đã bị hủy do thời gian mời đã hết trước khi bạn bè của bạn tham gia. Mọi phí tham gia đang giữ đã được hoàn lại, và khoản tín dụng Space DOGE BOT của bạn chưa được sử dụng.",
-    cancelledNotEnoughFriends: "Chơi cùng bạn bè cần ít nhất một người bạn thật trong phòng. Phòng này đã bị hủy vì không ai tham gia trước khi thời gian mời hết hạn. Mọi phí tham gia đang giữ đã được hoàn lại vào Deposit USDT của bạn — để chơi một mình với bot, hãy dùng nút Play thay thế.",
+    cancelledNotEnoughFriends: "Chơi cùng bạn bè cần ít nhất một người bạn đã được mời trong phòng. Phòng này đã bị hủy vì không ai tham gia trước khi thời gian mời hết hạn. Mọi phí tham gia đang giữ đã được hoàn lại vào Deposit USDT của bạn — để chơi một mình với người chơi ngẫu nhiên, hãy quay lại các chế độ chơi và dùng nút Play thay thế.",
     heading: "👥 Chơi Cùng Bạn Bè",
     summaryLine: "{{mode}} · Phí vào {{fee}} USDT · Phòng {{code}}",
     hostTag: "(Chủ phòng)",

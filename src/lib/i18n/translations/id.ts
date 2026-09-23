@@ -1432,7 +1432,7 @@ const id = {
     waitingCount: "{{submitted}} dari {{total}} hasil sudah masuk.",
     cancelledNotice: "Lobi ini telah dibatalkan. Biaya entri yang tertahan telah dikembalikan ke Deposit USDT Anda.",
     cancelledRentalBotNotEnoughFriends: "Pertandingan Space DOGE BOT mengharuskan bermain bersama teman. Ruangan ini dibatalkan karena waktu undangan berakhir sebelum teman Anda bergabung. Semua biaya entri yang tertahan telah dikembalikan, dan kredit Space DOGE BOT Anda belum digunakan.",
-    cancelledNotEnoughFriends: "Bermain dengan Teman membutuhkan setidaknya satu teman sungguhan di ruangan. Ruangan ini dibatalkan karena tidak ada yang bergabung sebelum waktu undangan berakhir. Semua biaya entri yang tertahan telah dikembalikan ke Deposit USDT Anda — untuk bermain solo melawan bot, gunakan tombol Play sebagai gantinya.",
+    cancelledNotEnoughFriends: "Bermain dengan Teman membutuhkan setidaknya satu teman yang diundang di ruangan. Ruangan ini dibatalkan karena tidak ada yang bergabung sebelum waktu undangan berakhir. Semua biaya entri yang tertahan telah dikembalikan ke Deposit USDT Anda — untuk bermain solo melawan pemain acak, kembali ke mode permainan dan gunakan tombol Play.",
     heading: "👥 Main Bersama Teman",
     summaryLine: "{{mode}} · Entri {{fee}} USDT · Room {{code}}",
     hostTag: "(Host)",
